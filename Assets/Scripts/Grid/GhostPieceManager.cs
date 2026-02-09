@@ -21,27 +21,8 @@ namespace TowerDefense.Grid
         public void Initialize(Sprite campSprite = null)
         {
             goblinCampSprite = campSprite;
-            ghostHexMaterial = new Material(Shader.Find("Standard"));
-            ghostHexMaterial.SetFloat("_Mode", 3); // Transparent
-            ghostHexMaterial.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-            ghostHexMaterial.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-            ghostHexMaterial.SetInt("_ZWrite", 0);
-            ghostHexMaterial.DisableKeyword("_ALPHATEST_ON");
-            ghostHexMaterial.EnableKeyword("_ALPHABLEND_ON");
-            ghostHexMaterial.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-            ghostHexMaterial.renderQueue = 3000;
-            ghostHexMaterial.color = new Color(0.75f, 0.75f, 0.75f, 0.3f);
-
-            ghostPathMaterial = new Material(Shader.Find("Standard"));
-            ghostPathMaterial.SetFloat("_Mode", 3);
-            ghostPathMaterial.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-            ghostPathMaterial.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-            ghostPathMaterial.SetInt("_ZWrite", 0);
-            ghostPathMaterial.DisableKeyword("_ALPHATEST_ON");
-            ghostPathMaterial.EnableKeyword("_ALPHABLEND_ON");
-            ghostPathMaterial.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-            ghostPathMaterial.renderQueue = 3000;
-            ghostPathMaterial.color = new Color(0.35f, 0.25f, 0.15f, 0.3f);
+            ghostHexMaterial = TowerDefense.Core.MaterialCache.CreateTransparent(new Color(0.75f, 0.75f, 0.75f, 0.3f));
+            ghostPathMaterial = TowerDefense.Core.MaterialCache.CreateTransparent(new Color(0.35f, 0.25f, 0.15f, 0.3f));
         }
 
         public void SetHiddenSpawners(HashSet<HexCoord> spawners)
@@ -208,6 +189,12 @@ namespace TowerDefense.Grid
             indicator.AddComponent<BillboardSprite>();
 
             warningIndicators[coord] = indicator;
+        }
+
+        private void OnDestroy()
+        {
+            if (ghostHexMaterial != null) Destroy(ghostHexMaterial);
+            if (ghostPathMaterial != null) Destroy(ghostPathMaterial);
         }
     }
 }

@@ -229,9 +229,13 @@ namespace TowerDefense.Grid
                 }
             }
 
-            // When replacing an existing piece, check that the new edges don't disconnect the path network
+            // When replacing an existing piece, reject rotations identical to the existing piece
             if (map.ContainsKey(candidateCoord))
             {
+                var existingEdges = map[candidateCoord].ConnectedEdges;
+                if (AreSameEdgeSet(existingEdges, rotation.ConnectedEdges))
+                    return false;
+
                 if (WouldDisconnectPaths(candidateCoord, rotation.ConnectedEdges))
                     return false;
             }
@@ -337,6 +341,16 @@ namespace TowerDefense.Grid
             }
 
             return reachable;
+        }
+
+        private bool AreSameEdgeSet(List<int> a, List<int> b)
+        {
+            if (a.Count != b.Count) return false;
+            foreach (int edge in a)
+            {
+                if (!b.Contains(edge)) return false;
+            }
+            return true;
         }
 
         private bool HasDuplicateRotation(PlacementOption option, PlacementRotation newRotation)

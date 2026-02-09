@@ -7,7 +7,8 @@ namespace TowerDefense.Data
         TowerDamage,
         TowerSpeed,
         PieceCooldownReduction,
-        TowerUnlock
+        TowerUnlock,
+        MaxHP
     }
 
     [System.Serializable]

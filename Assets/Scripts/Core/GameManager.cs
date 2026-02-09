@@ -12,10 +12,14 @@ namespace TowerDefense.Core
         public static GameManager Instance { get; private set; }
 
         [Header("Settings")]
-        [SerializeField] private int startingLives = 10;
+        [SerializeField] private int startingLives = 30;
         [SerializeField] private int startingCurrency = 200;
         [SerializeField] private int startingTiles = 2;
         [SerializeField] private float buildGracePeriod = 30f;
+
+        [Header("Tower Placement Mode")]
+        [SerializeField] private bool useFreeTowerPlacement = true;
+        public bool UseFreeTowerPlacement => useFreeTowerPlacement;
 
         [Header("Materials")]
         [SerializeField] private Material hexBaseMaterial;
@@ -24,10 +28,12 @@ namespace TowerDefense.Core
 
         [Header("Sprites")]
         [SerializeField] private Sprite goblinCampSprite;
+        [SerializeField] private Sprite goblinSprite;
         [SerializeField] private Sprite goldSprite;
         [SerializeField] private Sprite oreSprite;
         [SerializeField] private Sprite gemsSprite;
         [SerializeField] private Sprite florpusSprite;
+        [SerializeField] private Sprite adamantiteSprite;
 
         [Header("Prefabs")]
         [SerializeField] private GameObject hexPiecePrefab;
@@ -46,6 +52,7 @@ namespace TowerDefense.Core
         private MapGenerator mapGenerator;
         private WaveManager waveManager;
         private UpgradeSelectionUI upgradeSelectionUI;
+        private TowerManager towerManager;
 
         private PieceProvider pieceProvider;
         private PlacementValidator placementValidator;
@@ -65,6 +72,9 @@ namespace TowerDefense.Core
         private const int MineCost = 100;
         private const int LureCost = 75;
         private const float LureGoldMultiplier = 2f;
+        private const int HasteCost = 400;
+        private const int GoldenTouchCost = 500;
+        private const float ModContinuousDuration = 120f; // 2 minutes
 
         // Zone system — each entry is the max hex distance for that zone boundary
         [Header("Zone Boundaries (hex distances)")]
@@ -77,6 +87,11 @@ namespace TowerDefense.Core
 
         private HashSet<HexCoord> activeLures = new HashSet<HexCoord>();
         private Dictionary<HexCoord, GameObject> lureVisuals = new Dictionary<HexCoord, GameObject>();
+
+        private Dictionary<HexCoord, float> activeHastes = new Dictionary<HexCoord, float>();
+        private Dictionary<HexCoord, GameObject> hasteVisuals = new Dictionary<HexCoord, GameObject>();
+        private Dictionary<HexCoord, float> activeGoldenTouches = new Dictionary<HexCoord, float>();
+        private Dictionary<HexCoord, GameObject> goldenTouchVisuals = new Dictionary<HexCoord, GameObject>();
 
         private int currentLives;
         private int currentCurrency;
@@ -118,6 +133,7 @@ namespace TowerDefense.Core
             {
                 case ResourceType.Gems: return gemsSprite;
                 case ResourceType.Florpus: return florpusSprite;
+                case ResourceType.Adamantite: return adamantiteSprite != null ? adamantiteSprite : oreSprite;
                 default: return oreSprite;
             }
         }
@@ -165,7 +181,7 @@ namespace TowerDefense.Core
 
         private void Start()
         {
-            currentLives = startingLives + (LabManager.Instance != null ? LabManager.Instance.BonusStartingLives : 0);
+            currentLives = startingLives + (LabManager.Instance != null ? LabManager.Instance.BonusStartingLives + LabManager.Instance.BonusMaxHP : 0);
             currentCurrency = startingCurrency + (LabManager.Instance != null ? LabManager.Instance.BonusStartingGold : 0);
 
             // Build piece config lookup
@@ -258,11 +274,6 @@ namespace TowerDefense.Core
             if (waveManager != null)
             {
                 waveManager.OnWaveComplete += OnWaveComplete;
-
-                if (IsContinuousMode)
-                {
-                    waveManager.StartContinuousMode();
-                }
             }
 
             upgradeSelectionUI = FindObjectOfType<UpgradeSelectionUI>();
@@ -276,7 +287,7 @@ namespace TowerDefense.Core
             pieceDragHandler.OnPiecePlaced += OnPiecePlaced;
 
             // 8b. Wire PieceDragHandler to TowerManager so tower placement is blocked during piece placement
-            var towerManager = FindObjectOfType<TowerManager>();
+            towerManager = FindObjectOfType<TowerManager>();
             if (towerManager != null)
             {
                 towerManager.SetPieceDragHandler(pieceDragHandler);
@@ -290,6 +301,13 @@ namespace TowerDefense.Core
                 pieceHandUI.SetPieceProvider(pieceProvider);
                 pieceDragHandler.Initialize(placementValidator, ghostPieceManager, pieceHandUI);
                 pieceHandUI.RefreshHand(pieceProvider.Pieces);
+            }
+
+            // 10. Wire free tower mode if enabled
+            if (useFreeTowerPlacement && pieceHandUI != null && towerManager != null)
+            {
+                pieceHandUI.SetFreeTowerMode(true);
+                pieceHandUI.SetAvailableTowers(towerManager.AvailableTowers);
             }
 
             Invoke(nameof(FireInitialEvents), 0.1f);
@@ -309,6 +327,9 @@ namespace TowerDefense.Core
                     EndBuildPhase();
                 }
             }
+
+            if (IsContinuousMode)
+                UpdateModificationTimers(Time.deltaTime);
 
             if (IsContinuousMode && activeMiningOutposts.Count > 0)
             {
@@ -449,12 +470,11 @@ namespace TowerDefense.Core
 
         private void ReplacePiece(HexCoord coord, HexPiece existingPiece)
         {
-            // Refund gold for any towers on the old piece
-            var towerManager = FindObjectOfType<TowerManager>();
+            // Refund gold for any towers on the tile
             if (towerManager != null)
             {
                 towerManager.ClearSelection();
-                int refund = towerManager.RemoveTowersOnPiece(existingPiece);
+                int refund = towerManager.RemoveTowersOnTile(coord);
                 if (refund > 0)
                 {
                     AddCurrency(refund);
@@ -462,7 +482,7 @@ namespace TowerDefense.Core
                 }
             }
 
-            // Destroy the old visual piece (takes tower slots and towers with it)
+            // Destroy the old visual piece (takes tower slots with it)
             Destroy(existingPiece.gameObject);
             hexPieces.Remove(coord);
         }
@@ -488,6 +508,18 @@ namespace TowerDefense.Core
                 }
                 // Tiles with active lures
                 if (activeLures.Contains(kvp.Key))
+                {
+                    nonReplaceable.Add(kvp.Key);
+                    continue;
+                }
+                // Tiles with active haste
+                if (activeHastes.ContainsKey(kvp.Key))
+                {
+                    nonReplaceable.Add(kvp.Key);
+                    continue;
+                }
+                // Tiles with active golden touch
+                if (activeGoldenTouches.ContainsKey(kvp.Key))
                 {
                     nonReplaceable.Add(kvp.Key);
                     continue;
@@ -633,42 +665,18 @@ namespace TowerDefense.Core
                 int edge = kvp.Value;
                 Vector3 edgePos = HexGrid.GetEdgeMidpoint(coord, edge);
 
-                // Flat cylinder at edge midpoint
                 var indicator = new GameObject($"SpawnIndicator_{coord}");
-                indicator.transform.position = edgePos + Vector3.up * 0.2f;
+                indicator.transform.position = edgePos + Vector3.up * 5f;
 
-                var disc = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-                disc.name = "Disc";
-                disc.transform.SetParent(indicator.transform);
-                disc.transform.localPosition = Vector3.zero;
-                disc.transform.localScale = new Vector3(3f, 0.1f, 3f);
-                var discCol = disc.GetComponent<Collider>();
-                if (discCol != null) Destroy(discCol);
-                var discRend = disc.GetComponent<Renderer>();
-                if (discRend != null)
-                {
-                    discRend.material = new Material(Shader.Find("Unlit/Color"));
-                    discRend.material.color = new Color(1f, 0.3f, 0.1f, 1f);
-                }
+                // Goblin sprite billboard
+                var sr = indicator.AddComponent<SpriteRenderer>();
+                if (goblinSprite != null)
+                    sr.sprite = goblinSprite;
+                else if (goblinCampSprite != null)
+                    sr.sprite = goblinCampSprite;
+                sr.color = new Color(1f, 0.3f, 0.1f);
 
-                // Arrow cube pointing inward toward hex center
-                var arrow = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                arrow.name = "Arrow";
-                arrow.transform.SetParent(indicator.transform);
-                Vector3 hexCenter = HexGrid.HexToWorld(coord);
-                Vector3 inwardDir = (hexCenter - edgePos).normalized;
-                arrow.transform.localPosition = Vector3.up * 0.5f + inwardDir * 1.5f;
-                arrow.transform.localScale = new Vector3(0.8f, 0.8f, 1.5f);
-                arrow.transform.rotation = Quaternion.LookRotation(inwardDir, Vector3.up);
-                var arrowCol = arrow.GetComponent<Collider>();
-                if (arrowCol != null) Destroy(arrowCol);
-                var arrowRend = arrow.GetComponent<Renderer>();
-                if (arrowRend != null)
-                {
-                    arrowRend.material = new Material(Shader.Find("Unlit/Color"));
-                    arrowRend.material.color = new Color(1f, 0.5f, 0.1f, 1f);
-                }
-
+                indicator.AddComponent<UI.BillboardSprite>();
                 indicator.AddComponent<UI.SpawnIndicatorPulse>();
                 spawnIndicators.Add(indicator);
             }
@@ -780,6 +788,7 @@ namespace TowerDefense.Core
             CollectMiningResources();
             if (!IsContinuousMode)
             {
+                ExpireWaveModifications();
                 ShowUpgradeSelection();
             }
         }
@@ -873,11 +882,11 @@ namespace TowerDefense.Core
             RemoveOrePatchMarker(coord);
 
             // In continuous mode, add a timer indicator above the mine
-            if (IsContinuousMode && mineVisuals.TryGetValue(coord, out var mineObj))
+            if (IsContinuousMode)
             {
+                Vector3 worldPos = HexGrid.HexToWorld(coord);
                 var indicatorObj = new GameObject("MineTimer");
-                indicatorObj.transform.SetParent(mineObj.transform);
-                indicatorObj.transform.localPosition = Vector3.up * 3f;
+                indicatorObj.transform.position = worldPos + Vector3.up * 10f;
                 var indicator = indicatorObj.AddComponent<UI.MineTimerIndicator>();
                 indicator.Initialize(ContinuousMineInterval);
                 indicator.SetTimer(continuousMineTimer);
@@ -960,8 +969,7 @@ namespace TowerDefense.Core
             var br = beacon.GetComponent<Renderer>();
             if (br != null)
             {
-                br.material = new Material(Shader.Find("Unlit/Color"));
-                br.material.color = new Color(1f, 0.85f, 0.2f);
+                br.material = MaterialCache.CreateUnlit(new Color(1f, 0.85f, 0.2f));
             }
 
             // Pole
@@ -975,11 +983,172 @@ namespace TowerDefense.Core
             var pr = pole.GetComponent<Renderer>();
             if (pr != null)
             {
-                pr.material = new Material(Shader.Find("Unlit/Color"));
-                pr.material.color = new Color(0.6f, 0.5f, 0.1f);
+                pr.material = MaterialCache.CreateUnlit(new Color(0.6f, 0.5f, 0.1f));
             }
 
             return lure;
+        }
+
+        // --- Haste & Golden Touch ---
+
+        public bool HasHaste(HexCoord coord) => activeHastes.ContainsKey(coord);
+        public bool HasGoldenTouch(HexCoord coord) => activeGoldenTouches.ContainsKey(coord);
+        public int GetHasteCost() => HasteCost;
+        public int GetGoldenTouchCost() => GoldenTouchCost;
+
+        public bool TileHasTower(HexCoord coord)
+        {
+            if (towerManager != null)
+            {
+                var towers = towerManager.GetTowersOnTile(coord);
+                if (towers != null && towers.Count > 0) return true;
+            }
+            return false;
+        }
+
+        public bool BuildHaste(HexCoord coord)
+        {
+            if (activeHastes.ContainsKey(coord)) return false;
+            if (!mapData.ContainsKey(coord)) return false;
+            if (!SpendCurrency(HasteCost)) return false;
+
+            activeHastes[coord] = ModContinuousDuration;
+
+            if (hexPieces.TryGetValue(coord, out var hex))
+            {
+                var visual = CreateModRingVisual(hex.transform, new Color(1f, 0.5f, 0.1f, 0.6f));
+                hasteVisuals[coord] = visual;
+            }
+
+            SetTowerHaste(coord, 1.3f);
+            Debug.Log($"Haste applied at {coord} — towers fire 30% faster.");
+            return true;
+        }
+
+        public bool BuildGoldenTouch(HexCoord coord)
+        {
+            if (activeGoldenTouches.ContainsKey(coord)) return false;
+            if (!mapData.ContainsKey(coord)) return false;
+            if (!SpendCurrency(GoldenTouchCost)) return false;
+
+            activeGoldenTouches[coord] = ModContinuousDuration;
+
+            if (hexPieces.TryGetValue(coord, out var hex))
+            {
+                var visual = CreateModRingVisual(hex.transform, new Color(1f, 0.85f, 0.1f, 0.6f));
+                goldenTouchVisuals[coord] = visual;
+            }
+
+            Debug.Log($"Golden Touch applied at {coord} — enemies killed here drop 1.5x gold.");
+            return true;
+        }
+
+        public float GetGoldenTouchMultiplierAt(Vector3 worldPos)
+        {
+            foreach (var coord in activeGoldenTouches.Keys)
+            {
+                Vector3 hexCenter = HexGrid.HexToWorld(coord);
+                float dx = worldPos.x - hexCenter.x;
+                float dz = worldPos.z - hexCenter.z;
+                if (dx * dx + dz * dz <= HexGrid.OuterRadius * HexGrid.OuterRadius)
+                    return 1.5f;
+            }
+            return 1f;
+        }
+
+        private GameObject CreateModRingVisual(Transform parent, Color color)
+        {
+            var ring = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            ring.name = "ModRing";
+            ring.transform.SetParent(parent);
+            ring.transform.localPosition = new Vector3(0f, 0.02f, 0f);
+            ring.transform.localScale = new Vector3(HexGrid.OuterRadius * 1.6f, 0.01f, HexGrid.OuterRadius * 1.6f);
+
+            var col = ring.GetComponent<Collider>();
+            if (col != null) Destroy(col);
+
+            var rend = ring.GetComponent<Renderer>();
+            if (rend != null)
+                rend.material = MaterialCache.CreateUnlit(color);
+
+            return ring;
+        }
+
+        private void UpdateModificationTimers(float dt)
+        {
+            // Tick haste timers
+            var expiredHastes = new List<HexCoord>();
+            var hasteKeys = new List<HexCoord>(activeHastes.Keys);
+            for (int i = 0; i < hasteKeys.Count; i++)
+            {
+                var coord = hasteKeys[i];
+                float t = activeHastes[coord] - dt;
+                if (t <= 0f)
+                    expiredHastes.Add(coord);
+                else
+                    activeHastes[coord] = t;
+            }
+            foreach (var coord in expiredHastes)
+                RemoveHaste(coord);
+
+            // Tick golden touch timers
+            var expiredGT = new List<HexCoord>();
+            var gtKeys = new List<HexCoord>(activeGoldenTouches.Keys);
+            for (int i = 0; i < gtKeys.Count; i++)
+            {
+                var coord = gtKeys[i];
+                float t = activeGoldenTouches[coord] - dt;
+                if (t <= 0f)
+                    expiredGT.Add(coord);
+                else
+                    activeGoldenTouches[coord] = t;
+            }
+            foreach (var coord in expiredGT)
+                RemoveGoldenTouch(coord);
+        }
+
+        private void ExpireWaveModifications()
+        {
+            var hasteCoords = new List<HexCoord>(activeHastes.Keys);
+            foreach (var coord in hasteCoords)
+                RemoveHaste(coord);
+
+            var gtCoords = new List<HexCoord>(activeGoldenTouches.Keys);
+            foreach (var coord in gtCoords)
+                RemoveGoldenTouch(coord);
+        }
+
+        private void RemoveHaste(HexCoord coord)
+        {
+            activeHastes.Remove(coord);
+            if (hasteVisuals.TryGetValue(coord, out var vis))
+            {
+                if (vis != null) Destroy(vis);
+                hasteVisuals.Remove(coord);
+            }
+            SetTowerHaste(coord, 1f);
+        }
+
+        private void SetTowerHaste(HexCoord coord, float multiplier)
+        {
+            if (towerManager == null) return;
+            var towers = towerManager.GetTowersOnTile(coord);
+            if (towers == null) return;
+            for (int i = 0; i < towers.Count; i++)
+            {
+                if (towers[i] != null)
+                    towers[i].SetHasteMultiplier(multiplier);
+            }
+        }
+
+        private void RemoveGoldenTouch(HexCoord coord)
+        {
+            activeGoldenTouches.Remove(coord);
+            if (goldenTouchVisuals.TryGetValue(coord, out var vis))
+            {
+                if (vis != null) Destroy(vis);
+                goldenTouchVisuals.Remove(coord);
+            }
         }
 
         // --- Zone System ---
@@ -1045,9 +1214,7 @@ namespace TowerDefense.Core
                 lr.endWidth = 1.5f;
                 lr.positionCount = 60;
 
-                var mat = new Material(Shader.Find("Unlit/Color"));
-                mat.color = color;
-                lr.material = mat;
+                lr.material = MaterialCache.CreateUnlit(color);
 
                 for (int p = 0; p < 60; p++)
                 {
@@ -1099,7 +1266,7 @@ namespace TowerDefense.Core
                 { ResourceType.IronOre, oreSprite },
                 { ResourceType.Gems, gemsSprite },
                 { ResourceType.Florpus, florpusSprite },
-                { ResourceType.Adamantite, oreSprite }
+                { ResourceType.Adamantite, adamantiteSprite != null ? adamantiteSprite : oreSprite }
             };
 
             foreach (var kvp in orePatches)
@@ -1134,11 +1301,9 @@ namespace TowerDefense.Core
                 lr.endWidth = 0.3f;
                 lr.positionCount = 6;
 
-                var ringMat = new Material(Shader.Find("Unlit/Color"));
                 Color ringColor = c;
                 ringColor.a = 0.25f;
-                ringMat.color = ringColor;
-                lr.material = ringMat;
+                lr.material = MaterialCache.CreateUnlit(ringColor);
 
                 Vector3[] corners = HexGrid.GetHexCorners(kvp.Key);
                 for (int i = 0; i < 6; i++)

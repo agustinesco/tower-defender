@@ -48,8 +48,7 @@ namespace TowerDefense.Grid
             var renderer = visualIndicator.GetComponent<Renderer>();
             if (renderer != null)
             {
-                renderer.material = new Material(Shader.Find("Unlit/Color"));
-                renderer.material.color = new Color(0.2f, 0.6f, 0.2f, 0.5f);
+                renderer.material = Core.MaterialCache.CreateUnlit(new Color(0.2f, 0.6f, 0.2f, 0.5f));
             }
         }
 

@@ -5,6 +5,8 @@ namespace TowerDefense.Entities
 {
     public class FirePatch : MonoBehaviour
     {
+        private static readonly System.Collections.Generic.Queue<FirePatch> pool = new System.Collections.Generic.Queue<FirePatch>();
+
         private float damagePerSecond;
         private float duration;
         private float burnDuration;
@@ -12,6 +14,30 @@ namespace TowerDefense.Entities
         private float timer;
         private GameObject visual;
         private Renderer visualRenderer;
+        private MaterialPropertyBlock propBlock;
+
+        public static FirePatch GetFromPool(Vector3 position)
+        {
+            while (pool.Count > 0)
+            {
+                var p = pool.Dequeue();
+                if (p != null)
+                {
+                    p.transform.position = position;
+                    p.gameObject.SetActive(true);
+                    return p;
+                }
+            }
+            var obj = new GameObject("FirePatch");
+            obj.transform.position = position;
+            return obj.AddComponent<FirePatch>();
+        }
+
+        private void ReturnToPool()
+        {
+            gameObject.SetActive(false);
+            pool.Enqueue(this);
+        }
 
         public void Initialize(float dps, float duration, float burnDuration, float radius)
         {
@@ -20,25 +46,30 @@ namespace TowerDefense.Entities
             this.burnDuration = burnDuration;
             this.radius = radius;
             this.timer = duration;
+            propBlock = MaterialCache.GetPropertyBlock();
 
             CreateVisual();
         }
 
         private void CreateVisual()
         {
-            visual = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            visual.transform.SetParent(transform);
-            visual.transform.localPosition = Vector3.zero;
-            visual.transform.localScale = new Vector3(radius * 2f, 0.05f, radius * 2f);
-
-            var collider = visual.GetComponent<Collider>();
-            if (collider != null) Destroy(collider);
-
-            visualRenderer = visual.GetComponent<Renderer>();
-            if (visualRenderer != null)
+            if (visual == null)
             {
-                visualRenderer.material = MaterialCache.CreateUnlit(new Color(1f, 0.4f, 0.1f, 0.7f));
+                visual = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                visual.transform.SetParent(transform);
+                visual.transform.localPosition = Vector3.zero;
+
+                var collider = visual.GetComponent<Collider>();
+                if (collider != null) Destroy(collider);
+
+                visualRenderer = visual.GetComponent<Renderer>();
+                if (visualRenderer != null)
+                {
+                    visualRenderer.material = MaterialCache.CreateUnlit(new Color(1f, 0.4f, 0.1f, 0.7f));
+                }
             }
+
+            visual.transform.localScale = new Vector3(radius * 2f, 0.05f, radius * 2f);
         }
 
         private void Update()
@@ -47,15 +78,16 @@ namespace TowerDefense.Entities
 
             if (timer <= 0f)
             {
-                Destroy(gameObject);
+                ReturnToPool();
                 return;
             }
 
             // Fade visual as it expires
-            if (visualRenderer != null)
+            if (visualRenderer != null && propBlock != null)
             {
                 float alpha = Mathf.Clamp01(timer / duration);
-                visualRenderer.material.color = new Color(1f, 0.4f, 0.1f, 0.7f * alpha);
+                propBlock.SetColor("_Color", new Color(1f, 0.4f, 0.1f, 0.7f * alpha));
+                visualRenderer.SetPropertyBlock(propBlock);
             }
 
             // Damage enemies in radius
@@ -76,6 +108,15 @@ namespace TowerDefense.Entities
                     enemy.TakeDamage(dmgThisFrame);
                     enemy.ApplyBurn(damagePerSecond, burnDuration);
                 }
+            }
+        }
+
+        private void OnDestroy()
+        {
+            if (propBlock != null)
+            {
+                MaterialCache.ReturnPropertyBlock(propBlock);
+                propBlock = null;
             }
         }
     }

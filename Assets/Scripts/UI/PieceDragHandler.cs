@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using TowerDefense.Core;
 using TowerDefense.Grid;
+using TowerDefense.Entities;
 
 namespace TowerDefense.UI
 {
@@ -30,10 +31,23 @@ namespace TowerDefense.UI
         private HashSet<HexCoord> validModificationTargets = new HashSet<HexCoord>();
         private Dictionary<HexCoord, Color> originalHexColors = new Dictionary<HexCoord, Color>();
 
+        // Tower placement state (free mode)
+        private bool isTowerSelected;
+        private TowerData selectedTowerData;
+        private GameObject towerGhost;
+        private GameObject towerRadiusIndicator;
+        private Vector3 lastStillPosition;
+        private float stillTimer;
+        private Vector3 lastSnappedPosition;
+        private bool lastSnapValid;
+        private const float TowerHoldDuration = 0.5f;
+        private const float StillThreshold = 1.5f;
+        private const float PerpendicularOffset = 6.5f; // Same as TowerSlot generation
+
         private static readonly Color HighlightColor = new Color(0.3f, 0.9f, 0.3f);
 
         public bool IsInteracting => isPressingGhost;
-        public bool IsPlacingPiece => isCardSelected || isModificationSelected;
+        public bool IsPlacingPiece => isCardSelected || isModificationSelected || isTowerSelected;
 
         public event Action<int, PlacementRotation, HexCoord> OnPiecePlaced;
 
@@ -48,6 +62,8 @@ namespace TowerDefense.UI
             handUI.OnCardDeselected += OnCardDeselected;
             handUI.OnModificationSelected += OnModificationSelected;
             handUI.OnModificationDeselected += OnModificationDeselected;
+            handUI.OnTowerCardSelected += OnTowerCardSelected;
+            handUI.OnTowerCardDeselected += OnTowerCardDeselected;
         }
 
         private void OnDestroy()
@@ -58,14 +74,18 @@ namespace TowerDefense.UI
                 handUI.OnCardDeselected -= OnCardDeselected;
                 handUI.OnModificationSelected -= OnModificationSelected;
                 handUI.OnModificationDeselected -= OnModificationDeselected;
+                handUI.OnTowerCardSelected -= OnTowerCardSelected;
+                handUI.OnTowerCardDeselected -= OnTowerCardDeselected;
             }
+            DestroyTowerGhost();
         }
 
         private void OnCardSelected(int index, HexPieceType type)
         {
-            // Clear modification state if active
             if (isModificationSelected)
                 ClearModificationHighlights();
+            if (isTowerSelected)
+                ClearTowerSelection();
 
             selectedHandIndex = index;
             selectedPieceType = type;
@@ -85,15 +105,15 @@ namespace TowerDefense.UI
 
         private void OnModificationSelected(ModificationType type)
         {
-            // Clear path card state if active
             if (isCardSelected)
             {
                 isCardSelected = false;
                 isPressingGhost = false;
                 ghostManager.HideAllGhosts();
             }
+            if (isTowerSelected)
+                ClearTowerSelection();
 
-            // Clear any existing modification highlights before showing new ones
             if (isModificationSelected)
                 ClearModificationHighlights();
 
@@ -106,6 +126,102 @@ namespace TowerDefense.UI
         private void OnModificationDeselected()
         {
             ClearModificationHighlights();
+        }
+
+        private void OnTowerCardSelected(TowerData towerData)
+        {
+            if (isCardSelected)
+            {
+                isCardSelected = false;
+                isPressingGhost = false;
+                ghostManager.HideAllGhosts();
+            }
+            if (isModificationSelected)
+                ClearModificationHighlights();
+
+            isTowerSelected = true;
+            selectedTowerData = towerData;
+            stillTimer = 0f;
+            lastStillPosition = Vector3.zero;
+            CreateTowerGhost(towerData);
+        }
+
+        private void OnTowerCardDeselected()
+        {
+            ClearTowerSelection();
+        }
+
+        private void ClearTowerSelection()
+        {
+            isTowerSelected = false;
+            selectedTowerData = null;
+            stillTimer = 0f;
+            DestroyTowerGhost();
+        }
+
+        private void CreateTowerGhost(TowerData data)
+        {
+            DestroyTowerGhost();
+
+            towerGhost = new GameObject("TowerGhost");
+
+            // Base cylinder
+            var baseObj = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            baseObj.transform.SetParent(towerGhost.transform);
+            baseObj.transform.localPosition = new Vector3(0f, 0.75f, 0f);
+            baseObj.transform.localScale = new Vector3(2.4f, 0.75f, 2.4f);
+            var bc = baseObj.GetComponent<Collider>();
+            if (bc != null) Destroy(bc);
+            var br = baseObj.GetComponent<Renderer>();
+            if (br != null)
+                br.material = MaterialCache.CreateTransparent(data.towerColor, 0.4f);
+
+            // Head cube
+            var headObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            headObj.transform.SetParent(towerGhost.transform);
+            headObj.transform.localPosition = new Vector3(0f, 2.1f, 0f);
+            headObj.transform.localScale = new Vector3(1.2f, 1.2f, 1.8f);
+            var hc = headObj.GetComponent<Collider>();
+            if (hc != null) Destroy(hc);
+            var hr = headObj.GetComponent<Renderer>();
+            if (hr != null)
+                hr.material = MaterialCache.CreateTransparent(data.towerColor * 0.7f, 0.4f);
+
+            // Radius indicator
+            towerRadiusIndicator = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            towerRadiusIndicator.transform.SetParent(towerGhost.transform);
+            towerRadiusIndicator.transform.localPosition = new Vector3(0f, 0.01f, 0f);
+            towerRadiusIndicator.transform.localScale = new Vector3(data.placementRadius * 2f, 0.01f, data.placementRadius * 2f);
+            var rc = towerRadiusIndicator.GetComponent<Collider>();
+            if (rc != null) Destroy(rc);
+            var rr = towerRadiusIndicator.GetComponent<Renderer>();
+            if (rr != null)
+                rr.material = MaterialCache.CreateTransparent(new Color(1f, 1f, 0f, 0.15f), 0.15f);
+
+            towerGhost.SetActive(false);
+        }
+
+        private void DestroyTowerGhost()
+        {
+            if (towerGhost != null)
+            {
+                Destroy(towerGhost);
+                towerGhost = null;
+                towerRadiusIndicator = null;
+            }
+        }
+
+        private void SetGhostColor(bool valid)
+        {
+            if (towerGhost == null) return;
+            Color tint = valid ? new Color(0.3f, 1f, 0.3f) : new Color(1f, 0.3f, 0.3f);
+            var renderers = towerGhost.GetComponentsInChildren<Renderer>();
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                if (renderers[i].gameObject == towerRadiusIndicator) continue;
+                Color c = renderers[i].material.color;
+                renderers[i].material.color = new Color(tint.r, tint.g, tint.b, c.a);
+            }
         }
 
         private void ComputeValidTargets(ModificationType type)
@@ -128,6 +244,16 @@ namespace TowerDefense.UI
                 else if (type == ModificationType.Lure)
                 {
                     if (!data.IsCastle && !gm.HasLure(coord))
+                        validModificationTargets.Add(coord);
+                }
+                else if (type == ModificationType.Haste)
+                {
+                    if (!data.IsCastle && !gm.HasHaste(coord) && gm.TileHasTower(coord))
+                        validModificationTargets.Add(coord);
+                }
+                else if (type == ModificationType.GoldenTouch)
+                {
+                    if (!data.IsCastle && !gm.HasGoldenTouch(coord))
                         validModificationTargets.Add(coord);
                 }
             }
@@ -177,6 +303,12 @@ namespace TowerDefense.UI
 
         private void Update()
         {
+            if (isTowerSelected)
+            {
+                HandleTowerPlacementInput();
+                return;
+            }
+
             if (isModificationSelected)
             {
                 HandleModificationInput();
@@ -188,19 +320,159 @@ namespace TowerDefense.UI
             HandleGhostInput();
         }
 
+        private void HandleTowerPlacementInput()
+        {
+            if (cam == null) return;
+
+            // Raycast ground plane (y=0) for cursor world position
+            Ray ray = cam.ScreenPointToRay(Input.mousePosition);
+            var groundPlane = new Plane(Vector3.up, Vector3.zero);
+            if (!groundPlane.Raycast(ray, out float enter))
+            {
+                if (towerGhost != null) towerGhost.SetActive(false);
+                lastSnapValid = false;
+                return;
+            }
+
+            Vector3 cursorWorld = ray.GetPoint(enter);
+
+            // Snap to nearest path
+            Vector3 snappedPos;
+            bool valid = TrySnapToPath(cursorWorld, selectedTowerData, out snappedPos);
+
+            // Show and move ghost to snapped position
+            if (towerGhost != null)
+            {
+                towerGhost.SetActive(true);
+                towerGhost.transform.position = valid ? snappedPos : cursorWorld;
+            }
+
+            lastSnapValid = valid;
+            lastSnappedPosition = snappedPos;
+            SetGhostColor(valid);
+
+            // Track stillness based on snapped position
+            Vector3 trackPos = valid ? snappedPos : cursorWorld;
+            float moved = Vector3.Distance(trackPos, lastStillPosition);
+            if (moved > StillThreshold)
+            {
+                stillTimer = 0f;
+                lastStillPosition = trackPos;
+            }
+            else
+            {
+                stillTimer += Time.deltaTime;
+            }
+
+            // Place tower when held still long enough at valid position
+            if (stillTimer >= TowerHoldDuration && valid && Input.GetMouseButton(0))
+            {
+                var towerManager = FindObjectOfType<TowerManager>();
+                if (towerManager != null)
+                {
+                    bool success = towerManager.PlaceTowerAt(selectedTowerData, snappedPos);
+                    if (success)
+                    {
+                        stillTimer = 0f;
+                        lastStillPosition = snappedPos;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Snaps the cursor position to a valid tower position alongside the nearest path segment.
+        /// Returns true if a valid snap was found, false if cursor is not near any path.
+        /// </summary>
+        private bool TrySnapToPath(Vector3 cursorWorld, TowerData towerData, out Vector3 snappedPos)
+        {
+            snappedPos = cursorWorld;
+
+            var gm = GameManager.Instance;
+            if (gm == null) return false;
+
+            // Check the hex the cursor is over
+            HexCoord coord = HexGrid.WorldToHex(cursorWorld);
+            if (!gm.MapData.TryGetValue(coord, out var pieceData))
+                return false;
+
+            if (pieceData.IsCastle || pieceData.ConnectedEdges.Count == 0)
+                return false;
+
+            Vector3 hexCenter = HexGrid.HexToWorld(coord);
+            Vector3 localCursor = cursorWorld - hexCenter;
+
+            // Find the closest point on any path segment
+            float bestDist = float.MaxValue;
+            Vector3 bestPathPoint = Vector3.zero;
+            Vector3 bestPerp = Vector3.zero;
+
+            foreach (int edge in pieceData.ConnectedEdges)
+            {
+                Vector3 edgeDir = HexMeshGenerator.GetEdgeDirection(edge);
+                Vector3 edgeEnd = edgeDir * HexGrid.InnerRadius;
+                Vector3 perpendicular = new Vector3(-edgeDir.z, 0f, edgeDir.x);
+
+                // Project cursor onto this path segment (center → edge midpoint)
+                Vector3 ab = edgeEnd; // segA = zero, segB = edgeEnd
+                float abLenSq = ab.sqrMagnitude;
+                float t = (abLenSq > 0.0001f)
+                    ? Mathf.Clamp(Vector3.Dot(localCursor, ab) / abLenSq, 0.25f, 0.85f)
+                    : 0.5f;
+                Vector3 pathPoint = ab * t;
+
+                float dist = Vector3.Distance(localCursor, pathPoint);
+                if (dist < bestDist)
+                {
+                    bestDist = dist;
+                    bestPathPoint = pathPoint;
+                    bestPerp = perpendicular;
+                }
+            }
+
+            // Determine which side of the path the cursor is on
+            float side = Vector3.Dot(localCursor - bestPathPoint, bestPerp);
+            float sign = (side >= 0f) ? 1f : -1f;
+
+            // Snap position: path point + perpendicular offset on cursor's side
+            Vector3 localSnapped = bestPathPoint + bestPerp * (sign * PerpendicularOffset);
+            snappedPos = hexCenter + localSnapped;
+            snappedPos.y = 0f;
+
+            // Validate: check the snapped position is still inside this hex (not too far out)
+            float distFromCenter = new Vector2(localSnapped.x, localSnapped.z).magnitude;
+            if (distFromCenter > HexGrid.InnerRadius * 1.1f)
+                return false;
+
+            // Also check clearance from ALL path segments (not just the closest)
+            float pathHalfWidth = 4.0f;
+            foreach (int edge in pieceData.ConnectedEdges)
+            {
+                Vector3 edgeDir = HexMeshGenerator.GetEdgeDirection(edge);
+                Vector3 edgeEnd = edgeDir * HexGrid.InnerRadius;
+                float clearance = HexPiece.PointToSegmentDistance(localSnapped, Vector3.zero, edgeEnd);
+                if (clearance < pathHalfWidth + 1f)
+                    return false;
+            }
+
+            // Check overlap with other towers
+            var towerManager = FindObjectOfType<TowerManager>();
+            if (towerManager != null && towerManager.IsTooCloseToOtherTower(snappedPos, towerData.placementRadius))
+                return false;
+
+            return true;
+        }
+
         private void HandleModificationInput()
         {
             if (cam == null) return;
 
             if (Input.GetMouseButtonDown(0))
             {
-                // Skip if over UI
                 if (UnityEngine.EventSystems.EventSystem.current != null &&
                     UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject())
                     return;
 
-                // Raycast against ground plane (y=0) to find world position,
-                // then find nearest valid hex coord (placed tiles have no colliders)
                 Ray ray = cam.ScreenPointToRay(Input.mousePosition);
                 var groundPlane = new Plane(Vector3.up, Vector3.zero);
                 if (groundPlane.Raycast(ray, out float enter))
@@ -217,6 +489,10 @@ namespace TowerDefense.UI
                             success = gm.BuildMine(nearest);
                         else if (selectedModification == ModificationType.Lure)
                             success = gm.BuildLure(nearest);
+                        else if (selectedModification == ModificationType.Haste)
+                            success = gm.BuildHaste(nearest);
+                        else if (selectedModification == ModificationType.GoldenTouch)
+                            success = gm.BuildGoldenTouch(nearest);
 
                         if (success)
                         {
@@ -251,10 +527,8 @@ namespace TowerDefense.UI
         {
             if (cam == null) return;
 
-            // Mouse down — start press on ghost
             if (Input.GetMouseButtonDown(0))
             {
-                // Skip if over UI
                 if (UnityEngine.EventSystems.EventSystem.current != null &&
                     UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject())
                     return;
@@ -273,25 +547,33 @@ namespace TowerDefense.UI
                 }
             }
 
-            // Mouse held — check if hold duration reached
             if (Input.GetMouseButton(0) && isPressingGhost)
             {
                 float elapsed = Time.time - pressStartTime;
                 if (elapsed >= HoldDuration)
                 {
-                    // Place the piece
                     var rotation = ghostManager.GetCurrentPlacement(pressedGhostCoord);
                     if (rotation != null)
                     {
                         var coord = pressedGhostCoord;
                         int handIndex = selectedHandIndex;
+                        var pieceType = selectedPieceType;
 
                         isPressingGhost = false;
-                        isCardSelected = false;
                         ghostManager.HideAllGhosts();
-                        handUI.Deselect();
 
                         OnPiecePlaced?.Invoke(handIndex, rotation, coord);
+
+                        var placements = validator.GetValidPlacements(pieceType);
+                        if (placements.Count > 0)
+                        {
+                            ghostManager.ShowGhosts(placements);
+                        }
+                        else
+                        {
+                            isCardSelected = false;
+                            handUI.Deselect();
+                        }
                     }
                     else
                     {
@@ -301,7 +583,6 @@ namespace TowerDefense.UI
                 }
             }
 
-            // Mouse up — if released before hold, it's a tap (cycle rotation)
             if (Input.GetMouseButtonUp(0) && isPressingGhost)
             {
                 float elapsed = Time.time - pressStartTime;

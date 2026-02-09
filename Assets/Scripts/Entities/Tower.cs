@@ -20,6 +20,9 @@ namespace TowerDefense.Entities
         private GameObject auraIndicator; // For slow aura towers
         private LineRenderer teslaLineRenderer; // For tesla chain lightning
         private float teslaVisualTimer; // How long to show the chain
+        private float auraCheckTimer; // Throttle aura tower checks
+        private HexCoord? cachedTileCoord;
+        private float hasteMultiplier = 1f;
 
         // Reusable lists to avoid per-frame allocations
         private readonly List<Enemy> _reusableEnemyList = new List<Enemy>();
@@ -34,6 +37,7 @@ namespace TowerDefense.Entities
         {
             data = towerData;
             fireCooldown = 0f;
+            CacheTileCoord();
             CreateVisual();
 
             // For shotgun towers, calculate and set facing direction toward path
@@ -106,6 +110,18 @@ namespace TowerDefense.Entities
                 headRenderer.material = Core.MaterialCache.CreateUnlit(data != null ? data.towerColor * 0.7f : Color.blue * 0.7f);
             }
 
+            // Tower icon sprite (billboard above head)
+            if (data != null && data.towerIcon != null)
+            {
+                var iconObj = new GameObject("TowerIcon");
+                iconObj.transform.SetParent(transform);
+                iconObj.transform.localPosition = new Vector3(0f, 3.8f, 0f);
+                var sr = iconObj.AddComponent<SpriteRenderer>();
+                sr.sprite = data.towerIcon;
+                sr.color = Color.white;
+                iconObj.AddComponent<TowerDefense.UI.BillboardSprite>();
+            }
+
             // Range indicator (hidden by default)
             CreateRangeIndicator();
         }
@@ -162,6 +178,10 @@ namespace TowerDefense.Entities
 
         private void UpdateAuraTower()
         {
+            auraCheckTimer -= Time.deltaTime;
+            if (auraCheckTimer > 0f) return;
+            auraCheckTimer = 0.25f;
+
             var mgr = Core.EnemyManager.Instance;
             if (mgr == null) return;
 
@@ -219,7 +239,7 @@ namespace TowerDefense.Entities
                 {
                     Fire();
                     float speedBonus = UpgradeManager.Instance != null ? UpgradeManager.Instance.TowerSpeedBonus : 0f;
-                    fireCooldown = 1f / (data.fireRate * (1f + speedBonus));
+                    fireCooldown = 1f / (data.fireRate * (1f + speedBonus) * hasteMultiplier);
                 }
             }
         }
@@ -234,7 +254,7 @@ namespace TowerDefense.Entities
             {
                 FireShotgun();
                 float speedBonus = UpgradeManager.Instance != null ? UpgradeManager.Instance.TowerSpeedBonus : 0f;
-                fireCooldown = 1f / (data.fireRate * (1f + speedBonus));
+                fireCooldown = 1f / (data.fireRate * (1f + speedBonus) * hasteMultiplier);
             }
         }
 
@@ -260,7 +280,7 @@ namespace TowerDefense.Entities
                 {
                     FireTeslaChain();
                     float speedBonus = UpgradeManager.Instance != null ? UpgradeManager.Instance.TowerSpeedBonus : 0f;
-                    fireCooldown = 1f / (data.fireRate * (1f + speedBonus));
+                    fireCooldown = 1f / (data.fireRate * (1f + speedBonus) * hasteMultiplier);
                 }
             }
         }
@@ -349,7 +369,7 @@ namespace TowerDefense.Entities
                 {
                     FireFlame();
                     float speedBonus = UpgradeManager.Instance != null ? UpgradeManager.Instance.TowerSpeedBonus : 0f;
-                    fireCooldown = 1f / (data.fireRate * (1f + speedBonus));
+                    fireCooldown = 1f / (data.fireRate * (1f + speedBonus) * hasteMultiplier);
                 }
             }
         }
@@ -365,9 +385,7 @@ namespace TowerDefense.Entities
             Vector3 patchPos = currentTarget.transform.position;
             patchPos.y = 0.1f;
 
-            GameObject patchObj = new GameObject("FirePatch");
-            patchObj.transform.position = patchPos;
-            var patch = patchObj.AddComponent<FirePatch>();
+            var patch = FirePatch.GetFromPool(patchPos);
             patch.Initialize(dps, data.firePatchDuration, data.burnDuration, EffectiveRange * 0.3f);
         }
 
@@ -399,15 +417,11 @@ namespace TowerDefense.Entities
 
         private void SpawnPiercingProjectile(Vector3 direction, float damage)
         {
-            GameObject projectileObj = new GameObject("ShotgunProjectile");
-            projectileObj.transform.position = turretHead.position;
-
             // Calculate short lifetime - just enough to cross the path
-            // Use range as the travel distance, add small buffer
-            float travelDistance = EffectiveRange * 0.8f; // Slightly less than range
+            float travelDistance = EffectiveRange * 0.8f;
             float lifetime = travelDistance / data.projectileSpeed;
 
-            var projectile = projectileObj.AddComponent<Projectile>();
+            var projectile = Projectile.GetFromPool(turretHead.position);
             projectile.InitializeDirectional(
                 direction: direction,
                 damage: damage,
@@ -500,10 +514,7 @@ namespace TowerDefense.Entities
 
         private void SpawnProjectile(Enemy target, float damage)
         {
-            GameObject projectileObj = new GameObject("Projectile");
-            projectileObj.transform.position = turretHead.position;
-
-            var projectile = projectileObj.AddComponent<Projectile>();
+            var projectile = Projectile.GetFromPool(turretHead.position);
             projectile.Initialize(
                 target: target,
                 damage: damage,
@@ -515,6 +526,39 @@ namespace TowerDefense.Entities
                 slowMultiplier: data.slowMultiplier,
                 slowDuration: data.slowDuration
             );
+        }
+
+        private void CacheTileCoord()
+        {
+            var slot = GetComponentInParent<TowerSlot>();
+            if (slot != null && slot.ParentHex != null)
+                cachedTileCoord = slot.ParentHex.Data.Coord;
+        }
+
+        public HexCoord? TileCoord => cachedTileCoord;
+
+        public void SetTileCoord(HexCoord coord)
+        {
+            cachedTileCoord = coord;
+        }
+
+        public void SetFacingDirection(Vector3 dir)
+        {
+            dir.y = 0f;
+            facingDirection = dir.normalized;
+            if (turretHead != null && facingDirection != Vector3.zero)
+                turretHead.rotation = Quaternion.LookRotation(facingDirection);
+        }
+
+        public void SetHasteMultiplier(float multiplier)
+        {
+            hasteMultiplier = multiplier;
+        }
+
+        private void OnDestroy()
+        {
+            if (teslaLineRenderer != null && teslaLineRenderer.material != null)
+                Destroy(teslaLineRenderer.material);
         }
 
         private void OnDrawGizmos()

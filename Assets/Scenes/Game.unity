@@ -495,10 +495,12 @@ MonoBehaviour:
   hexPathMaterial: {fileID: 2100000, guid: b1b50c7d30ff04f3c904fbf3c70136b5, type: 2}
   castleMaterial: {fileID: 2100000, guid: 05ef35fb40867429488043aa062e5b35, type: 2}
   goblinCampSprite: {fileID: 21300000, guid: 869a84fc5e5644f7599f2eab54900ec4, type: 3}
+  goblinSprite: {fileID: 21300000, guid: 170b2aa2427a84241973b8ca077ac64f, type: 3}
   goldSprite: {fileID: 21300000, guid: 5b195d7d6abf849be9b658022549311b, type: 3}
   oreSprite: {fileID: 21300000, guid: 6e0949ac631274803b820e2482aa295b, type: 3}
   gemsSprite: {fileID: 21300000, guid: c098fcb616532409db7b7bc251a38ff3, type: 3}
   florpusSprite: {fileID: 21300000, guid: 36100443f21b948ff8390571536f040f, type: 3}
+  adamantiteSprite: {fileID: 21300000, guid: 4c37d87bf55d64ed7ba7118f69cb57ad, type: 3}
   hexPiecePrefab: {fileID: 0}
   mineOutpostPrefab: {fileID: 2242801131017349800, guid: 41eec2429de4547da9bb7456ebcf2b83, type: 3}
   groundEnemyPrefab: {fileID: 5544113186760210693, guid: a53ca8c8cc3f244ccafa6864df8d3685, type: 3}

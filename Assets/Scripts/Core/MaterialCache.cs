@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 namespace TowerDefense.Core
 {
@@ -7,6 +8,22 @@ namespace TowerDefense.Core
         private static Shader _unlitColor;
         private static Shader _spritesDefault;
         private static Shader _standard;
+
+        private static readonly Queue<MaterialPropertyBlock> _propertyBlockPool = new Queue<MaterialPropertyBlock>();
+
+        public static MaterialPropertyBlock GetPropertyBlock()
+        {
+            if (_propertyBlockPool.Count > 0)
+                return _propertyBlockPool.Dequeue();
+            return new MaterialPropertyBlock();
+        }
+
+        public static void ReturnPropertyBlock(MaterialPropertyBlock block)
+        {
+            if (block == null) return;
+            block.Clear();
+            _propertyBlockPool.Enqueue(block);
+        }
 
         public static Shader UnlitColor
         {
@@ -63,6 +80,12 @@ namespace TowerDefense.Core
             mat.renderQueue = 3000;
             mat.color = color;
             return mat;
+        }
+
+        public static Material CreateTransparent(Color color, float alpha)
+        {
+            color.a = alpha;
+            return CreateTransparent(color);
         }
     }
 }

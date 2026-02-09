@@ -93,6 +93,17 @@ namespace TowerDefense.Core
                 },
                 new LabUpgrade
                 {
+                    upgradeName = "Vital Force",
+                    description = "+14 max HP",
+                    upgradeType = LabUpgradeType.MaxHP,
+                    valuePerLevel = 14f,
+                    maxLevel = 5,
+                    costResource = ResourceType.Gems,
+                    baseCost = 8,
+                    costPerLevel = 6
+                },
+                new LabUpgrade
+                {
                     upgradeName = "Slow",
                     description = "Unlock the Slow tower",
                     upgradeType = LabUpgradeType.TowerUnlock,
@@ -192,6 +203,7 @@ namespace TowerDefense.Core
         public float BonusTowerDamage => GetTotalBonus(LabUpgradeType.TowerDamage);
         public float BonusTowerSpeed => GetTotalBonus(LabUpgradeType.TowerSpeed);
         public float PieceCooldownReduction => GetTotalBonus(LabUpgradeType.PieceCooldownReduction);
+        public int BonusMaxHP => Mathf.RoundToInt(GetTotalBonus(LabUpgradeType.MaxHP));
 
         private float GetTotalBonus(LabUpgradeType type)
         {

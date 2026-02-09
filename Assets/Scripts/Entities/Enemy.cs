@@ -15,6 +15,9 @@ namespace TowerDefense.Entities
 
         private List<Vector3> waypoints;
         private int currentWaypointIndex;
+        private int cachedWaveNumber = 1;
+        private float cachedHealthMultiplier = 1f;
+        private float cachedSpeedMultiplier = 1f;
         private float currentHealth;
         private float maxHealth;
         private float currentSpeed;
@@ -32,6 +35,7 @@ namespace TowerDefense.Entities
         private GameObject healthBarFill;
         private Transform healthBarContainer;
         private Renderer healthBarFillRenderer;
+        private MaterialPropertyBlock healthBarPropBlock;
 
         public float Health => currentHealth;
         public float MaxHealth => maxHealth;
@@ -47,6 +51,9 @@ namespace TowerDefense.Entities
         {
             enemyType = type;
             currentWaypointIndex = 0;
+            cachedWaveNumber = waveNumber;
+            cachedHealthMultiplier = healthMultiplier;
+            cachedSpeedMultiplier = speedMultiplierConfig;
             maxHealth = (baseHealth + (waveNumber - 1) * 5f) * healthMultiplier;
             currentHealth = maxHealth;
             float speedBonus = UpgradeManager.Instance != null ? UpgradeManager.Instance.EnemySpeedBonus : 0f;
@@ -58,6 +65,14 @@ namespace TowerDefense.Entities
             {
                 currentSpeed *= 1.3f;
                 currencyReward = Mathf.RoundToInt(currencyReward * 1.5f);
+            }
+
+            if (enemyType == EnemyType.Cart)
+            {
+                maxHealth *= 2f;
+                currentHealth = maxHealth;
+                currentSpeed *= 0.6f;
+                currencyReward = Mathf.RoundToInt(currencyReward * 1.2f);
             }
 
             // Apply random perpendicular offset to ALL waypoints so enemy maintains lane
@@ -93,6 +108,8 @@ namespace TowerDefense.Entities
                 transform.position = waypoints[0];
             }
 
+            healthBarPropBlock = Core.MaterialCache.GetPropertyBlock();
+
             CreateVisual();
             CreateHealthBar();
 
@@ -106,7 +123,9 @@ namespace TowerDefense.Entities
                 return;
 
             // Fallback: create visuals from scratch
-            if (IsFlying)
+            if (enemyType == EnemyType.Cart)
+                CreateCartVisual();
+            else if (IsFlying)
                 CreateFlyingVisual();
             else
                 CreateGroundVisual();
@@ -208,6 +227,66 @@ namespace TowerDefense.Entities
             sphereCollider.center = new Vector3(0f, flyHeight, 0f);
         }
 
+        private void CreateCartVisual()
+        {
+            // Body - large box (wagon)
+            var body = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            body.name = "Body";
+            body.transform.SetParent(transform);
+            body.transform.localPosition = new Vector3(0f, 0.7f, 0f);
+            body.transform.localScale = new Vector3(1.2f, 0.8f, 1.8f);
+
+            var bodyCol = body.GetComponent<Collider>();
+            if (bodyCol != null) Destroy(bodyCol);
+
+            var bodyRenderer = body.GetComponent<Renderer>();
+            if (bodyRenderer != null)
+                bodyRenderer.material = Core.MaterialCache.CreateUnlit(new Color(0.55f, 0.35f, 0.15f));
+
+            // Roof
+            var roof = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            roof.name = "Roof";
+            roof.transform.SetParent(transform);
+            roof.transform.localPosition = new Vector3(0f, 1.3f, 0f);
+            roof.transform.localScale = new Vector3(1.3f, 0.15f, 2f);
+            var roofCol = roof.GetComponent<Collider>();
+            if (roofCol != null) Destroy(roofCol);
+            var roofR = roof.GetComponent<Renderer>();
+            if (roofR != null)
+                roofR.material = Core.MaterialCache.CreateUnlit(new Color(0.4f, 0.25f, 0.1f));
+
+            // Front wheel (left)
+            CreateWheel(new Vector3(-0.7f, 0.25f, 0.6f));
+            // Front wheel (right)
+            CreateWheel(new Vector3(0.7f, 0.25f, 0.6f));
+            // Rear wheel (left)
+            CreateWheel(new Vector3(-0.7f, 0.25f, -0.6f));
+            // Rear wheel (right)
+            CreateWheel(new Vector3(0.7f, 0.25f, -0.6f));
+
+            // Scale up the whole enemy
+            transform.localScale = Vector3.one * 1.5f;
+
+            var sphereCollider = gameObject.AddComponent<SphereCollider>();
+            sphereCollider.radius = 0.6f;
+            sphereCollider.center = new Vector3(0f, 0.7f, 0f);
+        }
+
+        private void CreateWheel(Vector3 localPos)
+        {
+            var wheel = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            wheel.name = "Wheel";
+            wheel.transform.SetParent(transform);
+            wheel.transform.localPosition = localPos;
+            wheel.transform.localScale = new Vector3(0.35f, 0.08f, 0.35f);
+            wheel.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
+            var col = wheel.GetComponent<Collider>();
+            if (col != null) Destroy(col);
+            var r = wheel.GetComponent<Renderer>();
+            if (r != null)
+                r.material = Core.MaterialCache.CreateUnlit(new Color(0.3f, 0.2f, 0.1f));
+        }
+
         private void CreateHealthBar()
         {
             // Container positioned in front of enemy, facing up for top-down view
@@ -270,9 +349,10 @@ namespace TowerDefense.Entities
                 healthBarFill.transform.localPosition = new Vector3(0.475f * (1f - healthPercent), 0f, -0.05f);
 
                 // Color: green to red based on health
-                if (healthBarFillRenderer != null)
+                if (healthBarFillRenderer != null && healthBarPropBlock != null)
                 {
-                    healthBarFillRenderer.material.color = Color.Lerp(Color.red, Color.green, healthPercent);
+                    healthBarPropBlock.SetColor("_Color", Color.Lerp(Color.red, Color.green, healthPercent));
+                    healthBarFillRenderer.SetPropertyBlock(healthBarPropBlock);
                 }
             }
         }
@@ -390,12 +470,18 @@ namespace TowerDefense.Entities
         private void OnDestroy()
         {
             Core.EnemyManager.Instance?.Unregister(this);
+            if (healthBarPropBlock != null)
+            {
+                Core.MaterialCache.ReturnPropertyBlock(healthBarPropBlock);
+                healthBarPropBlock = null;
+            }
         }
 
         private void Die()
         {
             float goldBonus = UpgradeManager.Instance != null ? UpgradeManager.Instance.EnemyGoldBonus : 0f;
-            int actualReward = Mathf.RoundToInt(currencyReward * (1f + goldBonus) * goldMultiplier);
+            float goldenTouchMul = GameManager.Instance != null ? GameManager.Instance.GetGoldenTouchMultiplierAt(transform.position) : 1f;
+            int actualReward = Mathf.RoundToInt(currencyReward * (1f + goldBonus) * goldMultiplier * goldenTouchMul);
             GameManager.Instance?.AddCurrency(actualReward);
 
             if (isBoss && PersistenceManager.Instance != null)
@@ -405,11 +491,40 @@ namespace TowerDefense.Entities
                     PersistenceManager.Instance.AddRunResource(rt, 3);
             }
 
+            // Cart enemies spawn 3 goblins on death
+            if (enemyType == EnemyType.Cart)
+                SpawnCartGoblins();
+
             // Spawn currency popup
             SpawnCurrencyPopup(actualReward);
 
             OnDeath?.Invoke(this);
             Destroy(gameObject);
+        }
+
+        private void SpawnCartGoblins()
+        {
+            // Build remaining path from current position
+            var remaining = new List<Vector3>();
+            remaining.Add(transform.position);
+            if (waypoints != null)
+            {
+                for (int i = currentWaypointIndex; i < waypoints.Count; i++)
+                    remaining.Add(waypoints[i]);
+            }
+            if (remaining.Count < 2) return;
+
+            var wm = Object.FindObjectOfType<Core.WaveManager>();
+            for (int i = 0; i < 3; i++)
+            {
+                var goblinObj = new GameObject("CartGoblin");
+                var goblin = goblinObj.AddComponent<Enemy>();
+                var path = new List<Vector3>(remaining);
+                // Slight offset so they don't stack
+                path[0] += new Vector3(Random.Range(-1f, 1f), 0f, Random.Range(-1f, 1f));
+                goblin.Initialize(path, cachedWaveNumber, cachedHealthMultiplier * 0.5f, cachedSpeedMultiplier * 1.1f, EnemyType.Ground);
+                wm?.TrackEnemy(goblin);
+            }
         }
 
         private void SpawnCurrencyPopup(int amount)

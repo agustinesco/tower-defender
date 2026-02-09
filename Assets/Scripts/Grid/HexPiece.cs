@@ -31,18 +31,15 @@ namespace TowerDefense.Grid
             // Create default materials if not provided
             if (hexMaterial == null)
             {
-                hexMaterial = new Material(Shader.Find("Unlit/Color"));
-                hexMaterial.color = new Color(0.75f, 0.75f, 0.75f); // Light gray
+                hexMaterial = TowerDefense.Core.MaterialCache.CreateUnlit(new Color(0.75f, 0.75f, 0.75f));
             }
             if (pathMaterial == null)
             {
-                pathMaterial = new Material(Shader.Find("Unlit/Color"));
-                pathMaterial.color = new Color(0.35f, 0.25f, 0.15f); // Dark brown path color
+                pathMaterial = TowerDefense.Core.MaterialCache.CreateUnlit(new Color(0.35f, 0.25f, 0.15f));
             }
             if (castleMaterial == null)
             {
-                castleMaterial = new Material(Shader.Find("Unlit/Color"));
-                castleMaterial.color = new Color(0.9f, 0.75f, 0.2f); // Gold
+                castleMaterial = TowerDefense.Core.MaterialCache.CreateUnlit(new Color(0.9f, 0.75f, 0.2f));
             }
 
             // Create hex base if not assigned
@@ -86,10 +83,11 @@ namespace TowerDefense.Grid
                 CreateGoblinCampVisual();
             }
 
-            // Generate pre-placed tower slots alongside paths
-            if (config != null ? config.allowsTowerSlots : (!data.IsCastle && !data.IsGoblinCamp))
+            // Generate pre-placed tower slots alongside paths (slot mode only)
+            if (!TowerDefense.Core.GameManager.Instance.UseFreeTowerPlacement)
             {
-                GenerateTowerSlots();
+                if (config != null ? config.allowsTowerSlots : !data.IsGoblinCamp)
+                    GenerateTowerSlots();
             }
         }
 
@@ -120,8 +118,7 @@ namespace TowerDefense.Grid
             var tentRenderer = tent.GetComponent<Renderer>();
             if (tentRenderer != null)
             {
-                tentRenderer.material = new Material(Shader.Find("Unlit/Color"));
-                tentRenderer.material.color = new Color(0.3f, 0.5f, 0.15f); // Dark olive green
+                tentRenderer.material = TowerDefense.Core.MaterialCache.CreateUnlit(new Color(0.3f, 0.5f, 0.15f));
             }
 
             // Flag pole
@@ -137,8 +134,7 @@ namespace TowerDefense.Grid
             var poleRenderer = pole.GetComponent<Renderer>();
             if (poleRenderer != null)
             {
-                poleRenderer.material = new Material(Shader.Find("Unlit/Color"));
-                poleRenderer.material.color = new Color(0.4f, 0.25f, 0.1f); // Brown
+                poleRenderer.material = TowerDefense.Core.MaterialCache.CreateUnlit(new Color(0.4f, 0.25f, 0.1f));
             }
 
             // Flag
@@ -154,8 +150,7 @@ namespace TowerDefense.Grid
             var flagRenderer = flag.GetComponent<Renderer>();
             if (flagRenderer != null)
             {
-                flagRenderer.material = new Material(Shader.Find("Unlit/Color"));
-                flagRenderer.material.color = new Color(0.7f, 0.15f, 0.1f); // Red flag
+                flagRenderer.material = TowerDefense.Core.MaterialCache.CreateUnlit(new Color(0.7f, 0.15f, 0.1f));
             }
         }
 
@@ -252,7 +247,7 @@ namespace TowerDefense.Grid
             return true;
         }
 
-        private static float PointToSegmentDistance(Vector3 point, Vector3 segA, Vector3 segB)
+        public static float PointToSegmentDistance(Vector3 point, Vector3 segA, Vector3 segB)
         {
             Vector3 ab = segB - segA;
             ab.y = 0f;

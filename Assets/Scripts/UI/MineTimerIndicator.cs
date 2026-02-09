@@ -9,6 +9,7 @@ namespace TowerDefense.UI
         private LineRenderer ring;
         private TextMesh timerText;
         private const int Segments = 36;
+        private int lastSeconds = -1;
 
         public void Initialize(float collectionInterval)
         {
@@ -26,9 +27,7 @@ namespace TowerDefense.UI
             ring.startWidth = 0.3f;
             ring.endWidth = 0.3f;
             ring.positionCount = Segments + 1;
-            var mat = new Material(Shader.Find("Unlit/Color"));
-            mat.color = new Color(0.2f, 0.8f, 1f);
-            ring.material = mat;
+            ring.material = TowerDefense.Core.MaterialCache.CreateUnlit(new Color(0.2f, 0.8f, 1f));
 
             // Countdown text
             var textObj = new GameObject("TimerText");
@@ -56,8 +55,12 @@ namespace TowerDefense.UI
         {
             float remaining = Mathf.Max(0f, interval - timer);
             int seconds = Mathf.CeilToInt(remaining);
-            if (timerText != null)
-                timerText.text = $"{seconds}s";
+            if (seconds != lastSeconds)
+            {
+                lastSeconds = seconds;
+                if (timerText != null)
+                    timerText.text = $"{seconds}s";
+            }
 
             float progress = Mathf.Clamp01(timer / interval);
             UpdateRing(progress);
@@ -81,6 +84,12 @@ namespace TowerDefense.UI
                 float z = Mathf.Sin(Mathf.PI / 2f - angle) * radius;
                 ring.SetPosition(i, new Vector3(x, 0f, z));
             }
+        }
+
+        private void OnDestroy()
+        {
+            if (ring != null && ring.material != null)
+                Destroy(ring.material);
         }
     }
 }

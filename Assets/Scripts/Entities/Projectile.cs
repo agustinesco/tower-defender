@@ -6,6 +6,8 @@ namespace TowerDefense.Entities
 {
     public class Projectile : MonoBehaviour
     {
+        private static readonly Queue<Projectile> pool = new Queue<Projectile>();
+
         private float speed;
         private Enemy target;
         private Vector3 targetLastPosition;
@@ -26,6 +28,33 @@ namespace TowerDefense.Entities
 
         private TrailRenderer trail;
         private GameObject visual;
+
+        public static Projectile GetFromPool(Vector3 position)
+        {
+            while (pool.Count > 0)
+            {
+                var p = pool.Dequeue();
+                if (p != null)
+                {
+                    p.transform.position = position;
+                    p.gameObject.SetActive(true);
+                    return p;
+                }
+            }
+            var obj = new GameObject("Projectile");
+            obj.transform.position = position;
+            return obj.AddComponent<Projectile>();
+        }
+
+        private void ReturnToPool()
+        {
+            target = null;
+            hitEnemies.Clear();
+            gameObject.SetActive(false);
+            if (trail != null)
+                trail.Clear();
+            pool.Enqueue(this);
+        }
 
         public void Initialize(Enemy target, float damage, float speed, Color color,
             bool isAreaDamage = false, float areaRadius = 0f,
@@ -63,29 +92,40 @@ namespace TowerDefense.Entities
 
         private void CreateVisual()
         {
-            // Create sphere visual
-            visual = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            visual.transform.SetParent(transform);
-            visual.transform.localPosition = Vector3.zero;
-            visual.transform.localScale = new Vector3(0.3f, 0.3f, 0.3f);
-
-            // Remove collider from visual
-            var collider = visual.GetComponent<Collider>();
-            if (collider != null) Destroy(collider);
-
-            // Set color
-            var renderer = visual.GetComponent<Renderer>();
-            if (renderer != null)
+            if (visual == null)
             {
-                renderer.material = Core.MaterialCache.CreateUnlit(projectileColor);
+                // Create sphere visual
+                visual = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                visual.transform.SetParent(transform);
+                visual.transform.localPosition = Vector3.zero;
+                visual.transform.localScale = new Vector3(0.3f, 0.3f, 0.3f);
+
+                // Remove collider from visual
+                var collider = visual.GetComponent<Collider>();
+                if (collider != null) Destroy(collider);
+
+                // Set initial material
+                var renderer = visual.GetComponent<Renderer>();
+                if (renderer != null)
+                    renderer.material = Core.MaterialCache.CreateUnlit(projectileColor);
+            }
+            else
+            {
+                // Reuse: just update color
+                var renderer = visual.GetComponent<Renderer>();
+                if (renderer != null)
+                    renderer.material.color = projectileColor;
             }
 
-            // Add trail renderer
-            trail = gameObject.AddComponent<TrailRenderer>();
-            trail.time = 0.25f;
-            trail.startWidth = 0.15f;
-            trail.endWidth = 0f;
-            trail.material = Core.MaterialCache.CreateSpriteDefault();
+            if (trail == null)
+            {
+                // Add trail renderer
+                trail = gameObject.AddComponent<TrailRenderer>();
+                trail.time = 0.25f;
+                trail.startWidth = 0.15f;
+                trail.endWidth = 0f;
+                trail.material = Core.MaterialCache.CreateSpriteDefault();
+            }
 
             // Set trail color gradient
             Gradient gradient = new Gradient();
@@ -107,7 +147,7 @@ namespace TowerDefense.Entities
             lifetime -= Time.deltaTime;
             if (lifetime <= 0f)
             {
-                Destroy(gameObject);
+                ReturnToPool();
                 return;
             }
 
@@ -192,6 +232,7 @@ namespace TowerDefense.Entities
                     {
                         var enemy = enemies[i];
                         if (enemy == null || enemy.IsDead) continue;
+                        if (enemy.IsFlying) continue;
 
                         float distance = Vector3.Distance(transform.position, enemy.transform.position);
                         if (distance <= areaRadius)
@@ -213,7 +254,7 @@ namespace TowerDefense.Entities
                 }
             }
 
-            Destroy(gameObject);
+            ReturnToPool();
         }
 
         private void SpawnAoeIndicator()
@@ -231,11 +272,13 @@ namespace TowerDefense.Entities
         private float duration = 0.5f;
         private float timer;
         private LineRenderer lineRenderer;
+        private Color baseColor;
 
         public void Initialize(float radius, Color color)
         {
             this.radius = radius;
             this.timer = duration;
+            this.baseColor = color;
 
             lineRenderer = gameObject.AddComponent<LineRenderer>();
             lineRenderer.loop = true;
@@ -265,10 +308,12 @@ namespace TowerDefense.Entities
         {
             float currentRadius = radius * Mathf.Min(progress * 3f, 1f);
             float alpha = timer / duration;
-            lineRenderer.startColor = new Color(lineRenderer.startColor.r, lineRenderer.startColor.g, lineRenderer.startColor.b, alpha);
-            lineRenderer.endColor = lineRenderer.startColor;
-            lineRenderer.startWidth = 0.3f * alpha;
-            lineRenderer.endWidth = 0.3f * alpha;
+            var fadeColor = new Color(baseColor.r, baseColor.g, baseColor.b, alpha);
+            lineRenderer.startColor = fadeColor;
+            lineRenderer.endColor = fadeColor;
+            float width = 0.3f * alpha;
+            lineRenderer.startWidth = width;
+            lineRenderer.endWidth = width;
 
             Vector3 center = transform.position;
             for (int i = 0; i < 32; i++)
@@ -280,6 +325,12 @@ namespace TowerDefense.Entities
                     center.z + Mathf.Sin(angle) * currentRadius
                 ));
             }
+        }
+
+        private void OnDestroy()
+        {
+            if (lineRenderer != null && lineRenderer.material != null)
+                Destroy(lineRenderer.material);
         }
     }
 }

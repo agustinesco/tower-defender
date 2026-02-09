@@ -23,6 +23,13 @@ namespace TowerDefense.Core
         private bool isContinuousMode;
         private int continuousEnemyCount;
 
+        // Cached WaitForSeconds to avoid GC
+        private WaitForSeconds wait0_5s;
+        private WaitForSeconds wait3_0s;
+
+        // Reusable list for spawn path snapshots
+        private readonly List<KeyValuePair<HexCoord, List<Vector3>>> pathsSnapshotReuse = new List<KeyValuePair<HexCoord, List<Vector3>>>();
+
         public bool WaveInProgress => waveInProgress;
         public int EnemyCount => activeEnemies.Count;
         public bool IsContinuousMode => isContinuousMode;
@@ -32,6 +39,8 @@ namespace TowerDefense.Core
         private void Start()
         {
             isContinuousMode = GameModeSelection.SelectedMode == Data.GameMode.Continuous;
+            wait0_5s = new WaitForSeconds(0.5f);
+            wait3_0s = new WaitForSeconds(3f);
             StartCoroutine(InitializePaths());
         }
 
@@ -107,8 +116,10 @@ namespace TowerDefense.Core
             var gm = GameManager.Instance;
 
             // Snapshot spawn paths, sorted by path length descending (furthest spawn points first)
-            var pathsSnapshot = new List<KeyValuePair<HexCoord, List<Vector3>>>(spawnPaths);
-            pathsSnapshot.Sort((a, b) => b.Value.Count.CompareTo(a.Value.Count));
+            pathsSnapshotReuse.Clear();
+            pathsSnapshotReuse.AddRange(spawnPaths);
+            pathsSnapshotReuse.Sort((a, b) => b.Value.Count.CompareTo(a.Value.Count));
+            var pathsSnapshot = pathsSnapshotReuse;
 
             if (waveData != null)
             {
@@ -164,6 +175,14 @@ namespace TowerDefense.Core
                             SpawnEnemy(kvp.Value, zoneHealthMul * 0.7f, zoneSpeedMul, Data.EnemyType.Flying);
                             yield return new WaitForSeconds(timeBetweenSpawns);
                         }
+
+                        // Spawn cart enemies starting from wave 3
+                        int cartCount = 1 + (currentWave - 3) / 3;
+                        for (int i = 0; i < cartCount; i++)
+                        {
+                            SpawnEnemy(kvp.Value, zoneHealthMul, zoneSpeedMul, Data.EnemyType.Cart);
+                            yield return new WaitForSeconds(timeBetweenSpawns * 2f);
+                        }
                     }
                 }
             }
@@ -191,12 +210,16 @@ namespace TowerDefense.Core
             // Wait for all enemies to be defeated
             while (activeEnemies.Count > 0)
             {
-                activeEnemies.RemoveAll(e => e == null);
-                yield return new WaitForSeconds(0.5f);
+                for (int i = activeEnemies.Count - 1; i >= 0; i--)
+                {
+                    if (activeEnemies[i] == null)
+                        activeEnemies.RemoveAt(i);
+                }
+                yield return wait0_5s;
             }
 
             // Brief pause before ending wave
-            yield return new WaitForSeconds(3f);
+            yield return wait3_0s;
 
             waveInProgress = false;
             int waveBonus = 50 + (currentWave - 1) * 10;
@@ -207,6 +230,7 @@ namespace TowerDefense.Core
         private Enemy SpawnEnemy(List<Vector3> path, float healthMultiplier, float speedMultiplier, Data.EnemyType type = Data.EnemyType.Ground)
         {
             var gm = GameManager.Instance;
+            // Cart uses ground prefab (visual is overridden in Enemy)
             GameObject prefab = type == Data.EnemyType.Flying
                 ? (gm != null ? gm.FlyingEnemyPrefab : null)
                 : (gm != null ? gm.GroundEnemyPrefab : null);
@@ -214,17 +238,20 @@ namespace TowerDefense.Core
             GameObject enemyObj;
             Enemy enemy;
 
-            if (prefab != null)
+            string enemyName = type == Data.EnemyType.Flying ? "FlyingEnemy" :
+                               type == Data.EnemyType.Cart ? "CartEnemy" : "Enemy";
+
+            if (prefab != null && type != Data.EnemyType.Cart)
             {
                 enemyObj = Instantiate(prefab);
-                enemyObj.name = type == Data.EnemyType.Flying ? "FlyingEnemy" : "Enemy";
+                enemyObj.name = enemyName;
                 enemy = enemyObj.GetComponent<Enemy>();
                 if (enemy == null)
                     enemy = enemyObj.AddComponent<Enemy>();
             }
             else
             {
-                enemyObj = new GameObject(type == Data.EnemyType.Flying ? "FlyingEnemy" : "Enemy");
+                enemyObj = new GameObject(enemyName);
                 enemy = enemyObj.AddComponent<Enemy>();
             }
 
@@ -381,23 +408,25 @@ namespace TowerDefense.Core
             // Wait for paths to be ready
             while (spawnPaths.Count == 0)
             {
-                yield return new WaitForSeconds(0.5f);
+                yield return wait0_5s;
             }
 
             var gm = GameManager.Instance;
             float elapsed = 0f;
+            var wait1s = new WaitForSeconds(1f);
 
             while (!gm.IsGameOver)
             {
                 // Pick a random spawn path
-                var pathsList = new List<KeyValuePair<HexCoord, List<Vector3>>>(spawnPaths);
-                if (pathsList.Count == 0)
+                pathsSnapshotReuse.Clear();
+                pathsSnapshotReuse.AddRange(spawnPaths);
+                if (pathsSnapshotReuse.Count == 0)
                 {
-                    yield return new WaitForSeconds(1f);
+                    yield return wait1s;
                     continue;
                 }
 
-                var chosen = pathsList[Random.Range(0, pathsList.Count)];
+                var chosen = pathsSnapshotReuse[Random.Range(0, pathsSnapshotReuse.Count)];
 
                 // Scale difficulty with time
                 float difficultyScale = 1f + elapsed / 60f; // +1x per minute
@@ -411,7 +440,9 @@ namespace TowerDefense.Core
 
                 // Determine enemy type
                 Data.EnemyType type = Data.EnemyType.Ground;
-                if (elapsed > 30f && Random.value < 0.25f)
+                if (elapsed > 300f && Random.value < 0.15f)
+                    type = Data.EnemyType.Cart;
+                else if (elapsed > 30f && Random.value < 0.25f)
                     type = Data.EnemyType.Flying;
 
                 SpawnEnemy(chosen.Value, healthMul * zoneHealthMul, speedMul * zoneSpeedMul, type);

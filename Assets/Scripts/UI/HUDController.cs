@@ -36,6 +36,22 @@ namespace TowerDefense.UI
         private List<GameObject> cheatSpawnerMarkers = new List<GameObject>();
         private bool showingSpawners;
 
+        // Continuous mode escape
+        private GameObject escapeButtonObj;
+        private Button escapeButton;
+        private Text escapeButtonText;
+        private GameObject escapeConfirmOverlay;
+        private bool continuousStarted;
+        private float escapeTimer;
+        private const float EscapeInterval = 300f; // 5 minutes
+        private bool escapeAvailable;
+
+        // Cached values for throttling UI text updates
+        private int lastBuildSeconds = -1;
+        private int lastEnemyCount = -1;
+        private int lastEscapeMin = -1;
+        private int lastEscapeSec = -1;
+
         private void Awake()
         {
             CreateUI();
@@ -46,15 +62,6 @@ namespace TowerDefense.UI
             waveManager = FindObjectOfType<WaveManager>();
             towerManager = FindObjectOfType<TowerManager>();
             upgradeSelectionUI = FindObjectOfType<UpgradeSelectionUI>();
-
-            // In continuous mode, hide Start Wave and Exit Run buttons
-            if (waveManager != null && waveManager.IsContinuousMode)
-            {
-                if (startWaveButton != null)
-                    startWaveButton.gameObject.SetActive(false);
-                if (exitRunButtonObj != null)
-                    exitRunButtonObj.SetActive(false);
-            }
 
             if (GameManager.Instance != null)
             {
@@ -88,7 +95,8 @@ namespace TowerDefense.UI
 
             if (towerManager != null)
             {
-                towerManager.OnSlotSelected += ShowTowerPanel;
+                if (!GameManager.Instance.UseFreeTowerPlacement)
+                    towerManager.OnSlotSelected += ShowTowerPanel;
                 towerManager.OnTowerSelected += ShowTowerInfo;
                 towerManager.OnSelectionCleared += HidePanels;
             }
@@ -153,6 +161,18 @@ namespace TowerDefense.UI
             // Style it red to distinguish from Start Wave
             exitRunButtonObj.GetComponent<Image>().color = new Color(0.6f, 0.2f, 0.2f);
             exitRunButtonObj.SetActive(false);
+
+            // Escape button (continuous mode, beside Start Wave)
+            escapeButton = CreateButton(canvasObj.transform, "EscapeButton", new Vector2(0.5f, 0), new Vector2(0.5f, 0),
+                new Vector2(90, 200), new Vector2(160, 50), "Escape", OnEscapeClicked);
+            escapeButtonObj = escapeButton.gameObject;
+            escapeButtonObj.GetComponent<Image>().color = new Color(0.6f, 0.5f, 0.1f);
+            escapeButtonText = escapeButtonObj.GetComponentInChildren<Text>();
+            escapeButton.interactable = false;
+            escapeButtonObj.SetActive(false);
+
+            // Escape confirmation overlay
+            CreateEscapeConfirmOverlay(canvasObj.transform);
 
             // Build phase countdown timer (above Start Wave / Exit Run buttons)
             buildTimerObj = new GameObject("BuildTimer");
@@ -452,6 +472,22 @@ namespace TowerDefense.UI
             {
                 GameManager.Instance.SkipBuildPhase();
             }
+            else if (waveManager != null && waveManager.IsContinuousMode && !continuousStarted)
+            {
+                waveManager.StartContinuousMode();
+                continuousStarted = true;
+                escapeTimer = 0f;
+                escapeAvailable = false;
+                if (startWaveButton != null)
+                    startWaveButton.gameObject.SetActive(false);
+                if (exitRunButtonObj != null)
+                    exitRunButtonObj.SetActive(false);
+                if (escapeButtonObj != null)
+                {
+                    escapeButtonObj.SetActive(true);
+                    escapeButton.interactable = false;
+                }
+            }
             else if (waveManager != null)
             {
                 if (exitRunButtonObj != null)
@@ -505,13 +541,55 @@ namespace TowerDefense.UI
             if (GameManager.Instance != null && GameManager.Instance.BuildPhaseActive && buildTimerText != null)
             {
                 int seconds = Mathf.CeilToInt(GameManager.Instance.BuildTimer);
-                buildTimerText.text = $"Build phase: {seconds}s";
+                if (seconds != lastBuildSeconds)
+                {
+                    lastBuildSeconds = seconds;
+                    buildTimerText.text = $"Build phase: {seconds}s";
+                }
             }
 
             // Show enemy count in continuous mode
             if (enemyCountText != null && waveManager != null && waveManager.IsContinuousMode)
             {
-                enemyCountText.text = $"Enemies: {waveManager.EnemyCount}";
+                int count = waveManager.EnemyCount;
+                if (count != lastEnemyCount)
+                {
+                    lastEnemyCount = count;
+                    enemyCountText.text = $"Enemies: {count}";
+                }
+            }
+
+            // Continuous escape timer
+            if (continuousStarted && escapeButtonObj != null && escapeButtonObj.activeSelf)
+            {
+                escapeTimer += Time.deltaTime;
+                float remaining = EscapeInterval - (escapeTimer % EscapeInterval);
+
+                if (!escapeAvailable && escapeTimer >= EscapeInterval)
+                {
+                    escapeAvailable = true;
+                    escapeButton.interactable = true;
+                    escapeButtonObj.GetComponent<Image>().color = new Color(0.8f, 0.65f, 0.1f);
+                }
+
+                if (escapeAvailable)
+                {
+                    if (escapeButtonText != null)
+                        escapeButtonText.text = "Escape!";
+                }
+                else
+                {
+                    int min = Mathf.FloorToInt(remaining / 60f);
+                    int sec = Mathf.CeilToInt(remaining % 60f);
+                    if (sec == 60) { min++; sec = 0; }
+                    if (min != lastEscapeMin || sec != lastEscapeSec)
+                    {
+                        lastEscapeMin = min;
+                        lastEscapeSec = sec;
+                        if (escapeButtonText != null)
+                            escapeButtonText.text = $"Escape {min}:{sec:D2}";
+                    }
+                }
             }
         }
 
@@ -676,6 +754,78 @@ namespace TowerDefense.UI
                 marker.AddComponent<BillboardSprite>();
                 cheatSpawnerMarkers.Add(marker);
             }
+        }
+
+        private void CreateEscapeConfirmOverlay(Transform parent)
+        {
+            escapeConfirmOverlay = new GameObject("EscapeConfirmOverlay");
+            escapeConfirmOverlay.transform.SetParent(parent);
+
+            var rect = escapeConfirmOverlay.AddComponent<RectTransform>();
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+
+            var bg = escapeConfirmOverlay.AddComponent<Image>();
+            bg.color = new Color(0, 0, 0, 0.75f);
+
+            // Panel
+            var panel = new GameObject("Panel");
+            panel.transform.SetParent(escapeConfirmOverlay.transform);
+            var panelRect = panel.AddComponent<RectTransform>();
+            panelRect.anchorMin = new Vector2(0.5f, 0.5f);
+            panelRect.anchorMax = new Vector2(0.5f, 0.5f);
+            panelRect.sizeDelta = new Vector2(400, 180);
+            var panelBg = panel.AddComponent<Image>();
+            panelBg.color = new Color(0.12f, 0.12f, 0.18f);
+
+            // Question text
+            var textObj = new GameObject("Text");
+            textObj.transform.SetParent(panel.transform);
+            var textRect = textObj.AddComponent<RectTransform>();
+            textRect.anchorMin = new Vector2(0, 0.5f);
+            textRect.anchorMax = new Vector2(1, 1);
+            textRect.offsetMin = new Vector2(10, 0);
+            textRect.offsetMax = new Vector2(-10, -10);
+            var text = textObj.AddComponent<Text>();
+            text.text = "Escape with your resources?";
+            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            text.fontSize = 24;
+            text.color = Color.white;
+            text.alignment = TextAnchor.MiddleCenter;
+
+            // Yes button
+            CreateButton(panel.transform, "YesBtn", new Vector2(0.5f, 0), new Vector2(0.5f, 0),
+                new Vector2(-80, 40), new Vector2(120, 45), "Yes", OnEscapeConfirmed);
+
+            // No button
+            var noBtn = CreateButton(panel.transform, "NoBtn", new Vector2(0.5f, 0), new Vector2(0.5f, 0),
+                new Vector2(80, 40), new Vector2(120, 45), "No", OnEscapeCancelled);
+            noBtn.GetComponent<Image>().color = new Color(0.5f, 0.2f, 0.2f);
+
+            escapeConfirmOverlay.SetActive(false);
+        }
+
+        private void OnEscapeClicked()
+        {
+            if (!escapeAvailable) return;
+            escapeConfirmOverlay.SetActive(true);
+            escapeConfirmOverlay.transform.SetAsLastSibling();
+            Time.timeScale = 0f;
+        }
+
+        private void OnEscapeConfirmed()
+        {
+            Time.timeScale = 1f;
+            escapeConfirmOverlay.SetActive(false);
+            GameManager.Instance?.ExitRun();
+        }
+
+        private void OnEscapeCancelled()
+        {
+            Time.timeScale = 1f;
+            escapeConfirmOverlay.SetActive(false);
         }
 
         private void OnUpgradesClicked()

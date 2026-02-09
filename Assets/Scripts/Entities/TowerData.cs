@@ -16,6 +16,7 @@ namespace TowerDefense.Entities
         public float slowMultiplier;
         public float slowDuration;
         public Color towerColor = Color.blue;
+        public Sprite towerIcon;
         public float projectileSpeed = 15f;
 
         [Header("Shotgun Settings")]
@@ -38,5 +39,8 @@ namespace TowerDefense.Entities
         [Header("Targeting")]
         public bool canTargetFlying = false;
         public bool prioritizeFlying = false;
+
+        [Header("Placement")]
+        public float placementRadius = 5f;
     }
 }
