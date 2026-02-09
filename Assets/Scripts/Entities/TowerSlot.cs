@@ -8,15 +8,26 @@ namespace TowerDefense.Grid
         private HexPiece parentHex;
         private Tower currentTower;
         private GameObject visualIndicator;
+        private Vector3 pathFacingDirection;
 
         public bool IsOccupied => currentTower != null;
         public HexPiece ParentHex => parentHex;
         public Tower CurrentTower => currentTower;
+        public Vector3 PathFacingDirection => pathFacingDirection;
 
-        public void Initialize(HexPiece hex)
+        public void Initialize(HexPiece hex, Vector3 facingDirection, bool showIndicator = true)
         {
             parentHex = hex;
-            CreateVisualIndicator();
+            pathFacingDirection = facingDirection;
+
+            // Always add collider to slot for click detection on placed towers
+            var slotCollider = gameObject.AddComponent<SphereCollider>();
+            slotCollider.radius = 1.5f;
+
+            if (showIndicator)
+            {
+                CreateVisualIndicator();
+            }
         }
 
         private void CreateVisualIndicator()
@@ -26,7 +37,7 @@ namespace TowerDefense.Grid
             visualIndicator.transform.localPosition = Vector3.zero;
             visualIndicator.transform.localScale = new Vector3(1f, 0.1f, 1f);
 
-            // Remove collider from primitive
+            // Remove collider from primitive (slot already has its own)
             var collider = visualIndicator.GetComponent<Collider>();
             if (collider != null)
             {
@@ -40,10 +51,6 @@ namespace TowerDefense.Grid
                 renderer.material = new Material(Shader.Find("Unlit/Color"));
                 renderer.material.color = new Color(0.2f, 0.6f, 0.2f, 0.5f);
             }
-
-            // Add collider to slot for click detection
-            var slotCollider = gameObject.AddComponent<SphereCollider>();
-            slotCollider.radius = 0.6f;
         }
 
         public bool PlaceTower(Tower tower)
@@ -53,7 +60,8 @@ namespace TowerDefense.Grid
             currentTower = tower;
             tower.transform.position = transform.position;
             tower.transform.SetParent(transform);
-            visualIndicator.SetActive(false);
+            if (visualIndicator != null)
+                visualIndicator.SetActive(false);
 
             return true;
         }
@@ -64,7 +72,8 @@ namespace TowerDefense.Grid
 
             Tower tower = currentTower;
             currentTower = null;
-            visualIndicator.SetActive(true);
+            if (visualIndicator != null)
+                visualIndicator.SetActive(true);
 
             return tower;
         }
@@ -81,6 +90,20 @@ namespace TowerDefense.Grid
                         : new Color(0.2f, 0.6f, 0.2f, 0.5f);
                 }
             }
+        }
+
+        public void DestroySelf()
+        {
+            if (currentTower != null)
+            {
+                Destroy(currentTower.gameObject);
+                currentTower = null;
+            }
+            if (visualIndicator != null)
+            {
+                Destroy(visualIndicator);
+            }
+            Destroy(gameObject);
         }
     }
 }

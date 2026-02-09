@@ -7,23 +7,25 @@ namespace TowerDefense.UI
 {
     public class CameraController : MonoBehaviour
     {
-        [SerializeField] private float minZoom = 10f;
-        [SerializeField] private float maxZoom = 40f;
+        [SerializeField] private float minZoom = 20f;
+        [SerializeField] private float maxZoom = 300f;
         [SerializeField] private float panSpeed = 0.02f;
         [SerializeField] private float zoomSpeed = 0.1f;
-        [SerializeField] private float initialPanBounds = 50f;
+        [SerializeField] private float initialPanBounds = 100f;
 
         private float currentPanBounds;
 
         [Header("Auto Pan Settings")]
         [SerializeField] private float autoPanDuration = 1.5f;
-        [SerializeField] private float expandedViewPadding = 5f;
+        [SerializeField] private float expandedViewPadding = 10f;
 
         private Camera cam;
         private Vector3 lastPanPosition;
         private float lastPinchDistance;
         private bool isPanning;
         private bool isAutoPanning;
+
+        [HideInInspector] public PieceDragHandler pieceDragHandler;
 
         private void Awake()
         {
@@ -55,6 +57,8 @@ namespace TowerDefense.UI
 
         private void HandleTouchInput()
         {
+            if (pieceDragHandler != null && pieceDragHandler.IsInteracting) return;
+
             if (Input.touchCount == 1)
             {
                 Touch touch = Input.GetTouch(0);
@@ -71,7 +75,7 @@ namespace TowerDefense.UI
                 {
                     Vector3 delta = (Vector3)touch.position - lastPanPosition;
                     // Scale pan speed by camera zoom level for consistent feel
-                    float zoomFactor = cam != null ? cam.orthographicSize / 20f : 1f;
+                    float zoomFactor = cam != null ? cam.orthographicSize / 40f : 1f;
                     Pan(-delta * panSpeed * zoomFactor);
                     lastPanPosition = touch.position;
                 }
@@ -104,6 +108,8 @@ namespace TowerDefense.UI
 
         private void HandleMouseInput()
         {
+            if (pieceDragHandler != null && pieceDragHandler.IsInteracting) return;
+
             // Check if mouse is over UI element
             bool isOverUI = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
 
@@ -116,7 +122,7 @@ namespace TowerDefense.UI
             else if ((Input.GetMouseButton(0) || Input.GetMouseButton(2)) && isPanning)
             {
                 Vector3 delta = Input.mousePosition - lastPanPosition;
-                float zoomFactor = cam != null ? cam.orthographicSize / 20f : 1f;
+                float zoomFactor = cam != null ? cam.orthographicSize / 40f : 1f;
                 Pan(-delta * panSpeed * zoomFactor);
                 lastPanPosition = Input.mousePosition;
             }
@@ -129,7 +135,7 @@ namespace TowerDefense.UI
             float scroll = Input.GetAxis("Mouse ScrollWheel");
             if (scroll != 0)
             {
-                Zoom(-scroll * 10f);
+                Zoom(-scroll * 20f);
             }
         }
 
@@ -220,7 +226,7 @@ namespace TowerDefense.UI
         /// </summary>
         /// <param name="positions">World positions that should be reachable by the camera</param>
         /// <param name="padding">Extra padding around the positions</param>
-        public void ExpandBoundsToInclude(List<Vector3> positions, float padding = 10f)
+        public void ExpandBoundsToInclude(List<Vector3> positions, float padding = 20f)
         {
             if (positions == null || positions.Count == 0)
                 return;
@@ -237,6 +243,57 @@ namespace TowerDefense.UI
                     Debug.Log($"CameraController: Pan bounds expanded to {currentPanBounds}");
                 }
             }
+        }
+
+        /// <summary>
+        /// Fits the camera to show all provided positions with padding.
+        /// Adjusts both position and zoom level.
+        /// </summary>
+        public void FitToPositions(List<Vector3> positions, float padding = 30f)
+        {
+            if (positions == null || positions.Count == 0 || cam == null)
+                return;
+
+            // Calculate bounds of all positions
+            Vector3 min = positions[0];
+            Vector3 max = positions[0];
+
+            foreach (var pos in positions)
+            {
+                min.x = Mathf.Min(min.x, pos.x);
+                min.z = Mathf.Min(min.z, pos.z);
+                max.x = Mathf.Max(max.x, pos.x);
+                max.z = Mathf.Max(max.z, pos.z);
+            }
+
+            // Calculate center
+            Vector3 center = new Vector3(
+                (min.x + max.x) / 2f,
+                transform.position.y,
+                (min.z + max.z) / 2f
+            );
+
+            // Calculate required size
+            float width = max.x - min.x + padding * 2f;
+            float height = max.z - min.z + padding * 2f;
+
+            // For orthographic camera, size is half the vertical size
+            // Account for aspect ratio
+            float aspectRatio = cam.aspect;
+            float requiredSizeForWidth = width / (2f * aspectRatio);
+            float requiredSizeForHeight = height / 2f;
+
+            float requiredSize = Mathf.Max(requiredSizeForWidth, requiredSizeForHeight);
+            requiredSize = Mathf.Clamp(requiredSize, minZoom, maxZoom);
+
+            // Apply
+            transform.position = center;
+            cam.orthographicSize = requiredSize;
+
+            // Update pan bounds
+            currentPanBounds = Mathf.Max(currentPanBounds, width / 2f + padding, height / 2f + padding);
+
+            Debug.Log($"CameraController: Fit to map - center: {center}, size: {requiredSize}, bounds: {currentPanBounds}");
         }
     }
 }

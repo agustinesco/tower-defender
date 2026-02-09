@@ -14,29 +14,27 @@ namespace TowerDefense.Grid
 
         public List<Vector3> FindPathToCastle(HexCoord start)
         {
-            Debug.Log($"PathFinder: Finding path from {start}");
+            return FindPathToTarget(start, coord => map.TryGetValue(coord, out var p) && p.IsCastle);
+        }
 
+        public List<Vector3> FindPathToCoord(HexCoord start, HexCoord target)
+        {
+            return FindPathToTarget(start, coord => coord == target);
+        }
+
+        private List<Vector3> FindPathToTarget(HexCoord start, System.Func<HexCoord, bool> isTarget)
+        {
             if (!map.ContainsKey(start))
-            {
-                Debug.LogError($"PathFinder: Start position {start} not in map!");
                 return new List<Vector3>();
-            }
 
-            var startPiece = map[start];
-            Debug.Log($"PathFinder: Start piece type: {startPiece.Type}, edges: [{string.Join(", ", startPiece.ConnectedEdges)}]");
-
-            var hexPath = BFSToCastle(start);
+            var hexPath = BFS(start, isTarget);
             if (hexPath == null || hexPath.Count == 0)
-            {
-                Debug.LogWarning($"PathFinder: No path found from {start} to castle");
                 return new List<Vector3>();
-            }
 
-            Debug.Log($"PathFinder: Found hex path with {hexPath.Count} hexes");
             return ConvertToWaypoints(hexPath);
         }
 
-        private List<HexCoord> BFSToCastle(HexCoord start)
+        private List<HexCoord> BFS(HexCoord start, System.Func<HexCoord, bool> isTarget)
         {
             var queue = new Queue<HexCoord>();
             var visited = new HashSet<HexCoord>();
@@ -45,15 +43,15 @@ namespace TowerDefense.Grid
             queue.Enqueue(start);
             visited.Add(start);
 
-            HexCoord? castleCoord = null;
+            HexCoord? targetCoord = null;
 
             while (queue.Count > 0)
             {
                 var current = queue.Dequeue();
 
-                if (map.TryGetValue(current, out var piece) && piece.IsCastle)
+                if (isTarget(current))
                 {
-                    castleCoord = current;
+                    targetCoord = current;
                     break;
                 }
 
@@ -79,11 +77,11 @@ namespace TowerDefense.Grid
                 }
             }
 
-            if (!castleCoord.HasValue)
+            if (!targetCoord.HasValue)
                 return null;
 
             var path = new List<HexCoord>();
-            var node = castleCoord.Value;
+            var node = targetCoord.Value;
             while (cameFrom.ContainsKey(node))
             {
                 path.Add(node);

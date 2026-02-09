@@ -10,6 +10,7 @@ namespace TowerDefense.Grid
         public List<int> ConnectedEdges;
         public bool IsSpawnPoint => Type == HexPieceType.DeadEnd;
         public bool IsCastle => Type == HexPieceType.Castle;
+        public bool IsGoblinCamp => Type == HexPieceType.GoblinCamp;
 
         public HexPieceData(HexCoord coord, HexPieceType type, List<int> connectedEdges)
         {

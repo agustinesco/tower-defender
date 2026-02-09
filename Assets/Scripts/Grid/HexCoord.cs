@@ -38,6 +38,14 @@ namespace TowerDefense.Grid
             return (edge + 3) % 6;
         }
 
+        public int DistanceTo(HexCoord other)
+        {
+            int dq = Mathf.Abs(q - other.q);
+            int dr = Mathf.Abs(r - other.r);
+            int ds = Mathf.Abs(S - other.S);
+            return Mathf.Max(dq, Mathf.Max(dr, ds));
+        }
+
         public static HexCoord operator +(HexCoord a, HexCoord b)
         {
             return new HexCoord(a.q + b.q, a.r + b.r);

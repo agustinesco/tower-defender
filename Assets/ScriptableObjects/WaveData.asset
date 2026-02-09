@@ -1,0 +1,120 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cb5da81a08f0f45bebf98cd243f45139, type: 3}
+  m_Name: WaveData
+  m_EditorClassIdentifier: 
+  waves:
+  - waveName: Scouts
+    enemySpawns:
+    - count: 4
+      healthMultiplier: 1
+      speedMultiplier: 1
+      spawnInterval: 0.8
+    delayAfterWave: 8
+  - waveName: Skirmishers
+    enemySpawns:
+    - count: 6
+      healthMultiplier: 1
+      speedMultiplier: 1
+      spawnInterval: 0.7
+    delayAfterWave: 7
+  - waveName: Raiders
+    enemySpawns:
+    - count: 8
+      healthMultiplier: 1
+      speedMultiplier: 1
+      spawnInterval: 0.6
+    delayAfterWave: 7
+  - waveName: Warband
+    enemySpawns:
+    - count: 10
+      healthMultiplier: 1.1
+      speedMultiplier: 1
+      spawnInterval: 0.6
+    delayAfterWave: 6
+  - waveName: Vanguard
+    enemySpawns:
+    - count: 12
+      healthMultiplier: 1.2
+      speedMultiplier: 1.05
+      spawnInterval: 0.5
+    delayAfterWave: 6
+  - waveName: Assault
+    enemySpawns:
+    - count: 14
+      healthMultiplier: 1.3
+      speedMultiplier: 1.05
+      spawnInterval: 0.5
+    delayAfterWave: 6
+  - waveName: Siege
+    enemySpawns:
+    - count: 16
+      healthMultiplier: 1.4
+      speedMultiplier: 1.1
+      spawnInterval: 0.45
+    delayAfterWave: 5
+  - waveName: Onslaught
+    enemySpawns:
+    - count: 18
+      healthMultiplier: 1.5
+      speedMultiplier: 1.1
+      spawnInterval: 0.4
+    delayAfterWave: 5
+  - waveName: Stampede
+    enemySpawns:
+    - count: 20
+      healthMultiplier: 1.7
+      speedMultiplier: 1.15
+      spawnInterval: 0.4
+    delayAfterWave: 5
+  - waveName: Horde
+    enemySpawns:
+    - count: 22
+      healthMultiplier: 1.9
+      speedMultiplier: 1.15
+      spawnInterval: 0.35
+    delayAfterWave: 5
+  - waveName: Legion
+    enemySpawns:
+    - count: 24
+      healthMultiplier: 2.1
+      speedMultiplier: 1.2
+      spawnInterval: 0.35
+    delayAfterWave: 4
+  - waveName: Armada
+    enemySpawns:
+    - count: 26
+      healthMultiplier: 2.3
+      speedMultiplier: 1.2
+      spawnInterval: 0.3
+    delayAfterWave: 4
+  - waveName: Juggernaut
+    enemySpawns:
+    - count: 28
+      healthMultiplier: 2.6
+      speedMultiplier: 1.25
+      spawnInterval: 0.3
+    delayAfterWave: 4
+  - waveName: Apocalypse
+    enemySpawns:
+    - count: 30
+      healthMultiplier: 3
+      speedMultiplier: 1.3
+      spawnInterval: 0.25
+    delayAfterWave: 3
+  - waveName: Ragnarok
+    enemySpawns:
+    - count: 35
+      healthMultiplier: 3.5
+      speedMultiplier: 1.35
+      spawnInterval: 0.2
+    delayAfterWave: 3

@@ -122,6 +122,55 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+--- !u!1 &341108099
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 341108101}
+  - component: {fileID: 341108100}
+  m_Layer: 0
+  m_Name: UpgradeManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &341108100
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 341108099}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d8d12eb20f3c7487b9f7175e49c947c9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  allUpgradeCards:
+  - {fileID: 11400000, guid: d5e5c8d63c1cc46918ebc70c3fb96f83, type: 2}
+  - {fileID: 11400000, guid: fd0566f6568b54c5fbfdd8676882705a, type: 2}
+  - {fileID: 11400000, guid: 75db376f09411439e9b2451b369a38b3, type: 2}
+  - {fileID: 11400000, guid: da9964af04f8e45b78dea3651d1ba631, type: 2}
+--- !u!4 &341108101
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 341108099}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &705507993
 GameObject:
   m_ObjectHideFlags: 0
@@ -325,7 +374,10 @@ MonoBehaviour:
   maxZoom: 40
   panSpeed: 0.5
   zoomSpeed: 0.1
-  panBounds: 30
+  initialPanBounds: 50
+  autoPanDuration: 1.5
+  expandedViewPadding: 5
+  pieceDragHandler: {fileID: 0}
 --- !u!1 &1631176860
 GameObject:
   m_ObjectHideFlags: 0
@@ -403,8 +455,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   availableTowers:
   - {fileID: 11400000, guid: 7298fec1a33354760b29e7001c9db05c, type: 2}
+  - {fileID: 11400000, guid: 87aa5cfcf64f14e939aa78f066be5ccd, type: 2}
   - {fileID: 11400000, guid: ab576cff1773246f49a0e1a0d017c48a, type: 2}
   - {fileID: 11400000, guid: d9823c1e5bb064d949e24fec7f20e857, type: 2}
+  - {fileID: 11400000, guid: 903a2ef10ef154d0fb2f582504c1b9fb, type: 2}
+  - {fileID: 11400000, guid: 4a4781304a20a47799854cc0e7efd2f3, type: 2}
 --- !u!114 &1886648388
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -417,7 +472,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 10acb88861c794132ae52bac4cd898e4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  timeBetweenWaves: 20
+  waveData: {fileID: 11400000, guid: 648c1be705e584f2c958455e08a5c442, type: 2}
   timeBetweenSpawns: 0.5
   baseEnemiesPerWave: 5
 --- !u!114 &1886648389
@@ -434,10 +489,29 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   startingLives: 10
   startingCurrency: 200
+  startingTiles: 3
+  buildGracePeriod: 30
   hexBaseMaterial: {fileID: 2100000, guid: 5d6cf16251e284a6793a8d631943c6ef, type: 2}
   hexPathMaterial: {fileID: 2100000, guid: b1b50c7d30ff04f3c904fbf3c70136b5, type: 2}
   castleMaterial: {fileID: 2100000, guid: 05ef35fb40867429488043aa062e5b35, type: 2}
+  goblinCampSprite: {fileID: 21300000, guid: 869a84fc5e5644f7599f2eab54900ec4, type: 3}
+  goldSprite: {fileID: 21300000, guid: 5b195d7d6abf849be9b658022549311b, type: 3}
+  oreSprite: {fileID: 21300000, guid: 6e0949ac631274803b820e2482aa295b, type: 3}
+  gemsSprite: {fileID: 21300000, guid: c098fcb616532409db7b7bc251a38ff3, type: 3}
+  florpusSprite: {fileID: 21300000, guid: 36100443f21b948ff8390571536f040f, type: 3}
   hexPiecePrefab: {fileID: 0}
+  mineOutpostPrefab: {fileID: 2242801131017349800, guid: 41eec2429de4547da9bb7456ebcf2b83, type: 3}
+  pieceConfigs:
+  - {fileID: 11400000, guid: cb91964deb0347128a057b801db09d1d, type: 2}
+  - {fileID: 11400000, guid: 077954badff3426d8faff80cd7f1a560, type: 2}
+  - {fileID: 11400000, guid: b98729ac51fd45fcb0155adff8363899, type: 2}
+  - {fileID: 11400000, guid: 33d51af713754ab2abf5783b7ffa7ac2, type: 2}
+  - {fileID: 11400000, guid: ae45b9d2cddb431588687f83638cbf9e, type: 2}
+  - {fileID: 11400000, guid: 2672230b88f84685bb4fb761b1e7abd5, type: 2}
+  - {fileID: 11400000, guid: a6b33cf53d310477fbf4d0023d464c07, type: 2}
+  - {fileID: 11400000, guid: 889865e5ab621499cb8a8389e382208d, type: 2}
+  - {fileID: 11400000, guid: 940488880f7df4b04ae526d89d402fb2, type: 2}
+  zoneBoundaries: 0a0000001400000028000000
 --- !u!4 &1886648390
 Transform:
   m_ObjectHideFlags: 0
@@ -461,3 +535,4 @@ SceneRoots:
   - {fileID: 705507995}
   - {fileID: 1886648390}
   - {fileID: 1631176862}
+  - {fileID: 341108101}

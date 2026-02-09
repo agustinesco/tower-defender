@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 450ff1de8f4df43ea8b7c7eca84ca30e, type: 3}
+  m_Name: FlameTower
+  m_EditorClassIdentifier:
+  towerName: Flame
+  cost: 90
+  damage: 0
+  range: 8
+  fireRate: 0.5
+  isAreaDamage: 0
+  areaRadius: 0
+  appliesSlow: 0
+  slowMultiplier: 0
+  slowDuration: 0
+  towerColor: {r: 1, g: 0.35, b: 0.1, a: 1}
+  projectileSpeed: 15
+  isShotgun: 0
+  shotgunProjectileCount: 5
+  shotgunSpreadAngle: 60
+  isTesla: 0
+  bounceCount: 3
+  bounceRange: 10
+  damageFalloff: 0.7
+  isFlame: 1
+  firePatchDuration: 4
+  fireDamagePerSecond: 5
+  burnDuration: 2

@@ -15,11 +15,15 @@ MonoBehaviour:
   towerName: Arrow
   cost: 50
   damage: 5
-  range: 3
-  fireRate: 10
+  range: 8
+  fireRate: 1
   isAreaDamage: 0
   areaRadius: 0
   appliesSlow: 0
   slowMultiplier: 0
   slowDuration: 0
   towerColor: {r: 0.2, g: 0.4, b: 0.8, a: 1}
+  projectileSpeed: 15
+  isShotgun: 0
+  shotgunProjectileCount: 5
+  shotgunSpreadAngle: 60

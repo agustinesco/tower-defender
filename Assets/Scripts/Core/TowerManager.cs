@@ -3,6 +3,7 @@ using UnityEngine.EventSystems;
 using System.Collections.Generic;
 using TowerDefense.Entities;
 using TowerDefense.Grid;
+using TowerDefense.UI;
 
 namespace TowerDefense.Core
 {
@@ -12,14 +13,36 @@ namespace TowerDefense.Core
 
         private TowerSlot selectedSlot;
         private Tower selectedTower;
+        private PieceDragHandler pieceDragHandler;
+        private List<Tower> placedTowers = new List<Tower>();
 
         public TowerSlot SelectedSlot => selectedSlot;
         public Tower SelectedTower => selectedTower;
-        public List<TowerData> AvailableTowers => availableTowers;
+        public List<TowerData> AvailableTowers
+        {
+            get
+            {
+                if (LabManager.Instance == null)
+                    return availableTowers;
+
+                var unlocked = new List<TowerData>();
+                foreach (var tower in availableTowers)
+                {
+                    if (LabManager.Instance.IsTowerUnlocked(tower.towerName))
+                        unlocked.Add(tower);
+                }
+                return unlocked;
+            }
+        }
 
         public event System.Action<TowerSlot> OnSlotSelected;
         public event System.Action<Tower> OnTowerSelected;
         public event System.Action OnSelectionCleared;
+
+        public void SetPieceDragHandler(PieceDragHandler handler)
+        {
+            pieceDragHandler = handler;
+        }
 
         private void Update()
         {
@@ -28,6 +51,10 @@ namespace TowerDefense.Core
 
         private void HandleInput()
         {
+            // Skip tower placement input when placing pieces
+            if (pieceDragHandler != null && pieceDragHandler.IsPlacingPiece)
+                return;
+
             // Handle touch input
             if (Input.touchCount == 1 && Input.GetTouch(0).phase == TouchPhase.Began)
             {
@@ -65,7 +92,7 @@ namespace TowerDefense.Core
                     return;
                 }
 
-                // Check if we hit a tower (through its slot)
+                // Check if we hit a tower through its slot parent
                 var slotParent = hit.collider.GetComponentInParent<TowerSlot>();
                 if (slotParent != null && slotParent.IsOccupied)
                 {
@@ -127,12 +154,30 @@ namespace TowerDefense.Core
 
             GameObject towerObj = new GameObject($"Tower_{towerData.towerName}");
             var tower = towerObj.AddComponent<Tower>();
+
+            // Place tower first so it's parented to the slot
+            selectedSlot.PlaceTower(tower);
+            // Then initialize (so GetComponentInParent<TowerSlot> works for shotgun facing)
             tower.Initialize(towerData);
 
-            selectedSlot.PlaceTower(tower);
+            placedTowers.Add(tower);
             ClearSelection();
 
             return true;
+        }
+
+        public int RemoveTowersOnPiece(HexPiece piece)
+        {
+            int refund = 0;
+            foreach (var slot in piece.Slots)
+            {
+                if (slot.IsOccupied)
+                {
+                    refund += slot.CurrentTower.SellValue;
+                    placedTowers.Remove(slot.CurrentTower);
+                }
+            }
+            return refund;
         }
 
         public bool SellTower()
@@ -143,12 +188,14 @@ namespace TowerDefense.Core
             int sellValue = selectedTower.SellValue;
             var slot = selectedTower.GetComponentInParent<TowerSlot>();
 
+            placedTowers.Remove(selectedTower);
+            Destroy(selectedTower.gameObject);
+
             if (slot != null)
             {
                 slot.RemoveTower();
             }
 
-            Destroy(selectedTower.gameObject);
             GameManager.Instance.AddCurrency(sellValue);
             ClearSelection();
 

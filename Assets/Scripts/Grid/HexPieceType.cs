@@ -6,6 +6,10 @@ namespace TowerDefense.Grid
         Straight,   // 2 connections, opposite edges
         Bend,       // 2 connections, adjacent edges
         Fork,       // 3 connections, T-junction
-        DeadEnd     // 1 connection, spawn point
+        DeadEnd,    // 1 connection, spawn point
+        GoblinCamp, // 2 connections (straight), no tower slots, spawns enemies
+        Cross,      // 4 connections, crossroad
+        Star,       // 5 connections
+        Crossroads  // 6 connections, all edges
     }
 }

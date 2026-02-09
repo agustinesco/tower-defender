@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 450ff1de8f4df43ea8b7c7eca84ca30e, type: 3}
+  m_Name: ShotgunTower
+  m_EditorClassIdentifier: 
+  towerName: Shotgun
+  cost: 75
+  damage: 8
+  range: 8
+  fireRate: 1.2
+  isAreaDamage: 0
+  areaRadius: 0
+  appliesSlow: 0
+  slowMultiplier: 0
+  slowDuration: 0
+  towerColor: {r: 0.8, g: 0.5, b: 0.2, a: 1}
+  projectileSpeed: 20
+  isShotgun: 1
+  shotgunProjectileCount: 5
+  shotgunSpreadAngle: 60

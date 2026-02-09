@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using TowerDefense.Core;
 using TowerDefense.Grid;
 using TowerDefense.Entities;
+using TowerDefense.Data;
 
 
 namespace TowerDefense.UI
@@ -14,7 +15,13 @@ namespace TowerDefense.UI
         private Text livesText;
         private Text waveText;
         private Text currencyText;
+        private Dictionary<ResourceType, Text> resourceTexts = new Dictionary<ResourceType, Text>();
+        private Dictionary<ResourceType, Image> resourceIcons = new Dictionary<ResourceType, Image>();
+        private Image goldIcons;
+        private Text buildTimerText;
         private Button startWaveButton;
+        private GameObject exitRunButtonObj;
+        private GameObject buildTimerObj;
         private GameObject towerPanel;
         private GameObject towerInfoPanel;
         private List<GameObject> towerButtons = new List<GameObject>();
@@ -22,6 +29,9 @@ namespace TowerDefense.UI
         private Canvas canvas;
         private WaveManager waveManager;
         private TowerManager towerManager;
+        private PieceHandUI pieceHandUIInstance;
+        private List<GameObject> cheatSpawnerMarkers = new List<GameObject>();
+        private bool showingSpawners;
 
         private void Awake()
         {
@@ -39,10 +49,28 @@ namespace TowerDefense.UI
                 GameManager.Instance.OnCurrencyChanged += UpdateCurrency;
                 GameManager.Instance.OnWaveChanged += UpdateWave;
                 GameManager.Instance.OnGameOver += ShowGameOver;
+                GameManager.Instance.OnBuildPhaseStarted += OnBuildPhaseStarted;
+                GameManager.Instance.OnBuildPhaseEnded += OnBuildPhaseEnded;
 
                 UpdateLives(GameManager.Instance.Lives);
                 UpdateCurrency(GameManager.Instance.Currency);
                 UpdateWave(GameManager.Instance.Wave);
+
+                // Set resource icons now that GameManager is available
+                if (goldIcons != null)
+                {
+                    var goldSprite = GameManager.Instance.GoldSprite;
+                    if (goldSprite != null)
+                        goldIcons.sprite = goldSprite;
+                    goldIcons.color = new Color(1f, 0.85f, 0.2f);
+                }
+                foreach (var kvp in resourceIcons)
+                {
+                    var sprite = GameManager.Instance.GetResourceSprite(kvp.Key);
+                    if (sprite != null)
+                        kvp.Value.sprite = sprite;
+                    kvp.Value.color = GameManager.Instance.GetResourceColor(kvp.Key);
+                }
             }
 
             if (towerManager != null)
@@ -50,6 +78,17 @@ namespace TowerDefense.UI
                 towerManager.OnSlotSelected += ShowTowerPanel;
                 towerManager.OnTowerSelected += ShowTowerInfo;
                 towerManager.OnSelectionCleared += HidePanels;
+            }
+
+            if (waveManager != null)
+            {
+                waveManager.OnWaveComplete += ShowExitRunButton;
+            }
+
+            if (PersistenceManager.Instance != null)
+            {
+                PersistenceManager.Instance.OnResourcesChanged += UpdateResources;
+                UpdateResources();
             }
         }
 
@@ -67,7 +106,12 @@ namespace TowerDefense.UI
             GameObject canvasObj = new GameObject("HUD_Canvas");
             canvas = canvasObj.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvasObj.AddComponent<CanvasScaler>();
+
+            var scaler = canvasObj.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920, 1080);
+            scaler.matchWidthOrHeight = 0.5f;
+
             canvasObj.AddComponent<GraphicRaycaster>();
 
             // Top bar background
@@ -82,13 +126,37 @@ namespace TowerDefense.UI
             waveText = CreateText(canvasObj.transform, "WaveText", new Vector2(0.5f, 1), new Vector2(0.5f, 1),
                 new Vector2(0, -30), "Wave: 0");
 
-            // Currency text
-            currencyText = CreateText(canvasObj.transform, "CurrencyText", new Vector2(1, 1), new Vector2(1, 1),
-                new Vector2(-80, -30), "Gold: 200");
+            // Resource panel (top-right, vertical layout with gold on top)
+            CreateResourcePanel(canvasObj.transform);
 
-            // Start Wave button
+            // Start Wave button (raised to not overlap piece hand panel)
             startWaveButton = CreateButton(canvasObj.transform, "StartWaveButton", new Vector2(0.5f, 0), new Vector2(0.5f, 0),
-                new Vector2(0, 100), new Vector2(160, 50), "Start Wave", OnStartWaveClicked);
+                new Vector2(-90, 200), new Vector2(160, 50), "Start Wave", OnStartWaveClicked);
+
+            // Exit Run button (next to Start Wave, hidden until wave 1 completes)
+            var exitBtn = CreateButton(canvasObj.transform, "ExitRunButton", new Vector2(0.5f, 0), new Vector2(0.5f, 0),
+                new Vector2(90, 200), new Vector2(160, 50), "Exit Run", OnExitRunClicked);
+            exitRunButtonObj = exitBtn.gameObject;
+            // Style it red to distinguish from Start Wave
+            exitRunButtonObj.GetComponent<Image>().color = new Color(0.6f, 0.2f, 0.2f);
+            exitRunButtonObj.SetActive(false);
+
+            // Build phase countdown timer (above Start Wave / Exit Run buttons)
+            buildTimerObj = new GameObject("BuildTimer");
+            buildTimerObj.transform.SetParent(canvasObj.transform);
+
+            var timerRect = buildTimerObj.AddComponent<RectTransform>();
+            timerRect.anchorMin = new Vector2(0.5f, 0);
+            timerRect.anchorMax = new Vector2(0.5f, 0);
+            timerRect.anchoredPosition = new Vector2(0, 260);
+            timerRect.sizeDelta = new Vector2(300, 40);
+
+            buildTimerText = buildTimerObj.AddComponent<Text>();
+            buildTimerText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            buildTimerText.fontSize = 22;
+            buildTimerText.color = new Color(1f, 0.9f, 0.4f);
+            buildTimerText.alignment = TextAnchor.MiddleCenter;
+            buildTimerObj.SetActive(false);
 
             // Tower selection panel (hidden by default)
             towerPanel = CreateTowerPanel(canvasObj.transform);
@@ -97,6 +165,30 @@ namespace TowerDefense.UI
             // Tower info panel (hidden by default)
             towerInfoPanel = CreateTowerInfoPanel(canvasObj.transform);
             towerInfoPanel.SetActive(false);
+
+            // Create upgrade selection UI
+            var upgradeSelectionObj = new GameObject("UpgradeSelectionUI");
+            upgradeSelectionObj.transform.SetParent(canvasObj.transform);
+            upgradeSelectionObj.AddComponent<UpgradeSelectionUI>();
+
+            // Create picked cards UI
+            var pickedCardsObj = new GameObject("PickedCardsUI");
+            pickedCardsObj.transform.SetParent(canvasObj.transform);
+            pickedCardsObj.AddComponent<PickedCardsUI>();
+
+            // Create piece hand UI
+            var pieceHandObj = new GameObject("PieceHandUI");
+            pieceHandObj.transform.SetParent(canvasObj.transform);
+            var pieceHandRect = pieceHandObj.AddComponent<RectTransform>();
+            pieceHandRect.anchorMin = Vector2.zero;
+            pieceHandRect.anchorMax = Vector2.one;
+            pieceHandRect.offsetMin = Vector2.zero;
+            pieceHandRect.offsetMax = Vector2.zero;
+            pieceHandUIInstance = pieceHandObj.AddComponent<PieceHandUI>();
+            pieceHandUIInstance.Initialize(canvas);
+
+            // Cheat panel
+            CreateCheatPanel(canvasObj.transform);
         }
 
         private GameObject CreatePanel(Transform parent, string name, Vector2 anchorMin, Vector2 anchorMax,
@@ -180,7 +272,7 @@ namespace TowerDefense.UI
         private GameObject CreateTowerPanel(Transform parent)
         {
             var panel = CreatePanel(parent, "TowerPanel", new Vector2(0.5f, 0), new Vector2(0.5f, 0),
-                new Vector2(0, 200), new Vector2(350, 80), new Color(0, 0, 0, 0.8f));
+                new Vector2(0, 200), new Vector2(800, 80), new Color(0, 0, 0, 0.8f));
 
             // Will be populated with tower buttons dynamically
             return panel;
@@ -206,7 +298,7 @@ namespace TowerDefense.UI
         private void UpdateCurrency(int currency)
         {
             if (currencyText != null)
-                currencyText.text = $"Gold: {currency}";
+                currencyText.text = $"Gold: {currency}g";
         }
 
         private void UpdateWave(int wave)
@@ -215,8 +307,11 @@ namespace TowerDefense.UI
                 waveText.text = $"Wave: {wave}";
         }
 
+        private TowerSlot currentSlot;
+
         private void ShowTowerPanel(TowerSlot slot)
         {
+            currentSlot = slot;
             towerPanel.SetActive(true);
             towerInfoPanel.SetActive(false);
             PopulateTowerButtons();
@@ -282,6 +377,7 @@ namespace TowerDefense.UI
 
                 towerButtons.Add(buttonObj);
             }
+
         }
 
         private void OnTowerButtonClicked(TowerData towerData)
@@ -314,21 +410,243 @@ namespace TowerDefense.UI
 
         private void ShowGameOver()
         {
-            // Simple game over display
             CreateText(canvas.transform, "GameOverText", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                Vector2.zero, "GAME OVER");
+                new Vector2(0, 30), "GAME OVER");
+
+            CreateButton(canvas.transform, "ReturnBtn", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0, -40), new Vector2(200, 50), "Return to Menu", () => MainSceneController.LoadMainMenu());
+        }
+
+        private void ShowExitRunButton()
+        {
+            if (exitRunButtonObj != null)
+                exitRunButtonObj.SetActive(true);
         }
 
         private void OnStartWaveClicked()
         {
             Debug.Log($"HUD: Start Wave button clicked. WaveManager: {(waveManager != null ? "Found" : "NULL")}");
-            if (waveManager != null)
+            if (GameManager.Instance != null && GameManager.Instance.BuildPhaseActive)
             {
+                GameManager.Instance.SkipBuildPhase();
+            }
+            else if (waveManager != null)
+            {
+                if (exitRunButtonObj != null)
+                    exitRunButtonObj.SetActive(false);
+
                 waveManager.StartWave();
             }
             else
             {
                 Debug.LogError("HUD: WaveManager is null! Cannot start wave.");
+            }
+        }
+
+        private void OnExitRunClicked()
+        {
+            GameManager.Instance?.ExitRun();
+        }
+
+        private void OnBuildPhaseStarted()
+        {
+            if (buildTimerObj != null)
+                buildTimerObj.SetActive(true);
+            if (startWaveButton != null)
+            {
+                startWaveButton.gameObject.SetActive(true);
+                SetButtonLabel(startWaveButton, "Start Now");
+            }
+            if (exitRunButtonObj != null)
+                exitRunButtonObj.SetActive(true);
+        }
+
+        private void OnBuildPhaseEnded()
+        {
+            if (buildTimerObj != null)
+                buildTimerObj.SetActive(false);
+            if (startWaveButton != null)
+                SetButtonLabel(startWaveButton, "Start Wave");
+            if (exitRunButtonObj != null)
+                exitRunButtonObj.SetActive(false);
+        }
+
+        private void SetButtonLabel(Button button, string label)
+        {
+            var text = button.GetComponentInChildren<Text>();
+            if (text != null)
+                text.text = label;
+        }
+
+        private void Update()
+        {
+            if (GameManager.Instance != null && GameManager.Instance.BuildPhaseActive && buildTimerText != null)
+            {
+                int seconds = Mathf.CeilToInt(GameManager.Instance.BuildTimer);
+                buildTimerText.text = $"Build phase: {seconds}s";
+            }
+        }
+
+        private void CreateResourcePanel(Transform parent)
+        {
+            int totalRows = 5; // gold + 4 resources
+            float rowHeight = 26f;
+            float panelHeight = totalRows * rowHeight + 16f;
+
+            var panel = CreatePanel(parent, "ResourcePanel", new Vector2(1, 1), new Vector2(1, 1),
+                new Vector2(-10, -10), new Vector2(160, panelHeight), new Color(0, 0, 0, 0.6f));
+            panel.GetComponent<RectTransform>().pivot = new Vector2(1, 1);
+
+            float startY = (totalRows - 1) * rowHeight / 2f;
+
+            // Gold row (first)
+            CreateResourceRow(panel.transform, "Gold", startY, rowHeight, out currencyText, out var goldIcon);
+            goldIcons = goldIcon;
+            currencyText.text = "Gold: 200";
+
+            // Resource rows
+            var resourceTypes = new[] {
+                (ResourceType.IronOre, "Iron"),
+                (ResourceType.Gems, "Gems"),
+                (ResourceType.Florpus, "Florpus"),
+                (ResourceType.Adamantite, "Adam")
+            };
+
+            for (int i = 0; i < resourceTypes.Length; i++)
+            {
+                var (resType, label) = resourceTypes[i];
+                float yPos = startY - (i + 1) * rowHeight;
+
+                CreateResourceRow(panel.transform, label, yPos, rowHeight, out var text, out var icon);
+                resourceTexts[resType] = text;
+                resourceIcons[resType] = icon;
+                text.text = $"{label}: 0(+0)";
+            }
+        }
+
+        private void CreateResourceRow(Transform parent, string label, float yPos, float rowHeight, out Text text, out Image icon)
+        {
+            var row = new GameObject($"Row_{label}");
+            row.transform.SetParent(parent);
+            var rowRect = row.AddComponent<RectTransform>();
+            rowRect.anchorMin = new Vector2(0, 0.5f);
+            rowRect.anchorMax = new Vector2(1, 0.5f);
+            rowRect.anchoredPosition = new Vector2(0, yPos);
+            rowRect.sizeDelta = new Vector2(0, rowHeight);
+
+            // Sprite icon
+            var iconObj = new GameObject("Icon");
+            iconObj.transform.SetParent(row.transform);
+            var iconRect = iconObj.AddComponent<RectTransform>();
+            iconRect.anchorMin = new Vector2(0, 0.5f);
+            iconRect.anchorMax = new Vector2(0, 0.5f);
+            iconRect.anchoredPosition = new Vector2(18, 0);
+            iconRect.sizeDelta = new Vector2(22, 22);
+
+            icon = iconObj.AddComponent<Image>();
+            icon.color = Color.white;
+
+            // Text
+            var textObj = new GameObject("Text");
+            textObj.transform.SetParent(row.transform);
+            var textRect = textObj.AddComponent<RectTransform>();
+            textRect.anchorMin = new Vector2(0, 0);
+            textRect.anchorMax = new Vector2(1, 1);
+            textRect.offsetMin = new Vector2(34, 0);
+            textRect.offsetMax = new Vector2(-4, 0);
+
+            text = textObj.AddComponent<Text>();
+            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            text.fontSize = 14;
+            text.color = Color.white;
+            text.alignment = TextAnchor.MiddleLeft;
+        }
+
+        private void UpdateResources()
+        {
+            if (resourceTexts.Count == 0 || PersistenceManager.Instance == null) return;
+
+            var pm = PersistenceManager.Instance;
+            var names = new Dictionary<ResourceType, string>
+            {
+                { ResourceType.IronOre, "Iron" },
+                { ResourceType.Gems, "Gems" },
+                { ResourceType.Florpus, "Florpus" },
+                { ResourceType.Adamantite, "Adam" }
+            };
+
+            foreach (var kvp in resourceTexts)
+            {
+                var resType = kvp.Key;
+                var text = kvp.Value;
+                if (text == null) continue;
+                string name = names.TryGetValue(resType, out var n) ? n : resType.ToString();
+                text.text = $"{name}: {pm.GetBanked(resType)}(+{pm.GetRunGathered(resType)})";
+            }
+        }
+
+        private void CreateCheatPanel(Transform parent)
+        {
+            var panel = CreatePanel(parent, "CheatPanel", new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
+                new Vector2(-80, 0), new Vector2(140, 90), new Color(0.3f, 0f, 0f, 0.7f));
+
+            CreateButton(panel.transform, "CheatGold", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0, 18), new Vector2(120, 32), "+1000 Gold", OnCheatGold);
+
+            CreateButton(panel.transform, "CheatResources", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0, -18), new Vector2(120, 32), "+100 Res", OnCheatResources);
+
+            CreateButton(panel.transform, "CheatShowCamps", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0, -54), new Vector2(120, 32), "Show Camps", OnCheatShowCamps);
+
+            // Expand panel to fit third button
+            var panelRect = panel.GetComponent<RectTransform>();
+            panelRect.sizeDelta = new Vector2(140, 130);
+        }
+
+        private void OnCheatGold()
+        {
+            GameManager.Instance?.AddCurrency(1000);
+        }
+
+        private void OnCheatResources()
+        {
+            if (PersistenceManager.Instance == null) return;
+            PersistenceManager.Instance.AddRunResource(ResourceType.IronOre, 100);
+            PersistenceManager.Instance.AddRunResource(ResourceType.Gems, 100);
+            PersistenceManager.Instance.AddRunResource(ResourceType.Florpus, 100);
+            PersistenceManager.Instance.AddRunResource(ResourceType.Adamantite, 100);
+        }
+
+        private void OnCheatShowCamps()
+        {
+            showingSpawners = !showingSpawners;
+
+            if (!showingSpawners)
+            {
+                foreach (var marker in cheatSpawnerMarkers)
+                    if (marker != null) Destroy(marker);
+                cheatSpawnerMarkers.Clear();
+                return;
+            }
+
+            var gm = GameManager.Instance;
+            if (gm == null) return;
+
+            foreach (var coord in gm.HiddenSpawners)
+            {
+                var worldPos = HexGrid.HexToWorld(coord);
+                var marker = new GameObject("CheatSpawnerMarker");
+                marker.transform.position = worldPos + Vector3.up * 8f;
+                marker.transform.localScale = Vector3.one * 2f;
+
+                var sr = marker.AddComponent<SpriteRenderer>();
+                if (gm.GoblinCampSprite != null)
+                    sr.sprite = gm.GoblinCampSprite;
+                sr.color = new Color(1f, 0.3f, 0.3f);
+
+                marker.AddComponent<BillboardSprite>();
+                cheatSpawnerMarkers.Add(marker);
             }
         }
 

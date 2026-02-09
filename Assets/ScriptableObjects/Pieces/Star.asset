@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8f0044f47f7e40288f6c01bd05aff490, type: 3}
+  m_Name: Star
+  m_EditorClassIdentifier:
+  pieceType: 7
+  displayName: Star
+  rotationPattern: 5
+  placementCost: 150
+  placementCooldown: 35
+  generationWeight: 0.05
+  startsInHand: 0
+  allowsTowerSlots: 1
+  isWaveSpawnPoint: 0
+  isSpawner: 0
+  spawnerInterval: 8
+  spawnerHealthMultiplier: 1
+  spawnerSpeedMultiplier: 1
+  cardColor: {r: 0.25, g: 0.5, b: 0.5, a: 1}
+  previewAngles:
+  - 0
+  - 60
+  - 120
+  - 180
+  - 300

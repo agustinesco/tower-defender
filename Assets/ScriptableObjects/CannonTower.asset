@@ -15,11 +15,15 @@ MonoBehaviour:
   towerName: Cannon
   cost: 100
   damage: 15
-  range: 2.5
-  fireRate: 0.5
+  range: 4
+  fireRate: 1.5
   isAreaDamage: 1
   areaRadius: 1
   appliesSlow: 0
   slowMultiplier: 0
   slowDuration: 0
   towerColor: {r: 0.8, g: 0.3, b: 0.1, a: 1}
+  projectileSpeed: 15
+  isShotgun: 0
+  shotgunProjectileCount: 5
+  shotgunSpreadAngle: 60
