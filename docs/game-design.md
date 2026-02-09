@@ -1,8 +1,8 @@
 # Tower Defender
 
-## Core idea
+## Core Idea
 
-A tower defense game where you build the map with pieces that are given to you
+A tower defense game where you build the map with hex pieces that are given to you. Expand outward from a central castle, placing path tiles to create routes that enemies walk along, then defend those paths with towers.
 
 ## Inspirations
 
@@ -11,75 +11,243 @@ A tower defense game where you build the map with pieces that are given to you
 - BallPit
 - Factorio
 
-## Menus
+## Scenes
 
-### Main Screen
+### Main Menu
 
-A map with different places to click and enter another scene:
-- **Embark**: Button to start a run
-- **Lab**: Spend currencies to permanently upgrade
+A screen with different areas to enter:
+- **Battlefield**: Start a run in wave mode
+- **Continuous**: Start a run in continuous mode (endless, scaling difficulty)
+- **Lab**: Spend banked resources on permanent upgrades
+
+Resource totals are displayed at the top.
 
 ### Lab
 
-A list of purchasable upgrades that passively increase the player's power.
+A list of permanent upgrades purchasable with banked resources. Progress is saved across runs via PlayerPrefs.
 
-### Embark
+### Game (Run)
 
-The game scene where the fun happens.
+The gameplay scene shared by both wave and continuous modes.
+
+## Game Modes
+
+### Wave Mode
+
+Traditional tower defense with discrete waves. Between waves the player gets a build phase (30s) and an upgrade shop. Defeating all enemies in a wave awards a gold bonus of 50 + (wave - 1) * 10.
+
+### Continuous Mode
+
+Enemies spawn endlessly from random spawn points with scaling difficulty. There are no discrete waves or build phases. The player can open the upgrade shop at any time via the Upgrades button without pausing the game. Mines collect resources on a 30-second timer instead of per-wave.
+
+Continuous spawn details:
+- Spawn interval: starts at 2s, decays to 0.3s minimum over ~4 minutes
+- Health scaling: +1x per minute elapsed
+- Speed scaling: +1x per 5 minutes elapsed
+- Flying enemies: 25% chance after 30 seconds
 
 ## Currencies
 
-### Run-specific
-- **Gold coins**: Lost when you exit the run
+### Run-Specific
+- **Gold**: Earned by killing enemies. Lost when the run ends. Used to place pieces, build towers, build mines, and place lures.
 
-### Persistent currencies
-- **Iron ore**
-- **Gems**
-- **Florpus**
-- **Adamantite**
+### Persistent Resources
+- **Iron Ore** (silver/gray)
+- **Gems** (purple)
+- **Florpus** (green)
+- **Adamantite** (red)
+
+Persistent resources are gathered during runs from mining outposts. If the player voluntarily exits a run, gathered resources are banked. If the player dies, all run resources are lost. Boss kills award +3 of each resource type.
 
 ## Gameplay Loop
 
-### Inside Run
+### Starting a Run
 
-On each run you start with a generated first layout that spawns enemies at the end of the path in certain special tiles that spawn enemies.
+The player starts with a castle at the center and 2 auto-generated path tiles. Six hidden goblin camp spawners are placed nearby (distance 2-5). Ore patches are generated based on zone distance.
 
-Defeating enemies awards gold coins that are only used to build paths and place towers.
+Starting stats (before lab bonuses):
+- Lives: 10
+- Gold: 200
 
-The objective in the run is to:
+### Piece Placement
 
-1. **Collect resources**: To do so the player needs to save enough money to place a mining tile in one of the randomly generated patches of resources. Resources may be used for:
-   - Improve turret power in between waves
-   - If the player decides to leave the game after a wave he will maintain the resources that can be used for permanent upgrades
-   - The further away the resources are from the origin, the more resources they produce
+The player has a hand of piece cards, each with a cooldown after use. Pieces are dragged onto valid hex positions adjacent to existing tiles. Placing a piece on an occupied tile replaces it (refunding any towers). Pieces cannot be placed if doing so would disconnect existing paths.
 
-2. **Reach a boss**: The map will be divided in circles of difficulty. To be able to proceed to the next area the player needs to first defeat a boss that will be spawned on the next wave after the player reaches the edge of a circle.
+### Wave Flow (Wave Mode)
 
-### Outside Run
+1. Player places pieces and towers during build phase
+2. Player starts a wave (or the 30s build timer expires)
+3. Enemies spawn at open edges of the map and walk toward the castle
+4. Enemies that reach the castle cost the player a life
+5. After all enemies die, a 3-second pause occurs, then the upgrade shop opens
+6. Player buys upgrades with gathered resources, then starts the next build phase
 
-Player will have a base:
-- City
-- Base of operations
-- Lab
+### Continuous Flow
 
-With the resources gathered in a run they should be able to buy/research permanent upgrades/turrets that make runs faster and allow the player to go further into the mine.
+1. Player places pieces and towers freely
+2. Enemies spawn continuously from random spawn points
+3. Mines collect resources every 30 seconds (with visual countdown timer)
+4. Player opens the upgrade shop at any time via the Upgrades button
 
-### Run Specifics
+### Losing
 
-The player will have categories of pieces to place:
+When lives reach 0, the game ends. All run resources are lost. The player returns to the main menu.
 
-- **Path**: The simplest one, only a path that the player can change to have bifurcations. Defenses can be placed alongside paths that don't have any modifiers.
-- **Mining outpost**: This puts a modifier on a path piece to be able to gather resources when placed on an ore patch. Enemies can randomly decide to go to these pieces instead of the main base so they need to be defended too, but not as heavily as the main base.
-- **Enemy lure**: This puts a modifier on a path piece to turn it into an enemy spawner on the next wave.
-- **Enemy spawners**: While building the map a path can encounter an enemy spawner piece. When connected to the main path these pieces will spawn enemies on each wave that will mainly go towards the main base.
+### Exiting Voluntarily
 
-### Towers
+The player can exit between waves (wave mode) via the Exit Run button. All gathered resources are banked permanently.
 
-To defend the paths from enemies the player will have towers that can be placed on tiles without modifications:
+## Hex Grid
 
-- **Arrow tower**: Shoots a single projectile at an enemy.
-- **Cannon tower**: Shoots a single projectile that deals AoE damage.
-- **Slow tower**: Generates a field around it that slows down enemies while in contact with the field or for a brief moment after leaving it.
-- **Shotgun tower**: Shoots many projectiles that pass through enemies without aiming, towards the nearest path when detecting nearby enemies.
-- **Tesla tower**: Shoots an arcing ray that bounces on enemies.
-- **Flame tower**: Shoots fire to the nearest path when detecting enemies nearby, spawning a small patch of fire on the path that lights up enemies on fire dealing damage over time.
+Uses flat-top axial coordinates (q, r). Outer radius 20, inner radius ~17.32.
+
+Pieces connect via edges (0-5). Edge directions are at 60 * edge + 30 degrees. Neighbors are found via HexCoord.Directions[edge]. Opposite edge = (edge + 3) % 6.
+
+## Pieces
+
+| Piece | Edges | Cost | Cooldown | Tower Slots | Notes |
+|-------|-------|------|----------|-------------|-------|
+| Castle | 1 | - | - | No | Center of the map, enemy target |
+| Straight | 2 (opposite) | 50g | 15s | Yes | Starts in hand |
+| Bend | 2 (adjacent) | 50g | 15s | Yes | |
+| Fork | 3 | 75g | 20s | Yes | T-junction |
+| Dead End | 1 | 50g | 15s | Yes | Becomes a wave spawn point |
+| Cross | 4 | 100g | 25s | Yes | |
+| Star | 5 | 150g | 35s | Yes | |
+| Crossroads | 6 | 200g | 45s | Yes | All edges connected |
+| Goblin Camp | 2 | 50g | 15s | No | Enemy spawner (burst spawn) |
+
+Goblin camps are hidden spawners revealed when the player connects a path edge to their position. They burst-spawn weaker enemies (0.7x health, 0.85x speed) each wave.
+
+## Spawn Points
+
+Any piece with an open edge (connected edge leading to empty hex) becomes a wave spawn point. Enemies spawn at the edge midpoint of the open edge, not the hex center. Dead End pieces are always spawn points.
+
+Pulsing red/orange indicators mark spawn points. They are visible during the build phase and between waves, and hidden when a wave starts. In continuous mode they stay visible at all times.
+
+## Towers
+
+Towers are placed on tower slots attached to path pieces (max 2 slots per piece). Towers can be sold for 50% of their cost.
+
+| Tower | Cost | Damage | Range | Fire Rate | Special |
+|-------|------|--------|-------|-----------|---------|
+| Arrow | 50g | 5 | 8 | 1.0s | Targets flying, prioritizes flying |
+| Cannon | 100g | 15 | 12 | 1.5s | AoE damage (radius 3) |
+| Flame | 90g | - | 8 | 0.5s | Spawns fire patches (5 DPS, 4s duration, 2s burn) |
+| Shotgun | 75g | 8 | 8 | 1.2s | 5 projectiles, 60-degree spread |
+| Slow | 75g | 0 | 5 | 1.0s | Slows enemies to 0.5x speed for 2s |
+| Tesla | 120g | 8 | 10 | 0.8s | Chain lightning (3 bounces, 0.7x falloff), targets flying, prioritizes flying |
+
+Flame, Shotgun, Slow, and Tesla towers must be unlocked in the Lab before they appear in the build menu.
+
+Only Arrow and Tesla towers can target flying enemies.
+
+## Enemies
+
+### Ground Enemies
+- Base health: 10, scaling: +5 per wave
+- Base speed: 2.0, scaling: +0.1 per wave
+- Gold reward: 10 + (wave - 1) * 2
+
+### Flying Enemies
+- Appear from wave 3 onward
+- Count per spawn point: 1 + (wave - 3) / 2
+- 1.3x speed, 0.7x health multiplier, 1.5x gold reward
+- Fly at Y=4, visually distinct (orange, flattened sphere with wings)
+- Only targetable by Arrow and Tesla towers
+
+### Boss Enemies
+- Spawned when the player places a piece entering a new zone
+- 10x zone health multiplier, 0.6x speed
+- 2x visual scale, dark purple color
+- 200g reward + 3 of each resource type
+- One boss per new zone, spawns on the next wave after zone entry
+
+## Zone System
+
+Concentric difficulty zones based on hex distance from the castle. Zone boundaries default to distances {3, 6, 9}.
+
+| Zone | Distance | Health Multiplier | Speed Multiplier |
+|------|----------|-------------------|------------------|
+| 1 | 0-3 | 1.0x | 1.0x |
+| 2 | 4-6 | 1.5x | 1.1x |
+| 3 | 7-9 | 2.0x | 1.2x |
+| 4 | 10+ | 2.5x | 1.3x |
+
+Visual zone rings (colored circles on the ground) mark zone boundaries: yellow, orange, red, dark red.
+
+## Mining and Resources
+
+### Ore Patches
+Generated at map start. Zone 1 gets Iron Ore and Gems (6 nodes). Zone 2+ gets Florpus and Adamantite (4 nodes). Patches are marked with floating resource sprites and hex outline rings.
+
+### Mining Outposts
+- Cost: 100g
+- Built on ore patches via the tower panel
+- In wave mode: collect resources after each wave
+- In continuous mode: collect resources every 30 seconds, with a visible clock indicator (progress ring + countdown) above each mine
+- Resource popup animation flies from mine to castle on collection
+- Tiles with mines cannot be replaced
+
+### Lures
+- Cost: 75g
+- Placed on any non-castle tile as a modifier
+- Next wave spawns 3 + wave number enemies at the lure position
+- Lured enemies give 2x gold
+- One-time use: consumed after the wave spawns
+- Tiles with lures cannot be replaced
+
+## In-Run Upgrades
+
+Purchased during runs with gathered resources. Available in the upgrade shop (between waves in wave mode, any time in continuous mode).
+
+| Upgrade | Effect | Cost Resource | Base Cost | Per Level | Max Level |
+|---------|--------|---------------|-----------|-----------|-----------|
+| Swift Towers | +5% tower attack speed | Iron Ore | 5 | +3 | 10 |
+| Heavy Rounds | +5% tower damage | Gems | 5 | +3 | 10 |
+| Risky Investment | +10% enemy speed, +20% gold | Florpus | 3 | +2 | 10 |
+| Barrage | +1 extra projectile | Adamantite | 8 | +5 | 5 |
+
+## Lab Upgrades (Permanent)
+
+Purchased between runs with banked resources. Progress saved via PlayerPrefs.
+
+### Stat Upgrades
+
+| Upgrade | Effect | Cost Resource | Base Cost | Per Level | Max Level |
+|---------|--------|---------------|-----------|-----------|-----------|
+| Gold Reserve | +50 starting gold | Iron Ore | 5 | +5 | 5 |
+| Fortification | +1 starting life | Gems | 10 | +10 | 3 |
+| Heavy Caliber | +10% tower damage | Florpus | 8 | +6 | 5 |
+| Rapid Fire | +10% tower speed | Iron Ore | 8 | +6 | 5 |
+| Quick Deploy | -10% piece cooldown | Adamantite | 12 | +8 | 3 |
+
+### Tower Unlocks
+
+| Tower | Cost Resource | Cost |
+|-------|---------------|------|
+| Slow | Iron Ore | 10 |
+| Flame | Florpus | 15 |
+| Shotgun | Gems | 20 |
+| Tesla | Adamantite | 25 |
+
+## UI
+
+All UI is created programmatically in code (no prefabs).
+
+### HUD Elements
+- Lives, wave number, gold (top bar)
+- Resource panel (top-right): banked + run-gathered counts for each resource
+- Start Wave / Start Now button (wave mode only)
+- Exit Run button (visible after wave 1 completes, wave mode)
+- Build phase countdown timer
+- Upgrades button (always visible, both modes, purple)
+- Enemy count display (continuous mode, replaces wave counter purpose)
+- Tower build/sell panel (appears when selecting tower slots)
+- Piece hand (bottom of screen, draggable cards)
+
+### Upgrade Shop Overlay
+- Full-screen dark overlay with card rows
+- Each card shows name, level, resource cost, and buy button
+- Wave mode: pauses game, shows Next Wave and Exit Run buttons
+- Opened via Upgrades button: does not pause, shows Close button instead
