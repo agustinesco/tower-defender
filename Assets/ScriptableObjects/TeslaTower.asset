@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 450ff1de8f4df43ea8b7c7eca84ca30e, type: 3}
   m_Name: TeslaTower
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   towerName: Tesla
   cost: 120
   damage: 8
@@ -35,3 +35,5 @@ MonoBehaviour:
   firePatchDuration: 3
   fireDamagePerSecond: 3
   burnDuration: 2
+  canTargetFlying: 1
+  prioritizeFlying: 1

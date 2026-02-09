@@ -1,4 +1,5 @@
 using UnityEngine;
+using TowerDefense.Core;
 
 namespace TowerDefense.Entities
 {
@@ -10,6 +11,7 @@ namespace TowerDefense.Entities
         private float radius;
         private float timer;
         private GameObject visual;
+        private Renderer visualRenderer;
 
         public void Initialize(float dps, float duration, float burnDuration, float radius)
         {
@@ -32,11 +34,10 @@ namespace TowerDefense.Entities
             var collider = visual.GetComponent<Collider>();
             if (collider != null) Destroy(collider);
 
-            var renderer = visual.GetComponent<Renderer>();
-            if (renderer != null)
+            visualRenderer = visual.GetComponent<Renderer>();
+            if (visualRenderer != null)
             {
-                renderer.material = new Material(Shader.Find("Unlit/Color"));
-                renderer.material.color = new Color(1f, 0.4f, 0.1f, 0.7f);
+                visualRenderer.material = MaterialCache.CreateUnlit(new Color(1f, 0.4f, 0.1f, 0.7f));
             }
         }
 
@@ -51,23 +52,23 @@ namespace TowerDefense.Entities
             }
 
             // Fade visual as it expires
-            if (visual != null)
+            if (visualRenderer != null)
             {
                 float alpha = Mathf.Clamp01(timer / duration);
-                var renderer = visual.GetComponent<Renderer>();
-                if (renderer != null)
-                {
-                    renderer.material.color = new Color(1f, 0.4f, 0.1f, 0.7f * alpha);
-                }
+                visualRenderer.material.color = new Color(1f, 0.4f, 0.1f, 0.7f * alpha);
             }
 
             // Damage enemies in radius
-            var enemies = FindObjectsOfType<Enemy>();
-            float dmgThisFrame = damagePerSecond * Time.deltaTime;
+            var mgr = EnemyManager.Instance;
+            if (mgr == null) return;
 
-            foreach (var enemy in enemies)
+            float dmgThisFrame = damagePerSecond * Time.deltaTime;
+            var enemies = mgr.ActiveEnemies;
+
+            for (int i = 0; i < enemies.Count; i++)
             {
-                if (enemy.IsDead) continue;
+                var enemy = enemies[i];
+                if (enemy == null || enemy.IsDead) continue;
 
                 float dist = Vector3.Distance(transform.position, enemy.transform.position);
                 if (dist <= radius)

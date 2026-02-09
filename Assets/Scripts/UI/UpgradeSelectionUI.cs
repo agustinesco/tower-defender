@@ -12,9 +12,15 @@ namespace TowerDefense.UI
         private GameObject cardsContainer;
         private List<GameObject> cardObjects = new List<GameObject>();
         private Canvas canvas;
+        private bool didPause;
+        private GameObject nextWaveButtonObj;
+        private GameObject exitRunButtonObj;
+        private GameObject closeButtonObj;
 
         public event System.Action OnNextWave;
         public event System.Action OnExitRun;
+
+        public bool IsVisible => overlayPanel != null && overlayPanel.activeSelf;
 
         private void Awake()
         {
@@ -110,15 +116,20 @@ namespace TowerDefense.UI
         private void CreateActionButtons()
         {
             // Next Wave button
-            CreateBottomButton("NextWaveButton", new Vector2(-110, 80),
+            nextWaveButtonObj = CreateBottomButton("NextWaveButton", new Vector2(-110, 80),
                 new Color(0.2f, 0.6f, 0.3f), "Next Wave", OnNextWaveClicked);
 
             // Exit Run button
-            CreateBottomButton("ExitRunButton", new Vector2(110, 80),
+            exitRunButtonObj = CreateBottomButton("ExitRunButton", new Vector2(110, 80),
                 new Color(0.7f, 0.2f, 0.2f), "Exit Run", OnExitRunClicked);
+
+            // Close button (used in non-pause mode)
+            closeButtonObj = CreateBottomButton("CloseButton", new Vector2(0, 80),
+                new Color(0.4f, 0.4f, 0.5f), "Close", OnCloseClicked);
+            closeButtonObj.SetActive(false);
         }
 
-        private void CreateBottomButton(string name, Vector2 position, Color bgColor,
+        private GameObject CreateBottomButton(string name, Vector2 position, Color bgColor,
             string label, UnityEngine.Events.UnityAction onClick)
         {
             GameObject btnObj = new GameObject(name);
@@ -152,6 +163,13 @@ namespace TowerDefense.UI
             text.fontSize = 24;
             text.color = Color.white;
             text.alignment = TextAnchor.MiddleCenter;
+
+            return btnObj;
+        }
+
+        private void OnCloseClicked()
+        {
+            Hide();
         }
 
         private void OnNextWaveClicked()
@@ -168,16 +186,38 @@ namespace TowerDefense.UI
 
         public void Show()
         {
+            didPause = true;
             RefreshCards();
             overlayPanel.SetActive(true);
             overlayPanel.transform.SetAsLastSibling();
             Time.timeScale = 0f;
+
+            // Show wave-end buttons, hide close button
+            if (nextWaveButtonObj != null) nextWaveButtonObj.SetActive(true);
+            if (exitRunButtonObj != null) exitRunButtonObj.SetActive(true);
+            if (closeButtonObj != null) closeButtonObj.SetActive(false);
+        }
+
+        public void ShowWithoutPause()
+        {
+            didPause = false;
+            RefreshCards();
+            overlayPanel.SetActive(true);
+            overlayPanel.transform.SetAsLastSibling();
+
+            // Hide wave-end buttons, show close button
+            if (nextWaveButtonObj != null) nextWaveButtonObj.SetActive(false);
+            if (exitRunButtonObj != null) exitRunButtonObj.SetActive(false);
+            if (closeButtonObj != null) closeButtonObj.SetActive(true);
         }
 
         public void Hide()
         {
             overlayPanel.SetActive(false);
-            Time.timeScale = 1f;
+            if (didPause)
+            {
+                Time.timeScale = 1f;
+            }
         }
 
         private void RefreshCards()

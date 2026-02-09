@@ -173,8 +173,10 @@ namespace TowerDefense.Grid
             const float minSlotDistance = 3f;
             const float pathHalfWidth = 4.0f;
             const float pathClearance = pathHalfWidth + 1.5f;
+            const int maxSlotsPerPiece = 2;
 
             List<Vector3> placedPositions = new List<Vector3>();
+            var candidateSlots = new List<(Vector3 localPos, Vector3 facingDir, int edge, int side)>();
 
             foreach (int edge in data.ConnectedEdges)
             {
@@ -200,14 +202,31 @@ namespace TowerDefense.Grid
                     facingDir.y = 0f;
                     facingDir = facingDir.normalized;
 
-                    GameObject slotObj = new GameObject($"TowerSlot_Edge{edge}_Side{side}");
-                    slotObj.transform.SetParent(transform);
-                    slotObj.transform.localPosition = localPos;
-
-                    TowerSlot slot = slotObj.AddComponent<TowerSlot>();
-                    slot.Initialize(this, facingDir, true);
-                    slots.Add(slot);
+                    candidateSlots.Add((localPos, facingDir, edge, side));
                 }
+            }
+
+            // Shuffle candidates randomly
+            for (int i = candidateSlots.Count - 1; i > 0; i--)
+            {
+                int j = Random.Range(0, i + 1);
+                var temp = candidateSlots[i];
+                candidateSlots[i] = candidateSlots[j];
+                candidateSlots[j] = temp;
+            }
+
+            // Keep only the first maxSlotsPerPiece
+            int slotCount = Mathf.Min(maxSlotsPerPiece, candidateSlots.Count);
+            for (int i = 0; i < slotCount; i++)
+            {
+                var candidate = candidateSlots[i];
+                GameObject slotObj = new GameObject($"TowerSlot_Edge{candidate.edge}_Side{candidate.side}");
+                slotObj.transform.SetParent(transform);
+                slotObj.transform.localPosition = candidate.localPos;
+
+                TowerSlot slot = slotObj.AddComponent<TowerSlot>();
+                slot.Initialize(this, candidate.facingDir, true);
+                slots.Add(slot);
             }
         }
 

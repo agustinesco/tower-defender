@@ -20,14 +20,18 @@ namespace TowerDefense.Core
         private List<Enemy> activeEnemies = new List<Enemy>();
         private bool waveInProgress;
         private int currentWave;
+        private bool isContinuousMode;
+        private int continuousEnemyCount;
 
         public bool WaveInProgress => waveInProgress;
         public int EnemyCount => activeEnemies.Count;
+        public bool IsContinuousMode => isContinuousMode;
 
         public event System.Action OnWaveComplete;
 
         private void Start()
         {
+            isContinuousMode = GameModeSelection.SelectedMode == Data.GameMode.Continuous;
             StartCoroutine(InitializePaths());
         }
 
@@ -60,6 +64,7 @@ namespace TowerDefense.Core
                 var path = pathFinder.FindPathToCastle(spawnPoint);
                 if (path.Count > 0)
                 {
+                    PrependSpawnEdge(spawnPoint, path);
                     spawnPaths[spawnPoint] = path;
                     Debug.Log($"WaveManager: Path from {spawnPoint} has {path.Count} waypoints");
                 }
@@ -74,6 +79,8 @@ namespace TowerDefense.Core
 
         public void StartWave()
         {
+            if (isContinuousMode) return;
+
             Debug.Log($"WaveManager: StartWave called. Wave in progress: {waveInProgress}, Paths count: {spawnPaths.Count}");
 
             if (waveInProgress)
@@ -147,6 +154,17 @@ namespace TowerDefense.Core
                         SpawnEnemy(kvp.Value, zoneHealthMul, zoneSpeedMul);
                         yield return new WaitForSeconds(timeBetweenSpawns);
                     }
+
+                    // Spawn flying enemies starting from wave 3
+                    if (currentWave >= 3)
+                    {
+                        int flyingCount = 1 + (currentWave - 3) / 2;
+                        for (int i = 0; i < flyingCount; i++)
+                        {
+                            SpawnEnemy(kvp.Value, zoneHealthMul * 0.7f, zoneSpeedMul, Data.EnemyType.Flying);
+                            yield return new WaitForSeconds(timeBetweenSpawns);
+                        }
+                    }
                 }
             }
 
@@ -167,9 +185,6 @@ namespace TowerDefense.Core
             // Spawn lure enemies (from lure tiles, with bonus gold)
             SpawnLureEnemies();
 
-            // Route some enemies toward mining outposts
-            TryRouteEnemiesToMines();
-
             // Spawn boss enemies if entering new zones
             SpawnBosses();
 
@@ -180,17 +195,40 @@ namespace TowerDefense.Core
                 yield return new WaitForSeconds(0.5f);
             }
 
+            // Brief pause before ending wave
+            yield return new WaitForSeconds(3f);
+
             waveInProgress = false;
             int waveBonus = 50 + (currentWave - 1) * 10;
             GameManager.Instance?.AddCurrency(waveBonus);
             OnWaveComplete?.Invoke();
         }
 
-        private Enemy SpawnEnemy(List<Vector3> path, float healthMultiplier, float speedMultiplier)
+        private Enemy SpawnEnemy(List<Vector3> path, float healthMultiplier, float speedMultiplier, Data.EnemyType type = Data.EnemyType.Ground)
         {
-            GameObject enemyObj = new GameObject("Enemy");
-            var enemy = enemyObj.AddComponent<Enemy>();
-            enemy.Initialize(new List<Vector3>(path), currentWave, healthMultiplier, speedMultiplier);
+            var gm = GameManager.Instance;
+            GameObject prefab = type == Data.EnemyType.Flying
+                ? (gm != null ? gm.FlyingEnemyPrefab : null)
+                : (gm != null ? gm.GroundEnemyPrefab : null);
+
+            GameObject enemyObj;
+            Enemy enemy;
+
+            if (prefab != null)
+            {
+                enemyObj = Instantiate(prefab);
+                enemyObj.name = type == Data.EnemyType.Flying ? "FlyingEnemy" : "Enemy";
+                enemy = enemyObj.GetComponent<Enemy>();
+                if (enemy == null)
+                    enemy = enemyObj.AddComponent<Enemy>();
+            }
+            else
+            {
+                enemyObj = new GameObject(type == Data.EnemyType.Flying ? "FlyingEnemy" : "Enemy");
+                enemy = enemyObj.AddComponent<Enemy>();
+            }
+
+            enemy.Initialize(new List<Vector3>(path), currentWave, healthMultiplier, speedMultiplier, type);
 
             TrackEnemy(enemy);
             return enemy;
@@ -240,37 +278,6 @@ namespace TowerDefense.Core
                 }
 
                 Debug.Log($"WaveManager: Spawned {count} lure enemies at {coord} with {gm.LureGoldMult}x gold");
-            }
-        }
-
-        private void TryRouteEnemiesToMines()
-        {
-            var gm = GameManager.Instance;
-            if (gm == null) return;
-
-            var mines = gm.ActiveMiningOutposts;
-            if (mines == null || mines.Count == 0) return;
-
-            var pathFinder = new PathFinder(gm.MapData);
-
-            foreach (var mineCoord in mines)
-            {
-                // Find a spawn path that can reach this mine
-                foreach (var spawnKvp in spawnPaths)
-                {
-                    var pathToMine = pathFinder.FindPathToCoord(spawnKvp.Key, mineCoord);
-                    if (pathToMine.Count == 0) continue;
-
-                    int count = Mathf.Min(1 + currentWave / 3, 3);
-                    for (int i = 0; i < count; i++)
-                    {
-                        var enemy = SpawnEnemy(pathToMine, 0.8f, 1.1f);
-                        enemy.SetMineTarget(mineCoord);
-                    }
-
-                    Debug.Log($"WaveManager: Routed {count} enemies toward mine at {mineCoord}");
-                    break; // One spawn point per mine is enough
-                }
             }
         }
 
@@ -336,6 +343,7 @@ namespace TowerDefense.Core
                 var path = pathFinder.FindPathToCastle(spawnPoint);
                 if (path.Count > 0)
                 {
+                    PrependSpawnEdge(spawnPoint, path);
                     spawnPaths[spawnPoint] = path;
                     Debug.Log($"WaveManager: Recalculated path from {spawnPoint} with {path.Count} waypoints");
                 }
@@ -346,6 +354,75 @@ namespace TowerDefense.Core
             }
 
             Debug.Log($"WaveManager: Paths recalculated. Total paths: {spawnPaths.Count}");
+        }
+
+        private void PrependSpawnEdge(HexCoord spawnCoord, List<Vector3> path)
+        {
+            var gm = GameManager.Instance;
+            if (gm == null) return;
+
+            if (gm.SpawnPointEdges.TryGetValue(spawnCoord, out int openEdge))
+            {
+                Vector3 edgeMidpoint = HexGrid.GetEdgeMidpoint(spawnCoord, openEdge);
+                path.Insert(0, edgeMidpoint);
+            }
+        }
+
+        public void StartContinuousMode()
+        {
+            isContinuousMode = true;
+            waveInProgress = true;
+            GameManager.Instance?.StartNextWave();
+            StartCoroutine(ContinuousSpawnLoop());
+        }
+
+        private IEnumerator ContinuousSpawnLoop()
+        {
+            // Wait for paths to be ready
+            while (spawnPaths.Count == 0)
+            {
+                yield return new WaitForSeconds(0.5f);
+            }
+
+            var gm = GameManager.Instance;
+            float elapsed = 0f;
+
+            while (!gm.IsGameOver)
+            {
+                // Pick a random spawn path
+                var pathsList = new List<KeyValuePair<HexCoord, List<Vector3>>>(spawnPaths);
+                if (pathsList.Count == 0)
+                {
+                    yield return new WaitForSeconds(1f);
+                    continue;
+                }
+
+                var chosen = pathsList[Random.Range(0, pathsList.Count)];
+
+                // Scale difficulty with time
+                float difficultyScale = 1f + elapsed / 60f; // +1x per minute
+                float healthMul = difficultyScale;
+                float speedMul = 1f + elapsed / 300f; // slower speed ramp
+
+                // Zone scaling
+                int spawnZone = gm != null ? gm.GetZone(chosen.Key) : 1;
+                float zoneHealthMul = gm != null ? gm.GetZoneHealthMultiplier(spawnZone) : 1f;
+                float zoneSpeedMul = gm != null ? gm.GetZoneSpeedMultiplier(spawnZone) : 1f;
+
+                // Determine enemy type
+                Data.EnemyType type = Data.EnemyType.Ground;
+                if (elapsed > 30f && Random.value < 0.25f)
+                    type = Data.EnemyType.Flying;
+
+                SpawnEnemy(chosen.Value, healthMul * zoneHealthMul, speedMul * zoneSpeedMul, type);
+                continuousEnemyCount++;
+
+                // Interval decays from 2s to 0.3s over time
+                float interval = Mathf.Max(0.3f, 2f - elapsed / 120f);
+                yield return new WaitForSeconds(interval);
+
+                elapsed += interval;
+            }
         }
     }
 }

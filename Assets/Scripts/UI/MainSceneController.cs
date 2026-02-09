@@ -86,9 +86,16 @@ namespace TowerDefense.UI
                 new Color(0.15f, 0.30f, 0.15f, 1f), new Color(0.1f, 0.22f, 0.1f, 1f),
                 OnEmbarkClicked);
 
+            // Continuous mode area panel
+            CreateAreaPanel(mapPanel.transform, "ContinuousArea",
+                new Vector2(0.5f, 0.25f), new Vector2(400, 200),
+                "Continuous", "Endless waves of increasing difficulty",
+                new Color(0.30f, 0.15f, 0.15f, 1f), new Color(0.22f, 0.1f, 0.1f, 1f),
+                OnContinuousClicked);
+
             // Lab area panel
             CreateAreaPanel(mapPanel.transform, "LabArea",
-                new Vector2(0.5f, 0.25f), new Vector2(400, 200),
+                new Vector2(0.5f, 0.02f), new Vector2(400, 120),
                 "Lab", "Research upgrades and unlock new towers",
                 new Color(0.15f, 0.15f, 0.30f, 1f), new Color(0.1f, 0.1f, 0.22f, 1f),
                 OnLabClicked);
@@ -172,7 +179,14 @@ namespace TowerDefense.UI
 
         private void OnEmbarkClicked()
         {
-            SceneManager.LoadScene("SampleScene");
+            GameModeSelection.SelectedMode = GameMode.Waves;
+            SceneManager.LoadScene(1);
+        }
+
+        private void OnContinuousClicked()
+        {
+            GameModeSelection.SelectedMode = GameMode.Continuous;
+            SceneManager.LoadScene(1);
         }
 
         private void OnLabClicked()
@@ -452,7 +466,7 @@ namespace TowerDefense.UI
         public static void LoadMainMenu()
         {
             Time.timeScale = 1f;
-            SceneManager.LoadScene("MainMenu");
+            SceneManager.LoadScene(0);
         }
     }
 }

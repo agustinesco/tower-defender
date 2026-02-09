@@ -32,11 +32,29 @@ namespace TowerDefense.Entities
             var enemies = new List<Enemy>();
             if (pathToCastle == null || pathToCastle.Count == 0) return enemies;
 
+            var gm = GameManager.Instance;
+            GameObject prefab = gm != null ? gm.GroundEnemyPrefab : null;
+
             int count = 2 + waveNumber;
             for (int i = 0; i < count; i++)
             {
-                GameObject enemyObj = new GameObject("GoblinCampEnemy");
-                var enemy = enemyObj.AddComponent<Enemy>();
+                GameObject enemyObj;
+                Enemy enemy;
+
+                if (prefab != null)
+                {
+                    enemyObj = Object.Instantiate(prefab);
+                    enemyObj.name = "GoblinCampEnemy";
+                    enemy = enemyObj.GetComponent<Enemy>();
+                    if (enemy == null)
+                        enemy = enemyObj.AddComponent<Enemy>();
+                }
+                else
+                {
+                    enemyObj = new GameObject("GoblinCampEnemy");
+                    enemy = enemyObj.AddComponent<Enemy>();
+                }
+
                 enemy.Initialize(new List<Vector3>(pathToCastle), waveNumber, healthMultiplier, speedMultiplier);
                 enemies.Add(enemy);
             }

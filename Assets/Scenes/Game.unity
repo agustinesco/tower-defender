@@ -489,7 +489,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   startingLives: 10
   startingCurrency: 200
-  startingTiles: 3
+  startingTiles: 2
   buildGracePeriod: 30
   hexBaseMaterial: {fileID: 2100000, guid: 5d6cf16251e284a6793a8d631943c6ef, type: 2}
   hexPathMaterial: {fileID: 2100000, guid: b1b50c7d30ff04f3c904fbf3c70136b5, type: 2}
@@ -501,6 +501,8 @@ MonoBehaviour:
   florpusSprite: {fileID: 21300000, guid: 36100443f21b948ff8390571536f040f, type: 3}
   hexPiecePrefab: {fileID: 0}
   mineOutpostPrefab: {fileID: 2242801131017349800, guid: 41eec2429de4547da9bb7456ebcf2b83, type: 3}
+  groundEnemyPrefab: {fileID: 5544113186760210693, guid: a53ca8c8cc3f244ccafa6864df8d3685, type: 3}
+  flyingEnemyPrefab: {fileID: 714363205396627139, guid: 14443359e08cf4780bc8e01b3897acd8, type: 3}
   pieceConfigs:
   - {fileID: 11400000, guid: cb91964deb0347128a057b801db09d1d, type: 2}
   - {fileID: 11400000, guid: 077954badff3426d8faff80cd7f1a560, type: 2}

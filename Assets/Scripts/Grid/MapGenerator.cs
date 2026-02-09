@@ -219,11 +219,12 @@ namespace TowerDefense.Grid
             return spawnPoints;
         }
 
-        public Dictionary<HexCoord, OrePatch> GenerateOrePatches(int count = 8, int minDistance = 2, int maxDistance = 6)
+        public Dictionary<HexCoord, OrePatch> GenerateOrePatches(int minDistance = 2, int maxDistance = 6, int zoneBoundary = 3)
         {
             orePatches.Clear();
             var origin = new HexCoord(0, 0);
-            var candidates = new List<HexCoord>();
+            var innerCandidates = new List<HexCoord>();
+            var outerCandidates = new List<HexCoord>();
 
             for (int q = -maxDistance; q <= maxDistance; q++)
             {
@@ -235,27 +236,38 @@ namespace TowerDefense.Grid
                         && !pieces.ContainsKey(coord)
                         && !hiddenSpawners.Contains(coord))
                     {
-                        candidates.Add(coord);
+                        if (dist <= zoneBoundary)
+                            innerCandidates.Add(coord);
+                        else
+                            outerCandidates.Add(coord);
                     }
                 }
             }
 
-            // Shuffle
-            for (int i = candidates.Count - 1; i > 0; i--)
-            {
-                int j = random.Next(i + 1);
-                var temp = candidates[i];
-                candidates[i] = candidates[j];
-                candidates[j] = temp;
-            }
+            // Shuffle both lists
+            Shuffle(innerCandidates);
+            Shuffle(outerCandidates);
 
-            var resourceTypes = (ResourceType[])System.Enum.GetValues(typeof(ResourceType));
+            // Zone 1 (inner): IronOre and Gems only, 6 nodes
+            ResourceType[] innerTypes = { ResourceType.IronOre, ResourceType.Gems };
+            int innerCount = 6;
+            PlaceOrePatches(innerCandidates, innerTypes, innerCount, origin, minDistance, zoneBoundary);
 
+            // Zone 2+ (outer): Florpus and Adamantite only, 4 nodes
+            ResourceType[] outerTypes = { ResourceType.Florpus, ResourceType.Adamantite };
+            int outerCount = 4;
+            PlaceOrePatches(outerCandidates, outerTypes, outerCount, origin, zoneBoundary + 1, maxDistance);
+
+            return new Dictionary<HexCoord, OrePatch>(orePatches);
+        }
+
+        private void PlaceOrePatches(List<HexCoord> candidates, ResourceType[] types, int count, HexCoord origin, int minDist, int maxDist)
+        {
+            int placed = 0;
             foreach (var coord in candidates)
             {
-                if (orePatches.Count >= count) break;
+                if (placed >= count) break;
 
-                // Ensure ore patches aren't too close to each other
                 bool tooClose = false;
                 foreach (var existing in orePatches.Keys)
                 {
@@ -268,13 +280,28 @@ namespace TowerDefense.Grid
                 if (tooClose) continue;
 
                 int dist = origin.DistanceTo(coord);
-                var resType = resourceTypes[random.Next(resourceTypes.Length)];
-                int baseYield = 1 + (dist - minDistance);
+                int range = maxDist - minDist;
+                int typeIndex = range > 0
+                    ? (dist - minDist) * (types.Length - 1) / range
+                    : 0;
+                typeIndex = Mathf.Clamp(typeIndex, 0, types.Length - 1);
+                var resType = types[typeIndex];
+                int baseYield = 1 + (dist - minDist);
 
                 orePatches[coord] = new OrePatch(coord, resType, baseYield);
+                placed++;
             }
+        }
 
-            return new Dictionary<HexCoord, OrePatch>(orePatches);
+        private void Shuffle(List<HexCoord> list)
+        {
+            for (int i = list.Count - 1; i > 0; i--)
+            {
+                int j = random.Next(i + 1);
+                var temp = list[i];
+                list[i] = list[j];
+                list[j] = temp;
+            }
         }
 
         public Dictionary<HexCoord, OrePatch> GetOrePatches()

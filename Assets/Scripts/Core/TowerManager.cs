@@ -15,6 +15,7 @@ namespace TowerDefense.Core
         private Tower selectedTower;
         private PieceDragHandler pieceDragHandler;
         private List<Tower> placedTowers = new List<Tower>();
+        private Camera cachedCamera;
 
         public TowerSlot SelectedSlot => selectedSlot;
         public Tower SelectedTower => selectedTower;
@@ -38,6 +39,11 @@ namespace TowerDefense.Core
         public event System.Action<TowerSlot> OnSlotSelected;
         public event System.Action<Tower> OnTowerSelected;
         public event System.Action OnSelectionCleared;
+
+        private void Start()
+        {
+            cachedCamera = Camera.main;
+        }
 
         public void SetPieceDragHandler(PieceDragHandler handler)
         {
@@ -81,7 +87,9 @@ namespace TowerDefense.Core
 
         private void ProcessSelection(Vector2 screenPosition)
         {
-            Ray ray = Camera.main.ScreenPointToRay(screenPosition);
+            if (cachedCamera == null) cachedCamera = Camera.main;
+            if (cachedCamera == null) return;
+            Ray ray = cachedCamera.ScreenPointToRay(screenPosition);
             if (Physics.Raycast(ray, out RaycastHit hit, 100f))
             {
                 // Check if we hit a tower slot

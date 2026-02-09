@@ -22,26 +22,30 @@ namespace TowerDefense.Entities
         private float slowTimer;
         private float burnTimer;
         private float burnDps;
-        private bool isTargetingMine;
-        private HexCoord mineTargetCoord;
         private float goldMultiplier = 1f;
         private bool isBoss;
+        private EnemyType enemyType = EnemyType.Ground;
+        private float flyHeight = 4f;
 
         // Health bar
         private GameObject healthBarBackground;
         private GameObject healthBarFill;
         private Transform healthBarContainer;
+        private Renderer healthBarFillRenderer;
 
         public float Health => currentHealth;
         public float MaxHealth => maxHealth;
         public bool IsDead => currentHealth <= 0;
         public bool IsBoss => isBoss;
+        public EnemyType EnemyType => enemyType;
+        public bool IsFlying => enemyType == EnemyType.Flying;
 
         public event System.Action<Enemy> OnDeath;
         public event System.Action<Enemy> OnReachedCastle;
 
-        public void Initialize(List<Vector3> path, int waveNumber, float healthMultiplier = 1f, float speedMultiplierConfig = 1f)
+        public void Initialize(List<Vector3> path, int waveNumber, float healthMultiplier = 1f, float speedMultiplierConfig = 1f, EnemyType type = EnemyType.Ground)
         {
+            enemyType = type;
             currentWaypointIndex = 0;
             maxHealth = (baseHealth + (waveNumber - 1) * 5f) * healthMultiplier;
             currentHealth = maxHealth;
@@ -49,6 +53,12 @@ namespace TowerDefense.Entities
             currentSpeed = (baseSpeed + (waveNumber - 1) * 0.1f) * speedMultiplierConfig * (1f + speedBonus);
             speedMultiplier = 1f;
             currencyReward = 10 + (waveNumber - 1) * 2;
+
+            if (IsFlying)
+            {
+                currentSpeed *= 1.3f;
+                currencyReward = Mathf.RoundToInt(currencyReward * 1.5f);
+            }
 
             // Apply random perpendicular offset to ALL waypoints so enemy maintains lane
             float randomOffset = Random.Range(-3.0f, 3.0f);
@@ -85,11 +95,52 @@ namespace TowerDefense.Entities
 
             CreateVisual();
             CreateHealthBar();
+
+            Core.EnemyManager.Instance?.Register(this);
         }
 
         private void CreateVisual()
         {
+            // If a "Body" child already exists (from prefab), keep prefab visuals as-is
+            if (transform.Find("Body") != null)
+                return;
+
+            // Fallback: create visuals from scratch
+            if (IsFlying)
+                CreateFlyingVisual();
+            else
+                CreateGroundVisual();
+        }
+
+        private void ApplyMaterials()
+        {
+            if (IsFlying)
+            {
+                ApplyMaterialToChild("Body", new Color(0.9f, 0.6f, 0.1f));
+                ApplyMaterialToChild("LeftWing", new Color(0.8f, 0.5f, 0.05f));
+                ApplyMaterialToChild("RightWing", new Color(0.8f, 0.5f, 0.05f));
+            }
+            else
+            {
+                ApplyMaterialToChild("Body", Color.red);
+            }
+        }
+
+        private void ApplyMaterialToChild(string childName, Color color)
+        {
+            var child = transform.Find(childName);
+            if (child != null)
+            {
+                var renderer = child.GetComponent<Renderer>();
+                if (renderer != null)
+                    renderer.material = Core.MaterialCache.CreateUnlit(color);
+            }
+        }
+
+        private void CreateGroundVisual()
+        {
             var visual = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            visual.name = "Body";
             visual.transform.SetParent(transform);
             visual.transform.localPosition = new Vector3(0f, 0.5f, 0f);
             visual.transform.localScale = new Vector3(0.6f, 0.5f, 0.6f);
@@ -100,14 +151,61 @@ namespace TowerDefense.Entities
             var renderer = visual.GetComponent<Renderer>();
             if (renderer != null)
             {
-                renderer.material = new Material(Shader.Find("Unlit/Color"));
-                renderer.material.color = Color.red;
+                renderer.material = Core.MaterialCache.CreateUnlit(Color.red);
             }
 
-            // Add collider to enemy for targeting
             var sphereCollider = gameObject.AddComponent<SphereCollider>();
             sphereCollider.radius = 0.4f;
             sphereCollider.center = new Vector3(0f, 0.5f, 0f);
+        }
+
+        private void CreateFlyingVisual()
+        {
+            // Body - flattened sphere
+            var body = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            body.name = "Body";
+            body.transform.SetParent(transform);
+            body.transform.localPosition = new Vector3(0f, flyHeight, 0f);
+            body.transform.localScale = new Vector3(0.7f, 0.35f, 0.7f);
+
+            var bodyCol = body.GetComponent<Collider>();
+            if (bodyCol != null) Destroy(bodyCol);
+
+            var bodyRenderer = body.GetComponent<Renderer>();
+            if (bodyRenderer != null)
+                bodyRenderer.material = Core.MaterialCache.CreateUnlit(new Color(0.9f, 0.6f, 0.1f));
+
+            // Left wing
+            var leftWing = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            leftWing.name = "LeftWing";
+            leftWing.transform.SetParent(transform);
+            leftWing.transform.localPosition = new Vector3(-0.5f, flyHeight + 0.1f, 0f);
+            leftWing.transform.localScale = new Vector3(0.6f, 0.05f, 0.4f);
+            leftWing.transform.localRotation = Quaternion.Euler(0f, 0f, 15f);
+
+            var lwCol = leftWing.GetComponent<Collider>();
+            if (lwCol != null) Destroy(lwCol);
+            var lwR = leftWing.GetComponent<Renderer>();
+            if (lwR != null)
+                lwR.material = Core.MaterialCache.CreateUnlit(new Color(0.8f, 0.5f, 0.05f));
+
+            // Right wing
+            var rightWing = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            rightWing.name = "RightWing";
+            rightWing.transform.SetParent(transform);
+            rightWing.transform.localPosition = new Vector3(0.5f, flyHeight + 0.1f, 0f);
+            rightWing.transform.localScale = new Vector3(0.6f, 0.05f, 0.4f);
+            rightWing.transform.localRotation = Quaternion.Euler(0f, 0f, -15f);
+
+            var rwCol = rightWing.GetComponent<Collider>();
+            if (rwCol != null) Destroy(rwCol);
+            var rwR = rightWing.GetComponent<Renderer>();
+            if (rwR != null)
+                rwR.material = Core.MaterialCache.CreateUnlit(new Color(0.8f, 0.5f, 0.05f));
+
+            var sphereCollider = gameObject.AddComponent<SphereCollider>();
+            sphereCollider.radius = 0.5f;
+            sphereCollider.center = new Vector3(0f, flyHeight, 0f);
         }
 
         private void CreateHealthBar()
@@ -115,7 +213,9 @@ namespace TowerDefense.Entities
             // Container positioned in front of enemy, facing up for top-down view
             healthBarContainer = new GameObject("HealthBar").transform;
             healthBarContainer.SetParent(transform);
-            healthBarContainer.localPosition = new Vector3(0f, 0.1f, 0.8f);
+            float hbY = IsFlying ? flyHeight - 0.4f : 0.1f;
+            float hbZ = IsFlying ? 0.9f : 0.8f;
+            healthBarContainer.localPosition = new Vector3(0f, hbY, hbZ);
             healthBarContainer.localRotation = Quaternion.Euler(90f, 0f, 0f);
 
             // Background (dark)
@@ -131,8 +231,7 @@ namespace TowerDefense.Entities
             var bgRenderer = healthBarBackground.GetComponent<Renderer>();
             if (bgRenderer != null)
             {
-                bgRenderer.material = new Material(Shader.Find("Unlit/Color"));
-                bgRenderer.material.color = new Color(0.2f, 0.2f, 0.2f);
+                bgRenderer.material = Core.MaterialCache.CreateUnlit(new Color(0.2f, 0.2f, 0.2f));
             }
 
             // Fill (green/red)
@@ -145,11 +244,10 @@ namespace TowerDefense.Entities
             var fillCollider = healthBarFill.GetComponent<Collider>();
             if (fillCollider != null) Destroy(fillCollider);
 
-            var fillRenderer = healthBarFill.GetComponent<Renderer>();
-            if (fillRenderer != null)
+            healthBarFillRenderer = healthBarFill.GetComponent<Renderer>();
+            if (healthBarFillRenderer != null)
             {
-                fillRenderer.material = new Material(Shader.Find("Unlit/Color"));
-                fillRenderer.material.color = Color.green;
+                healthBarFillRenderer.material = Core.MaterialCache.CreateUnlit(Color.green);
             }
 
             // Start hidden (full health)
@@ -172,10 +270,9 @@ namespace TowerDefense.Entities
                 healthBarFill.transform.localPosition = new Vector3(0.475f * (1f - healthPercent), 0f, -0.05f);
 
                 // Color: green to red based on health
-                var fillRenderer = healthBarFill.GetComponent<Renderer>();
-                if (fillRenderer != null)
+                if (healthBarFillRenderer != null)
                 {
-                    fillRenderer.material.color = Color.Lerp(Color.red, Color.green, healthPercent);
+                    healthBarFillRenderer.material.color = Color.Lerp(Color.red, Color.green, healthPercent);
                 }
             }
         }
@@ -258,12 +355,6 @@ namespace TowerDefense.Entities
             slowTimer = duration;
         }
 
-        public void SetMineTarget(HexCoord coord)
-        {
-            isTargetingMine = true;
-            mineTargetCoord = coord;
-        }
-
         public void SetGoldMultiplier(float multiplier)
         {
             goldMultiplier = multiplier;
@@ -280,12 +371,13 @@ namespace TowerDefense.Entities
             // Scale up visual
             transform.localScale = Vector3.one * 2f;
 
-            // Recolor to dark purple
+            // Recolor to dark purple (skip health bar children)
             var renderers = GetComponentsInChildren<Renderer>();
             foreach (var r in renderers)
             {
-                if (r.gameObject.name != "HealthBarBG" && r.gameObject.name != "HealthBarFill")
-                    r.material.color = new Color(0.5f, 0.1f, 0.6f);
+                if (r.gameObject.name == "HealthBarBG" || r.gameObject.name == "HealthBarFill")
+                    continue;
+                r.material.color = new Color(0.5f, 0.1f, 0.6f);
             }
         }
 
@@ -293,6 +385,11 @@ namespace TowerDefense.Entities
         {
             burnDps = dps;
             burnTimer = duration;
+        }
+
+        private void OnDestroy()
+        {
+            Core.EnemyManager.Instance?.Unregister(this);
         }
 
         private void Die()
@@ -327,14 +424,7 @@ namespace TowerDefense.Entities
 
         private void ReachCastle()
         {
-            if (isTargetingMine)
-            {
-                GameManager.Instance?.DamageMiningOutpost(mineTargetCoord);
-            }
-            else
-            {
-                GameManager.Instance?.LoseLife();
-            }
+            GameManager.Instance?.LoseLife();
             OnReachedCastle?.Invoke(this);
             Destroy(gameObject);
         }

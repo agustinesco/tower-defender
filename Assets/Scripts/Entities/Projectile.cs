@@ -77,8 +77,7 @@ namespace TowerDefense.Entities
             var renderer = visual.GetComponent<Renderer>();
             if (renderer != null)
             {
-                renderer.material = new Material(Shader.Find("Unlit/Color"));
-                renderer.material.color = projectileColor;
+                renderer.material = Core.MaterialCache.CreateUnlit(projectileColor);
             }
 
             // Add trail renderer
@@ -86,7 +85,7 @@ namespace TowerDefense.Entities
             trail.time = 0.25f;
             trail.startWidth = 0.15f;
             trail.endWidth = 0f;
-            trail.material = new Material(Shader.Find("Sprites/Default"));
+            trail.material = Core.MaterialCache.CreateSpriteDefault();
 
             // Set trail color gradient
             Gradient gradient = new Gradient();
@@ -152,14 +151,16 @@ namespace TowerDefense.Entities
             // Move in fixed direction
             transform.position += moveDirection * speed * Time.deltaTime;
 
-            // Check for enemies to damage
-            var enemies = FindObjectsOfType<Enemy>();
-            foreach (var enemy in enemies)
+            var mgr = Core.EnemyManager.Instance;
+            if (mgr == null) return;
+
+            var enemies = mgr.ActiveEnemies;
+            for (int i = 0; i < enemies.Count; i++)
             {
-                if (enemy.IsDead) continue;
+                var enemy = enemies[i];
+                if (enemy == null || enemy.IsDead) continue;
                 if (hitEnemies.Contains(enemy)) continue;
 
-                // Use enemy center position (y offset 0.5f) instead of transform origin
                 Vector3 enemyCenter = enemy.transform.position + new Vector3(0f, 0.5f, 0f);
                 float distance = Vector3.Distance(transform.position, enemyCenter);
                 if (distance <= pierceRadius)
@@ -183,11 +184,15 @@ namespace TowerDefense.Entities
             else if (isAreaDamage)
             {
                 // Area damage - hit all enemies in radius
-                var enemies = FindObjectsOfType<Enemy>();
-                foreach (var enemy in enemies)
+                var mgr = Core.EnemyManager.Instance;
+                if (mgr != null)
                 {
-                    if (!enemy.IsDead)
+                    var enemies = mgr.ActiveEnemies;
+                    for (int i = 0; i < enemies.Count; i++)
                     {
+                        var enemy = enemies[i];
+                        if (enemy == null || enemy.IsDead) continue;
+
                         float distance = Vector3.Distance(transform.position, enemy.transform.position);
                         if (distance <= areaRadius)
                         {
@@ -195,6 +200,9 @@ namespace TowerDefense.Entities
                         }
                     }
                 }
+
+                // Spawn AoE circle indicator
+                SpawnAoeIndicator();
             }
             else
             {
@@ -206,6 +214,72 @@ namespace TowerDefense.Entities
             }
 
             Destroy(gameObject);
+        }
+
+        private void SpawnAoeIndicator()
+        {
+            var indicatorObj = new GameObject("AoeIndicator");
+            indicatorObj.transform.position = new Vector3(transform.position.x, 0.15f, transform.position.z);
+            var indicator = indicatorObj.AddComponent<AoeIndicator>();
+            indicator.Initialize(areaRadius, projectileColor);
+        }
+    }
+
+    public class AoeIndicator : MonoBehaviour
+    {
+        private float radius;
+        private float duration = 0.5f;
+        private float timer;
+        private LineRenderer lineRenderer;
+
+        public void Initialize(float radius, Color color)
+        {
+            this.radius = radius;
+            this.timer = duration;
+
+            lineRenderer = gameObject.AddComponent<LineRenderer>();
+            lineRenderer.loop = true;
+            lineRenderer.useWorldSpace = true;
+            lineRenderer.startWidth = 0.3f;
+            lineRenderer.endWidth = 0.3f;
+            lineRenderer.positionCount = 32;
+            lineRenderer.material = Core.MaterialCache.CreateUnlit(color);
+
+            UpdateCircle(0f);
+        }
+
+        private void Update()
+        {
+            timer -= Time.deltaTime;
+            if (timer <= 0f)
+            {
+                Destroy(gameObject);
+                return;
+            }
+
+            float progress = 1f - (timer / duration);
+            UpdateCircle(progress);
+        }
+
+        private void UpdateCircle(float progress)
+        {
+            float currentRadius = radius * Mathf.Min(progress * 3f, 1f);
+            float alpha = timer / duration;
+            lineRenderer.startColor = new Color(lineRenderer.startColor.r, lineRenderer.startColor.g, lineRenderer.startColor.b, alpha);
+            lineRenderer.endColor = lineRenderer.startColor;
+            lineRenderer.startWidth = 0.3f * alpha;
+            lineRenderer.endWidth = 0.3f * alpha;
+
+            Vector3 center = transform.position;
+            for (int i = 0; i < 32; i++)
+            {
+                float angle = i * (360f / 32f) * Mathf.Deg2Rad;
+                lineRenderer.SetPosition(i, new Vector3(
+                    center.x + Mathf.Cos(angle) * currentRadius,
+                    center.y,
+                    center.z + Mathf.Sin(angle) * currentRadius
+                ));
+            }
         }
     }
 }

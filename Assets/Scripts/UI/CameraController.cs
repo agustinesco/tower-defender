@@ -108,6 +108,11 @@ namespace TowerDefense.UI
 
         private void HandleMouseInput()
         {
+            // On touch devices, let HandleTouchInput be the sole handler.
+            // Unity simulates mouse from touches, but IsPointerOverGameObject()
+            // without a fingerId is unreliable on mobile and causes false panning.
+            if (Input.touchCount > 0) return;
+
             if (pieceDragHandler != null && pieceDragHandler.IsInteracting) return;
 
             // Check if mouse is over UI element

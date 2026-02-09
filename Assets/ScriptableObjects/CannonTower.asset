@@ -15,10 +15,10 @@ MonoBehaviour:
   towerName: Cannon
   cost: 100
   damage: 15
-  range: 4
+  range: 12
   fireRate: 1.5
   isAreaDamage: 1
-  areaRadius: 1
+  areaRadius: 3
   appliesSlow: 0
   slowMultiplier: 0
   slowDuration: 0

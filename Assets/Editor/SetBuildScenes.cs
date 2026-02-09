@@ -9,8 +9,8 @@ public class SetBuildScenes
         EditorBuildSettings.scenes = new EditorBuildSettingsScene[]
         {
             new EditorBuildSettingsScene("Assets/Scenes/MainMenu.unity", true),
-            new EditorBuildSettingsScene("Assets/Scenes/SampleScene.unity", true)
+            new EditorBuildSettingsScene("Assets/Scenes/Game.unity", true)
         };
-        Debug.Log("Build scenes set: MainMenu (0), SampleScene (1)");
+        Debug.Log("Build scenes set: MainMenu (0), Game (1)");
     }
 }

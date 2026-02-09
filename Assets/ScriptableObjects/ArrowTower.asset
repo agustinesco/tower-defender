@@ -27,3 +27,13 @@ MonoBehaviour:
   isShotgun: 0
   shotgunProjectileCount: 5
   shotgunSpreadAngle: 60
+  isTesla: 0
+  bounceCount: 3
+  bounceRange: 10
+  damageFalloff: 0.7
+  isFlame: 0
+  firePatchDuration: 3
+  fireDamagePerSecond: 3
+  burnDuration: 2
+  canTargetFlying: 1
+  prioritizeFlying: 1

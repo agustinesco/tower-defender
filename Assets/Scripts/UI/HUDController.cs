@@ -30,6 +30,9 @@ namespace TowerDefense.UI
         private WaveManager waveManager;
         private TowerManager towerManager;
         private PieceHandUI pieceHandUIInstance;
+        private UpgradeSelectionUI upgradeSelectionUI;
+        private Button upgradesButton;
+        private Text enemyCountText;
         private List<GameObject> cheatSpawnerMarkers = new List<GameObject>();
         private bool showingSpawners;
 
@@ -42,6 +45,16 @@ namespace TowerDefense.UI
         {
             waveManager = FindObjectOfType<WaveManager>();
             towerManager = FindObjectOfType<TowerManager>();
+            upgradeSelectionUI = FindObjectOfType<UpgradeSelectionUI>();
+
+            // In continuous mode, hide Start Wave and Exit Run buttons
+            if (waveManager != null && waveManager.IsContinuousMode)
+            {
+                if (startWaveButton != null)
+                    startWaveButton.gameObject.SetActive(false);
+                if (exitRunButtonObj != null)
+                    exitRunButtonObj.SetActive(false);
+            }
 
             if (GameManager.Instance != null)
             {
@@ -165,6 +178,15 @@ namespace TowerDefense.UI
             // Tower info panel (hidden by default)
             towerInfoPanel = CreateTowerInfoPanel(canvasObj.transform);
             towerInfoPanel.SetActive(false);
+
+            // Upgrades button (always visible, both modes)
+            upgradesButton = CreateButton(canvasObj.transform, "UpgradesButton", new Vector2(0, 0), new Vector2(0, 0),
+                new Vector2(100, 200), new Vector2(140, 50), "Upgrades", OnUpgradesClicked);
+            upgradesButton.GetComponent<Image>().color = new Color(0.3f, 0.2f, 0.6f);
+
+            // Enemy count text (for continuous mode)
+            enemyCountText = CreateText(canvasObj.transform, "EnemyCountText", new Vector2(0.5f, 1), new Vector2(0.5f, 1),
+                new Vector2(160, -30), "");
 
             // Create upgrade selection UI
             var upgradeSelectionObj = new GameObject("UpgradeSelectionUI");
@@ -485,6 +507,12 @@ namespace TowerDefense.UI
                 int seconds = Mathf.CeilToInt(GameManager.Instance.BuildTimer);
                 buildTimerText.text = $"Build phase: {seconds}s";
             }
+
+            // Show enemy count in continuous mode
+            if (enemyCountText != null && waveManager != null && waveManager.IsContinuousMode)
+            {
+                enemyCountText.text = $"Enemies: {waveManager.EnemyCount}";
+            }
         }
 
         private void CreateResourcePanel(Transform parent)
@@ -647,6 +675,20 @@ namespace TowerDefense.UI
 
                 marker.AddComponent<BillboardSprite>();
                 cheatSpawnerMarkers.Add(marker);
+            }
+        }
+
+        private void OnUpgradesClicked()
+        {
+            if (upgradeSelectionUI == null) return;
+
+            if (upgradeSelectionUI.IsVisible)
+            {
+                upgradeSelectionUI.Hide();
+            }
+            else
+            {
+                upgradeSelectionUI.ShowWithoutPause();
             }
         }
 

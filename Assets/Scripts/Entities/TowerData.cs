@@ -34,5 +34,9 @@ namespace TowerDefense.Entities
         public float firePatchDuration = 3f;
         public float fireDamagePerSecond = 3f;
         public float burnDuration = 2f;
+
+        [Header("Targeting")]
+        public bool canTargetFlying = false;
+        public bool prioritizeFlying = false;
     }
 }

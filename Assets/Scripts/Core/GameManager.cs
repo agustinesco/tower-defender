@@ -14,7 +14,7 @@ namespace TowerDefense.Core
         [Header("Settings")]
         [SerializeField] private int startingLives = 10;
         [SerializeField] private int startingCurrency = 200;
-        [SerializeField] private int startingTiles = 3;
+        [SerializeField] private int startingTiles = 2;
         [SerializeField] private float buildGracePeriod = 30f;
 
         [Header("Materials")]
@@ -32,6 +32,8 @@ namespace TowerDefense.Core
         [Header("Prefabs")]
         [SerializeField] private GameObject hexPiecePrefab;
         [SerializeField] private GameObject mineOutpostPrefab;
+        [SerializeField] private GameObject groundEnemyPrefab;
+        [SerializeField] private GameObject flyingEnemyPrefab;
 
         [Header("Piece Configs")]
         [SerializeField] private List<HexPieceConfig> pieceConfigs;
@@ -40,6 +42,7 @@ namespace TowerDefense.Core
         private Dictionary<HexCoord, HexPiece> hexPieces = new Dictionary<HexCoord, HexPiece>();
         private Dictionary<HexCoord, HexPieceData> mapData = new Dictionary<HexCoord, HexPieceData>();
         private List<HexCoord> spawnPoints = new List<HexCoord>();
+        private Dictionary<HexCoord, int> spawnPointEdges = new Dictionary<HexCoord, int>();
         private MapGenerator mapGenerator;
         private WaveManager waveManager;
         private UpgradeSelectionUI upgradeSelectionUI;
@@ -57,6 +60,7 @@ namespace TowerDefense.Core
         private Dictionary<HexCoord, GameObject> orePatchMarkers = new Dictionary<HexCoord, GameObject>();
         private HashSet<HexCoord> activeMiningOutposts = new HashSet<HexCoord>();
         private Dictionary<HexCoord, GameObject> mineVisuals = new Dictionary<HexCoord, GameObject>();
+        private Dictionary<HexCoord, UI.MineTimerIndicator> mineTimerIndicators = new Dictionary<HexCoord, UI.MineTimerIndicator>();
 
         private const int MineCost = 100;
         private const int LureCost = 75;
@@ -69,6 +73,8 @@ namespace TowerDefense.Core
         private HashSet<int> pendingBossZones = new HashSet<int>();
         private List<GameObject> zoneRings = new List<GameObject>();
 
+        private List<GameObject> spawnIndicators = new List<GameObject>();
+
         private HashSet<HexCoord> activeLures = new HashSet<HexCoord>();
         private Dictionary<HexCoord, GameObject> lureVisuals = new Dictionary<HexCoord, GameObject>();
 
@@ -78,6 +84,9 @@ namespace TowerDefense.Core
         private bool gameOver = false;
         private bool buildPhaseActive = false;
         private float buildTimer = 0f;
+
+        private const float ContinuousMineInterval = 30f;
+        private float continuousMineTimer = 0f;
 
         public int Lives => currentLives;
         public int Currency => currentCurrency;
@@ -93,11 +102,15 @@ namespace TowerDefense.Core
         public bool HasPendingBoss => pendingBossZones.Count > 0;
         public IReadOnlyCollection<int> PendingBossZones => pendingBossZones;
 
+        public bool IsContinuousMode => GameModeSelection.SelectedMode == Data.GameMode.Continuous;
         public bool BuildPhaseActive => buildPhaseActive;
         public float BuildTimer => buildTimer;
         public Sprite GoblinCampSprite => goblinCampSprite;
         public Sprite GoldSprite => goldSprite;
+        public GameObject GroundEnemyPrefab => groundEnemyPrefab;
+        public GameObject FlyingEnemyPrefab => flyingEnemyPrefab;
         public IReadOnlyCollection<HexCoord> HiddenSpawners => hiddenSpawners;
+        public IReadOnlyDictionary<HexCoord, int> SpawnPointEdges => spawnPointEdges;
 
         public Sprite GetResourceSprite(ResourceType type)
         {
@@ -165,6 +178,13 @@ namespace TowerDefense.Core
                 }
             }
 
+            // 0. Create EnemyManager (per-scene, not DontDestroyOnLoad)
+            if (EnemyManager.Instance == null)
+            {
+                var enemyMgrObj = new GameObject("EnemyManager");
+                enemyMgrObj.AddComponent<EnemyManager>();
+            }
+
             // 1. Generate castle and starting path
             mapGenerator = new MapGenerator();
             mapData = mapGenerator.GenerateInitialCastle();
@@ -187,7 +207,8 @@ namespace TowerDefense.Core
             Debug.Log($"Generated {hiddenSpawners.Count} hidden spawners: [{string.Join(", ", hiddenSpawners)}]");
 
             // 1c. Generate ore patches and create visual markers
-            orePatches = mapGenerator.GenerateOrePatches();
+            int zone1Boundary = zoneBoundaries.Length > 0 ? zoneBoundaries[0] : 3;
+            orePatches = mapGenerator.GenerateOrePatches(minDistance: 2, maxDistance: 6, zoneBoundary: zone1Boundary);
             CreateOrePatchMarkers();
 
             // 1e. Create zone boundary visuals
@@ -204,6 +225,7 @@ namespace TowerDefense.Core
 
             // 3b. Detect open-edge spawn points
             UpdateSpawnPoints();
+            CreateSpawnIndicators();
 
             // 4. Initialize ghost piece manager
             GameObject ghostManagerObj = new GameObject("GhostPieceManager");
@@ -236,6 +258,11 @@ namespace TowerDefense.Core
             if (waveManager != null)
             {
                 waveManager.OnWaveComplete += OnWaveComplete;
+
+                if (IsContinuousMode)
+                {
+                    waveManager.StartContinuousMode();
+                }
             }
 
             upgradeSelectionUI = FindObjectOfType<UpgradeSelectionUI>();
@@ -280,6 +307,23 @@ namespace TowerDefense.Core
                 if (buildTimer <= 0f)
                 {
                     EndBuildPhase();
+                }
+            }
+
+            if (IsContinuousMode && activeMiningOutposts.Count > 0)
+            {
+                continuousMineTimer += Time.deltaTime;
+                if (continuousMineTimer >= ContinuousMineInterval)
+                {
+                    continuousMineTimer = 0f;
+                    CollectMiningResources();
+
+                    // Reset all timer indicators
+                    foreach (var kvp in mineTimerIndicators)
+                    {
+                        if (kvp.Value != null)
+                            kvp.Value.SetTimer(0f);
+                    }
                 }
             }
         }
@@ -367,6 +411,7 @@ namespace TowerDefense.Core
 
             // Update spawn points
             UpdateSpawnPoints();
+            CreateSpawnIndicators();
 
             // Recalculate paths for wave manager
             if (waveManager != null)
@@ -505,6 +550,7 @@ namespace TowerDefense.Core
 
                 // Update spawn points
                 UpdateSpawnPoints();
+                CreateSpawnIndicators();
 
                 // Expand camera
                 var cameraController = FindObjectOfType<CameraController>();
@@ -521,6 +567,7 @@ namespace TowerDefense.Core
         private void UpdateSpawnPoints()
         {
             spawnPoints.Clear();
+            spawnPointEdges.Clear();
             foreach (var kvp in mapData)
             {
                 if (kvp.Value.IsCastle) continue;
@@ -533,12 +580,14 @@ namespace TowerDefense.Core
                     if (spConfig.isWaveSpawnPoint)
                     {
                         spawnPoints.Add(kvp.Key);
+                        StoreOpenEdge(kvp.Key, kvp.Value);
                         continue;
                     }
                 }
                 else if (kvp.Value.IsSpawnPoint)
                 {
                     spawnPoints.Add(kvp.Key);
+                    StoreOpenEdge(kvp.Key, kvp.Value);
                     continue;
                 }
 
@@ -549,9 +598,87 @@ namespace TowerDefense.Core
                     if (!mapData.ContainsKey(neighbor))
                     {
                         spawnPoints.Add(kvp.Key);
+                        spawnPointEdges[kvp.Key] = edge;
                         break;
                     }
                 }
+            }
+        }
+
+        private void StoreOpenEdge(HexCoord coord, HexPieceData data)
+        {
+            foreach (int edge in data.ConnectedEdges)
+            {
+                HexCoord neighbor = coord.GetNeighbor(edge);
+                if (!mapData.ContainsKey(neighbor))
+                {
+                    spawnPointEdges[coord] = edge;
+                    return;
+                }
+            }
+        }
+
+        private void CreateSpawnIndicators()
+        {
+            // Destroy old indicators
+            foreach (var ind in spawnIndicators)
+            {
+                if (ind != null) Destroy(ind);
+            }
+            spawnIndicators.Clear();
+
+            foreach (var kvp in spawnPointEdges)
+            {
+                HexCoord coord = kvp.Key;
+                int edge = kvp.Value;
+                Vector3 edgePos = HexGrid.GetEdgeMidpoint(coord, edge);
+
+                // Flat cylinder at edge midpoint
+                var indicator = new GameObject($"SpawnIndicator_{coord}");
+                indicator.transform.position = edgePos + Vector3.up * 0.2f;
+
+                var disc = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                disc.name = "Disc";
+                disc.transform.SetParent(indicator.transform);
+                disc.transform.localPosition = Vector3.zero;
+                disc.transform.localScale = new Vector3(3f, 0.1f, 3f);
+                var discCol = disc.GetComponent<Collider>();
+                if (discCol != null) Destroy(discCol);
+                var discRend = disc.GetComponent<Renderer>();
+                if (discRend != null)
+                {
+                    discRend.material = new Material(Shader.Find("Unlit/Color"));
+                    discRend.material.color = new Color(1f, 0.3f, 0.1f, 1f);
+                }
+
+                // Arrow cube pointing inward toward hex center
+                var arrow = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                arrow.name = "Arrow";
+                arrow.transform.SetParent(indicator.transform);
+                Vector3 hexCenter = HexGrid.HexToWorld(coord);
+                Vector3 inwardDir = (hexCenter - edgePos).normalized;
+                arrow.transform.localPosition = Vector3.up * 0.5f + inwardDir * 1.5f;
+                arrow.transform.localScale = new Vector3(0.8f, 0.8f, 1.5f);
+                arrow.transform.rotation = Quaternion.LookRotation(inwardDir, Vector3.up);
+                var arrowCol = arrow.GetComponent<Collider>();
+                if (arrowCol != null) Destroy(arrowCol);
+                var arrowRend = arrow.GetComponent<Renderer>();
+                if (arrowRend != null)
+                {
+                    arrowRend.material = new Material(Shader.Find("Unlit/Color"));
+                    arrowRend.material.color = new Color(1f, 0.5f, 0.1f, 1f);
+                }
+
+                indicator.AddComponent<UI.SpawnIndicatorPulse>();
+                spawnIndicators.Add(indicator);
+            }
+        }
+
+        public void SetSpawnIndicatorsVisible(bool visible)
+        {
+            foreach (var ind in spawnIndicators)
+            {
+                if (ind != null) ind.SetActive(visible);
             }
         }
 
@@ -626,6 +753,10 @@ namespace TowerDefense.Core
             if (gameOver) return;
             currentWave++;
             OnWaveChanged?.Invoke(currentWave);
+            if (!IsContinuousMode)
+            {
+                SetSpawnIndicatorsVisible(false);
+            }
         }
 
         private void OnWaveComplete()
@@ -639,13 +770,18 @@ namespace TowerDefense.Core
             }
 
             UpdateSpawnPoints();
+            CreateSpawnIndicators();
+            SetSpawnIndicatorsVisible(true);
             RecalculateGoblinCampPaths();
             if (waveManager != null)
             {
                 waveManager.RecalculatePaths();
             }
             CollectMiningResources();
-            ShowUpgradeSelection();
+            if (!IsContinuousMode)
+            {
+                ShowUpgradeSelection();
+            }
         }
 
         private void ShowUpgradeSelection()
@@ -665,6 +801,7 @@ namespace TowerDefense.Core
         {
             buildPhaseActive = true;
             buildTimer = buildGracePeriod;
+            SetSpawnIndicatorsVisible(true);
             OnBuildPhaseStarted?.Invoke();
         }
 
@@ -735,6 +872,18 @@ namespace TowerDefense.Core
             // Remove the ore patch marker
             RemoveOrePatchMarker(coord);
 
+            // In continuous mode, add a timer indicator above the mine
+            if (IsContinuousMode && mineVisuals.TryGetValue(coord, out var mineObj))
+            {
+                var indicatorObj = new GameObject("MineTimer");
+                indicatorObj.transform.SetParent(mineObj.transform);
+                indicatorObj.transform.localPosition = Vector3.up * 3f;
+                var indicator = indicatorObj.AddComponent<UI.MineTimerIndicator>();
+                indicator.Initialize(ContinuousMineInterval);
+                indicator.SetTimer(continuousMineTimer);
+                mineTimerIndicators[coord] = indicator;
+            }
+
             var patch = orePatches[coord];
             Debug.Log($"Mine built at {coord}: {patch.ResourceType} (yield: {patch.BaseYield}/wave)");
             return true;
@@ -746,21 +895,6 @@ namespace TowerDefense.Core
             mine.transform.localPosition = new Vector3(0f, 5f, 0f);
             mine.transform.localScale = Vector3.one;
             return mine;
-        }
-
-        public void DamageMiningOutpost(HexCoord coord)
-        {
-            if (!activeMiningOutposts.Contains(coord)) return;
-
-            // Destroy the outpost
-            activeMiningOutposts.Remove(coord);
-            if (mineVisuals.TryGetValue(coord, out var visual))
-            {
-                if (visual != null) Destroy(visual);
-                mineVisuals.Remove(coord);
-            }
-
-            Debug.Log($"Mining outpost at {coord} destroyed by enemy!");
         }
 
         public bool HasLure(HexCoord coord)
@@ -938,6 +1072,13 @@ namespace TowerDefense.Core
                 if (orePatches.TryGetValue(coord, out var patch))
                 {
                     PersistenceManager.Instance.AddRunResource(patch.ResourceType, patch.BaseYield);
+
+                    // Spawn fly-to-castle resource popup
+                    Vector3 mineWorldPos = HexGrid.HexToWorld(coord) + Vector3.up * 2f;
+                    Vector3 castleWorldPos = HexGrid.HexToWorld(new HexCoord(0, 0)) + Vector3.up * 2f;
+                    var popup = new GameObject("ResourcePopup").AddComponent<UI.ResourcePopup>();
+                    popup.Initialize(patch.BaseYield, patch.ResourceType, mineWorldPos, castleWorldPos);
+
                     Debug.Log($"Mined {patch.BaseYield} {patch.ResourceType} from outpost at {coord}");
                 }
             }
@@ -980,6 +1121,30 @@ namespace TowerDefense.Core
                 sr.color = c;
 
                 marker.AddComponent<UI.BillboardSprite>();
+
+                // Create hex outline ring at ground level
+                var ringObj = new GameObject("HexRing");
+                ringObj.transform.SetParent(marker.transform);
+                ringObj.transform.position = worldPos + Vector3.up * 0.15f;
+
+                var lr = ringObj.AddComponent<LineRenderer>();
+                lr.loop = true;
+                lr.useWorldSpace = true;
+                lr.startWidth = 0.3f;
+                lr.endWidth = 0.3f;
+                lr.positionCount = 6;
+
+                var ringMat = new Material(Shader.Find("Unlit/Color"));
+                Color ringColor = c;
+                ringColor.a = 0.25f;
+                ringMat.color = ringColor;
+                lr.material = ringMat;
+
+                Vector3[] corners = HexGrid.GetHexCorners(kvp.Key);
+                for (int i = 0; i < 6; i++)
+                {
+                    lr.SetPosition(i, new Vector3(corners[i].x, 0.15f, corners[i].z));
+                }
 
                 orePatchMarkers[kvp.Key] = marker;
             }

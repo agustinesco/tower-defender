@@ -137,23 +137,23 @@ namespace TowerDefense.Grid
                     break;
 
                 case RotationPattern.Bend:
-                    // 2 variants: exit at opposite+1 or opposite-1
-                    int bendExit1 = ((opposite + 1) % 6 + 6) % 6;
-                    int bendExit2 = ((opposite - 1) % 6 + 6) % 6;
-                    variants.Add(new PlacementRotation(entryEdge,
-                        new List<int> { entryEdge, bendExit1 }));
-                    variants.Add(new PlacementRotation(entryEdge,
-                        new List<int> { entryEdge, bendExit2 }));
+                    // 5 variants: exit can be any of the 5 non-entry edges
+                    for (int e = 0; e < 6; e++)
+                    {
+                        if (e == entryEdge) continue;
+                        variants.Add(new PlacementRotation(entryEdge,
+                            new List<int> { entryEdge, e }));
+                    }
                     break;
 
                 case RotationPattern.Fork:
-                    // 2 variants: opposite + one adjacent offset
-                    int forkSide1 = ((opposite + 1) % 6 + 6) % 6;
-                    int forkSide2 = ((opposite - 1) % 6 + 6) % 6;
-                    variants.Add(new PlacementRotation(entryEdge,
-                        new List<int> { entryEdge, opposite, forkSide1 }));
-                    variants.Add(new PlacementRotation(entryEdge,
-                        new List<int> { entryEdge, opposite, forkSide2 }));
+                    // 4 variants: entry + opposite + any 1 of the remaining 4 edges
+                    for (int e = 0; e < 6; e++)
+                    {
+                        if (e == entryEdge || e == opposite) continue;
+                        variants.Add(new PlacementRotation(entryEdge,
+                            new List<int> { entryEdge, opposite, e }));
+                    }
                     break;
 
                 case RotationPattern.DeadEnd:
@@ -163,37 +163,32 @@ namespace TowerDefense.Grid
                     break;
 
                 case RotationPattern.Cross:
-                    // 2 variants: entry + opposite + 2 adjacent edges
-                    int crossOpp = HexCoord.OppositeEdge(entryEdge);
-                    // Variant 1: both adjacent to opposite
-                    int crossA1 = ((crossOpp + 1) % 6 + 6) % 6;
-                    int crossA2 = ((crossOpp - 1) % 6 + 6) % 6;
-                    variants.Add(new PlacementRotation(entryEdge,
-                        new List<int> { entryEdge, crossOpp, crossA1, crossA2 }));
-                    // Variant 2: both adjacent to entry
-                    int crossB1 = ((entryEdge + 1) % 6 + 6) % 6;
-                    int crossB2 = ((entryEdge - 1) % 6 + 6) % 6;
-                    variants.Add(new PlacementRotation(entryEdge,
-                        new List<int> { entryEdge, crossOpp, crossB1, crossB2 }));
+                    // C(4,2)=6 variants: entry + opposite + any 2 of the remaining 4 edges
+                    {
+                        var remaining = new List<int>();
+                        for (int e = 0; e < 6; e++)
+                        {
+                            if (e != entryEdge && e != opposite) remaining.Add(e);
+                        }
+                        for (int a = 0; a < remaining.Count; a++)
+                        {
+                            for (int b = a + 1; b < remaining.Count; b++)
+                            {
+                                variants.Add(new PlacementRotation(entryEdge,
+                                    new List<int> { entryEdge, opposite, remaining[a], remaining[b] }));
+                            }
+                        }
+                    }
                     break;
 
                 case RotationPattern.Star:
-                    // 2 variants: all edges except one adjacent to entry
-                    int starOpp = HexCoord.OppositeEdge(entryEdge);
-                    int starSkip1 = ((entryEdge + 1) % 6 + 6) % 6;
-                    int starSkip2 = ((entryEdge - 1) % 6 + 6) % 6;
-                    // Variant 1: exclude entry+1
+                    // 5 variants: all 6 edges minus any 1 non-entry edge
+                    for (int skip = 0; skip < 6; skip++)
                     {
+                        if (skip == entryEdge) continue;
                         var edges = new List<int>();
                         for (int e = 0; e < 6; e++)
-                            if (e != starSkip1) edges.Add(e);
-                        variants.Add(new PlacementRotation(entryEdge, edges));
-                    }
-                    // Variant 2: exclude entry-1
-                    {
-                        var edges = new List<int>();
-                        for (int e = 0; e < 6; e++)
-                            if (e != starSkip2) edges.Add(e);
+                            if (e != skip) edges.Add(e);
                         variants.Add(new PlacementRotation(entryEdge, edges));
                     }
                     break;
@@ -210,7 +205,7 @@ namespace TowerDefense.Grid
 
         /// <summary>
         /// Checks that all exit edges (non-entry) of a rotation don't collide with existing pieces
-        /// that lack a matching connected edge.
+        /// that lack a matching connected edge, and that the placement doesn't disconnect any paths.
         /// </summary>
         private bool IsRotationValid(HexCoord candidateCoord, PlacementRotation rotation, int entryEdge)
         {
@@ -234,7 +229,114 @@ namespace TowerDefense.Grid
                 }
             }
 
+            // When replacing an existing piece, check that the new edges don't disconnect the path network
+            if (map.ContainsKey(candidateCoord))
+            {
+                if (WouldDisconnectPaths(candidateCoord, rotation.ConnectedEdges))
+                    return false;
+            }
+
             return true;
+        }
+
+        /// <summary>
+        /// Checks whether replacing the piece at coord with one having newConnectedEdges
+        /// would disconnect any currently reachable piece from the castle.
+        /// </summary>
+        private bool WouldDisconnectPaths(HexCoord coord, List<int> newConnectedEdges)
+        {
+            var oldPiece = map[coord];
+
+            // Quick check: are any existing connections being removed?
+            bool hasLostConnection = false;
+            foreach (int edge in oldPiece.ConnectedEdges)
+            {
+                if (newConnectedEdges.Contains(edge))
+                    continue;
+
+                // This edge is being removed — check if there was an actual bidirectional connection
+                var neighbor = coord.GetNeighbor(edge);
+                if (map.TryGetValue(neighbor, out var neighborPiece))
+                {
+                    int requiredEdge = HexCoord.OppositeEdge(edge);
+                    if (neighborPiece.ConnectedEdges.Contains(requiredEdge))
+                    {
+                        hasLostConnection = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!hasLostConnection)
+                return false; // No connections severed, can't disconnect anything
+
+            // Full simulation: temporarily swap the piece and check reachability
+            var currentReachable = GetReachableFromCastle();
+
+            var tempPiece = new HexPieceData(coord, oldPiece.Type, newConnectedEdges);
+            map[coord] = tempPiece;
+            var newReachable = GetReachableFromCastle();
+            map[coord] = oldPiece; // Restore
+
+            // If any previously reachable piece (other than the one being replaced) is now unreachable, reject
+            foreach (var reachableCoord in currentReachable)
+            {
+                if (reachableCoord == coord) continue;
+                if (!newReachable.Contains(reachableCoord))
+                    return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// BFS flood from the castle to find all pieces reachable via bidirectional edge connections.
+        /// </summary>
+        private HashSet<HexCoord> GetReachableFromCastle()
+        {
+            var reachable = new HashSet<HexCoord>();
+            HexCoord? castleCoord = null;
+
+            foreach (var kvp in map)
+            {
+                if (kvp.Value.IsCastle)
+                {
+                    castleCoord = kvp.Key;
+                    break;
+                }
+            }
+
+            if (!castleCoord.HasValue)
+                return reachable;
+
+            var queue = new Queue<HexCoord>();
+            queue.Enqueue(castleCoord.Value);
+            reachable.Add(castleCoord.Value);
+
+            while (queue.Count > 0)
+            {
+                var current = queue.Dequeue();
+                if (!map.TryGetValue(current, out var piece))
+                    continue;
+
+                foreach (int edge in piece.ConnectedEdges)
+                {
+                    var neighbor = current.GetNeighbor(edge);
+                    if (reachable.Contains(neighbor))
+                        continue;
+                    if (!map.TryGetValue(neighbor, out var neighborPiece))
+                        continue;
+
+                    int requiredEdge = HexCoord.OppositeEdge(edge);
+                    if (!neighborPiece.ConnectedEdges.Contains(requiredEdge))
+                        continue;
+
+                    reachable.Add(neighbor);
+                    queue.Enqueue(neighbor);
+                }
+            }
+
+            return reachable;
         }
 
         private bool HasDuplicateRotation(PlacementOption option, PlacementRotation newRotation)

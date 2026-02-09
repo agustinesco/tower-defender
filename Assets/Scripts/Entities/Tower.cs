@@ -7,6 +7,10 @@ namespace TowerDefense.Entities
 {
     public class Tower : MonoBehaviour
     {
+        // Minimum range: turret offset from path center (6.5) + path half-width (4.0)
+        // Ensures towers can always hit enemies on the far side of the path
+        private const float MinRange = 10.5f;
+
         private TowerData data;
         private float fireCooldown;
         private Enemy currentTarget;
@@ -17,8 +21,14 @@ namespace TowerDefense.Entities
         private LineRenderer teslaLineRenderer; // For tesla chain lightning
         private float teslaVisualTimer; // How long to show the chain
 
+        // Reusable lists to avoid per-frame allocations
+        private readonly List<Enemy> _reusableEnemyList = new List<Enemy>();
+        private readonly List<Enemy> _reusableTeslaChain = new List<Enemy>();
+        private readonly HashSet<Enemy> _reusableTeslaHit = new HashSet<Enemy>();
+
         public TowerData Data => data;
         public int SellValue => data != null ? data.cost / 2 : 0;
+        private float EffectiveRange => data != null ? Mathf.Max(data.range, MinRange) : MinRange;
 
         public void Initialize(TowerData towerData)
         {
@@ -67,8 +77,8 @@ namespace TowerDefense.Entities
             // Base
             var baseObj = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             baseObj.transform.SetParent(transform);
-            baseObj.transform.localPosition = new Vector3(0f, 0.25f, 0f);
-            baseObj.transform.localScale = new Vector3(0.8f, 0.25f, 0.8f);
+            baseObj.transform.localPosition = new Vector3(0f, 0.75f, 0f);
+            baseObj.transform.localScale = new Vector3(2.4f, 0.75f, 2.4f);
 
             var baseCollider = baseObj.GetComponent<Collider>();
             if (baseCollider != null) Destroy(baseCollider);
@@ -76,16 +86,15 @@ namespace TowerDefense.Entities
             var baseRenderer = baseObj.GetComponent<Renderer>();
             if (baseRenderer != null)
             {
-                baseRenderer.material = new Material(Shader.Find("Unlit/Color"));
-                baseRenderer.material.color = data != null ? data.towerColor : Color.blue;
+                baseRenderer.material = Core.MaterialCache.CreateUnlit(data != null ? data.towerColor : Color.blue);
             }
 
             // Turret head
             var headObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
             headObj.name = "TurretHead";
             headObj.transform.SetParent(transform);
-            headObj.transform.localPosition = new Vector3(0f, 0.7f, 0f);
-            headObj.transform.localScale = new Vector3(0.4f, 0.4f, 0.6f);
+            headObj.transform.localPosition = new Vector3(0f, 2.1f, 0f);
+            headObj.transform.localScale = new Vector3(1.2f, 1.2f, 1.8f);
             turretHead = headObj.transform;
 
             var headCollider = headObj.GetComponent<Collider>();
@@ -94,8 +103,7 @@ namespace TowerDefense.Entities
             var headRenderer = headObj.GetComponent<Renderer>();
             if (headRenderer != null)
             {
-                headRenderer.material = new Material(Shader.Find("Unlit/Color"));
-                headRenderer.material.color = data != null ? data.towerColor * 0.7f : Color.blue * 0.7f;
+                headRenderer.material = Core.MaterialCache.CreateUnlit(data != null ? data.towerColor * 0.7f : Color.blue * 0.7f);
             }
 
             // Range indicator (hidden by default)
@@ -108,8 +116,7 @@ namespace TowerDefense.Entities
             rangeIndicator.transform.SetParent(transform);
             rangeIndicator.transform.localPosition = Vector3.zero;
 
-            float range = data != null ? data.range : 3f;
-            rangeIndicator.transform.localScale = new Vector3(range * 2f, 0.01f, range * 2f);
+            rangeIndicator.transform.localScale = new Vector3(EffectiveRange * 2f, 0.01f, EffectiveRange * 2f);
 
             var collider = rangeIndicator.GetComponent<Collider>();
             if (collider != null) Destroy(collider);
@@ -117,8 +124,7 @@ namespace TowerDefense.Entities
             var renderer = rangeIndicator.GetComponent<Renderer>();
             if (renderer != null)
             {
-                renderer.material = new Material(Shader.Find("Unlit/Color"));
-                renderer.material.color = new Color(1f, 1f, 0f, 0.2f);
+                renderer.material = Core.MaterialCache.CreateUnlit(new Color(1f, 1f, 0f, 0.2f));
             }
 
             rangeIndicator.SetActive(false);
@@ -139,8 +145,7 @@ namespace TowerDefense.Entities
             auraIndicator.transform.SetParent(transform);
             auraIndicator.transform.localPosition = Vector3.zero;
 
-            float range = data != null ? data.range : 3f;
-            auraIndicator.transform.localScale = new Vector3(range * 2f, 0.02f, range * 2f);
+            auraIndicator.transform.localScale = new Vector3(EffectiveRange * 2f, 0.02f, EffectiveRange * 2f);
 
             var collider = auraIndicator.GetComponent<Collider>();
             if (collider != null) Destroy(collider);
@@ -148,9 +153,7 @@ namespace TowerDefense.Entities
             var renderer = auraIndicator.GetComponent<Renderer>();
             if (renderer != null)
             {
-                renderer.material = new Material(Shader.Find("Unlit/Color"));
-                // Cyan/teal color matching the slow tower, semi-transparent
-                renderer.material.color = new Color(0.2f, 0.7f, 0.7f, 0.3f);
+                renderer.material = Core.MaterialCache.CreateUnlit(new Color(0.2f, 0.7f, 0.7f, 0.3f));
             }
 
             // Aura is always visible for slow towers
@@ -159,17 +162,18 @@ namespace TowerDefense.Entities
 
         private void UpdateAuraTower()
         {
-            // Slow aura doesn't rotate or fire projectiles
-            // Instead, it continuously slows all enemies in range
-            var enemies = FindObjectsOfType<Enemy>();
-            foreach (var enemy in enemies)
+            var mgr = Core.EnemyManager.Instance;
+            if (mgr == null) return;
+
+            var enemies = mgr.ActiveEnemies;
+            for (int i = 0; i < enemies.Count; i++)
             {
-                if (enemy.IsDead) continue;
+                var enemy = enemies[i];
+                if (enemy == null || enemy.IsDead) continue;
 
                 float distance = Vector3.Distance(transform.position, enemy.transform.position);
-                if (distance <= data.range)
+                if (distance <= EffectiveRange)
                 {
-                    // Apply slow - the slowDuration acts as linger time after leaving
                     enemy.ApplySlow(data.slowMultiplier, data.slowDuration);
                 }
             }
@@ -269,9 +273,11 @@ namespace TowerDefense.Entities
             float baseDamage = data.damage * (1f + damageBonus);
             int totalBounces = data.bounceCount + (UpgradeManager.Instance != null ? UpgradeManager.Instance.ExtraProjectiles : 0);
 
-            // Build chain of targets
-            List<Enemy> chain = new List<Enemy>();
-            HashSet<Enemy> hit = new HashSet<Enemy>();
+            // Build chain of targets (reuse collections)
+            _reusableTeslaChain.Clear();
+            _reusableTeslaHit.Clear();
+            var chain = _reusableTeslaChain;
+            var hit = _reusableTeslaHit;
             Enemy current = currentTarget;
             chain.Add(current);
             hit.Add(current);
@@ -300,22 +306,9 @@ namespace TowerDefense.Entities
 
         private Enemy FindNearestUnhitEnemy(Vector3 from, float range, HashSet<Enemy> exclude)
         {
-            var enemies = FindObjectsOfType<Enemy>();
-            Enemy closest = null;
-            float closestDist = range;
-
-            foreach (var enemy in enemies)
-            {
-                if (enemy.IsDead || exclude.Contains(enemy)) continue;
-                float dist = Vector3.Distance(from, enemy.transform.position);
-                if (dist <= closestDist)
-                {
-                    closest = enemy;
-                    closestDist = dist;
-                }
-            }
-
-            return closest;
+            var mgr = Core.EnemyManager.Instance;
+            if (mgr == null) return null;
+            return mgr.GetClosestEnemyExcluding(from, range, exclude, data.canTargetFlying);
         }
 
         private void ShowTeslaChain(List<Enemy> chain)
@@ -325,7 +318,7 @@ namespace TowerDefense.Entities
                 teslaLineRenderer = gameObject.AddComponent<LineRenderer>();
                 teslaLineRenderer.startWidth = 0.15f;
                 teslaLineRenderer.endWidth = 0.08f;
-                teslaLineRenderer.material = new Material(Shader.Find("Sprites/Default"));
+                teslaLineRenderer.material = Core.MaterialCache.CreateSpriteDefault();
                 teslaLineRenderer.startColor = new Color(0.5f, 0.8f, 1f);
                 teslaLineRenderer.endColor = new Color(0.3f, 0.5f, 1f, 0.4f);
             }
@@ -375,22 +368,14 @@ namespace TowerDefense.Entities
             GameObject patchObj = new GameObject("FirePatch");
             patchObj.transform.position = patchPos;
             var patch = patchObj.AddComponent<FirePatch>();
-            patch.Initialize(dps, data.firePatchDuration, data.burnDuration, data.range * 0.3f);
+            patch.Initialize(dps, data.firePatchDuration, data.burnDuration, EffectiveRange * 0.3f);
         }
 
         private bool HasEnemyInRange()
         {
-            var enemies = FindObjectsOfType<Enemy>();
-            foreach (var enemy in enemies)
-            {
-                if (enemy.IsDead) continue;
-                float distance = Vector3.Distance(transform.position, enemy.transform.position);
-                if (distance <= data.range)
-                {
-                    return true;
-                }
-            }
-            return false;
+            var mgr = Core.EnemyManager.Instance;
+            if (mgr == null) return false;
+            return mgr.HasEnemyInRange(transform.position, EffectiveRange, data.canTargetFlying);
         }
 
         private void FireShotgun()
@@ -419,7 +404,7 @@ namespace TowerDefense.Entities
 
             // Calculate short lifetime - just enough to cross the path
             // Use range as the travel distance, add small buffer
-            float travelDistance = data.range * 0.8f; // Slightly less than range
+            float travelDistance = EffectiveRange * 0.8f; // Slightly less than range
             float lifetime = travelDistance / data.projectileSpeed;
 
             var projectile = projectileObj.AddComponent<Projectile>();
@@ -438,7 +423,11 @@ namespace TowerDefense.Entities
             if (currentTarget != null)
             {
                 float distance = Vector3.Distance(transform.position, currentTarget.transform.position);
-                if (currentTarget.IsDead || distance > data.range)
+                bool invalidTarget = currentTarget.IsDead || distance > EffectiveRange;
+                // Drop flying targets if this tower can't target them
+                if (!invalidTarget && currentTarget.IsFlying && !data.canTargetFlying)
+                    invalidTarget = true;
+                if (invalidTarget)
                 {
                     currentTarget = null;
                 }
@@ -452,23 +441,9 @@ namespace TowerDefense.Entities
 
         private Enemy FindClosestEnemy()
         {
-            var enemies = FindObjectsOfType<Enemy>();
-            Enemy closest = null;
-            float closestDistance = data.range;
-
-            foreach (var enemy in enemies)
-            {
-                if (enemy.IsDead) continue;
-
-                float distance = Vector3.Distance(transform.position, enemy.transform.position);
-                if (distance <= closestDistance)
-                {
-                    closest = enemy;
-                    closestDistance = distance;
-                }
-            }
-
-            return closest;
+            var mgr = Core.EnemyManager.Instance;
+            if (mgr == null) return null;
+            return mgr.GetClosestEnemyFiltered(transform.position, EffectiveRange, data.canTargetFlying, data.prioritizeFlying);
         }
 
         private void RotateTowardsTarget()
@@ -505,34 +480,22 @@ namespace TowerDefense.Entities
 
         private List<Enemy> GetTargetsForProjectiles(int count)
         {
-            var enemies = FindObjectsOfType<Enemy>();
-            List<Enemy> validTargets = new List<Enemy>();
+            var mgr = Core.EnemyManager.Instance;
+            if (mgr == null) return _reusableEnemyList;
 
-            foreach (var enemy in enemies)
-            {
-                if (!enemy.IsDead)
-                {
-                    float distance = Vector3.Distance(transform.position, enemy.transform.position);
-                    if (distance <= data.range)
-                    {
-                        validTargets.Add(enemy);
-                    }
-                }
-            }
+            mgr.GetEnemiesInRange(transform.position, EffectiveRange, _reusableEnemyList, data.canTargetFlying);
 
             // Sort by distance (closest first)
-            validTargets.Sort((a, b) =>
-                Vector3.Distance(transform.position, a.transform.position)
-                .CompareTo(Vector3.Distance(transform.position, b.transform.position)));
+            var pos = transform.position;
+            _reusableEnemyList.Sort((a, b) =>
+                Vector3.Distance(pos, a.transform.position)
+                .CompareTo(Vector3.Distance(pos, b.transform.position)));
 
-            // Return up to 'count' targets
-            List<Enemy> result = new List<Enemy>();
-            for (int i = 0; i < Mathf.Min(count, validTargets.Count); i++)
-            {
-                result.Add(validTargets[i]);
-            }
+            // Trim to count
+            if (_reusableEnemyList.Count > count)
+                _reusableEnemyList.RemoveRange(count, _reusableEnemyList.Count - count);
 
-            return result;
+            return _reusableEnemyList;
         }
 
         private void SpawnProjectile(Enemy target, float damage)

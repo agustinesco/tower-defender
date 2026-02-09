@@ -4,12 +4,22 @@ namespace TowerDefense.UI
 {
     public class BillboardSprite : MonoBehaviour
     {
+        private Camera cachedCamera;
+
+        private void Start()
+        {
+            cachedCamera = Camera.main;
+        }
+
         private void LateUpdate()
         {
-            var cam = Camera.main;
-            if (cam == null) return;
+            if (cachedCamera == null)
+            {
+                cachedCamera = Camera.main;
+                if (cachedCamera == null) return;
+            }
 
-            transform.rotation = cam.transform.rotation;
+            transform.rotation = cachedCamera.transform.rotation;
         }
     }
 }
