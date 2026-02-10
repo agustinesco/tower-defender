@@ -21,8 +21,8 @@ namespace TowerDefense.Grid
         public void Initialize(Sprite campSprite = null)
         {
             goblinCampSprite = campSprite;
-            ghostHexMaterial = TowerDefense.Core.MaterialCache.CreateTransparent(new Color(0.75f, 0.75f, 0.75f, 0.3f));
-            ghostPathMaterial = TowerDefense.Core.MaterialCache.CreateTransparent(new Color(0.35f, 0.25f, 0.15f, 0.3f));
+            ghostHexMaterial = TowerDefense.Core.MaterialCache.CreateTransparent(new Color(0.75f, 0.75f, 0.75f, 0.12f));
+            ghostPathMaterial = TowerDefense.Core.MaterialCache.CreateTransparent(new Color(0.35f, 0.25f, 0.15f, 0.15f));
         }
 
         public void SetHiddenSpawners(HashSet<HexCoord> spawners)
@@ -146,6 +146,14 @@ namespace TowerDefense.Grid
             }
 
             return nearest;
+        }
+
+        public void UpdateHoldProgress(HexCoord coord, float progress)
+        {
+            if (ghosts.TryGetValue(coord, out var ghost))
+            {
+                ghost.SetHoldProgress(progress);
+            }
         }
 
         public bool HasGhostAt(HexCoord coord)

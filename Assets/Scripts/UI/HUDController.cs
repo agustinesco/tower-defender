@@ -58,9 +58,9 @@ namespace TowerDefense.UI
 
         private void Start()
         {
-            waveManager = FindObjectOfType<WaveManager>();
-            towerManager = FindObjectOfType<TowerManager>();
-            upgradeSelectionUI = FindObjectOfType<UpgradeSelectionUI>();
+            waveManager = FindFirstObjectByType<WaveManager>();
+            towerManager = FindFirstObjectByType<TowerManager>();
+            upgradeSelectionUI = FindFirstObjectByType<UpgradeSelectionUI>();
 
             if (GameManager.Instance != null)
             {
@@ -115,7 +115,7 @@ namespace TowerDefense.UI
         private void CreateUI()
         {
             // Create EventSystem if it doesn't exist (required for UI interaction)
-            if (FindObjectOfType<EventSystem>() == null)
+            if (FindFirstObjectByType<EventSystem>() == null)
             {
                 GameObject eventSystem = new GameObject("EventSystem");
                 eventSystem.AddComponent<EventSystem>();
@@ -722,7 +722,7 @@ namespace TowerDefense.UI
             // Refresh tower list in hand UI
             if (towerManager != null && GameManager.Instance != null && GameManager.Instance.UseFreeTowerPlacement)
             {
-                var handUI = FindObjectOfType<PieceHandUI>();
+                var handUI = FindFirstObjectByType<PieceHandUI>();
                 if (handUI != null)
                     handUI.SetAvailableTowers(towerManager.AvailableTowers);
             }

@@ -218,9 +218,8 @@ namespace TowerDefense.Core
                 CreateHexPiece(kvp.Value);
             }
 
-            // 1b. Generate hidden spawner positions
-            hiddenSpawners = mapGenerator.GenerateHiddenSpawners(count: 6, minDistance: 2, maxDistance: 5);
-            Debug.Log($"Generated {hiddenSpawners.Count} hidden spawners: [{string.Join(", ", hiddenSpawners)}]");
+            // 1b. Generate hidden spawner positions (goblin camps disabled)
+            hiddenSpawners = new HashSet<HexCoord>();
 
             // 1c. Generate ore patches and create visual markers
             int zone1Boundary = zoneBoundaries.Length > 0 ? zoneBoundaries[0] : 3;
@@ -254,7 +253,7 @@ namespace TowerDefense.Core
             pieceDragHandler = dragHandlerObj.AddComponent<PieceDragHandler>();
 
             // 6. Fit camera to castle
-            var cameraController = FindObjectOfType<CameraController>();
+            var cameraController = FindFirstObjectByType<CameraController>();
             if (cameraController != null)
             {
                 var positions = new List<Vector3>();
@@ -270,13 +269,13 @@ namespace TowerDefense.Core
             }
 
             // 7. Subscribe to wave events
-            waveManager = FindObjectOfType<WaveManager>();
+            waveManager = FindFirstObjectByType<WaveManager>();
             if (waveManager != null)
             {
                 waveManager.OnWaveComplete += OnWaveComplete;
             }
 
-            upgradeSelectionUI = FindObjectOfType<UpgradeSelectionUI>();
+            upgradeSelectionUI = FindFirstObjectByType<UpgradeSelectionUI>();
             if (upgradeSelectionUI != null)
             {
                 upgradeSelectionUI.OnNextWave += OnShopNextWave;
@@ -287,14 +286,14 @@ namespace TowerDefense.Core
             pieceDragHandler.OnPiecePlaced += OnPiecePlaced;
 
             // 8b. Wire PieceDragHandler to TowerManager so tower placement is blocked during piece placement
-            towerManager = FindObjectOfType<TowerManager>();
+            towerManager = FindFirstObjectByType<TowerManager>();
             if (towerManager != null)
             {
                 towerManager.SetPieceDragHandler(pieceDragHandler);
             }
 
             // 9. Find PieceHandUI (created by HUDController in Awake, so it exists by now)
-            pieceHandUI = FindObjectOfType<PieceHandUI>();
+            pieceHandUI = FindFirstObjectByType<PieceHandUI>();
             if (pieceHandUI != null)
             {
                 pieceHandUI.SetPieceConfigs(pieceConfigLookup);
@@ -451,7 +450,7 @@ namespace TowerDefense.Core
             RecalculateGoblinCampPaths();
 
             // Expand camera bounds to include new piece
-            var cameraController = FindObjectOfType<CameraController>();
+            var cameraController = FindFirstObjectByType<CameraController>();
             if (cameraController != null)
             {
                 var newPositions = new List<Vector3> { hexPieces[coord].transform.position };
@@ -586,7 +585,7 @@ namespace TowerDefense.Core
                 CreateSpawnIndicators();
 
                 // Expand camera
-                var cameraController = FindObjectOfType<CameraController>();
+                var cameraController = FindFirstObjectByType<CameraController>();
                 if (cameraController != null)
                 {
                     var pos = new List<Vector3> { hexPieces[neighborCoord].transform.position };
@@ -1322,6 +1321,33 @@ namespace TowerDefense.Core
             {
                 if (marker != null) Destroy(marker);
                 orePatchMarkers.Remove(coord);
+            }
+        }
+
+        public void SetOreMarkersHighlighted(bool highlighted)
+        {
+            foreach (var kvp in orePatchMarkers)
+            {
+                if (kvp.Value == null) continue;
+
+                float scale = highlighted ? 1.8f : 1f;
+                kvp.Value.transform.localScale = Vector3.one * scale;
+
+                var ring = kvp.Value.transform.Find("HexRing");
+                if (ring != null)
+                {
+                    var lr = ring.GetComponent<LineRenderer>();
+                    if (lr != null)
+                    {
+                        float width = highlighted ? 0.7f : 0.3f;
+                        lr.startWidth = width;
+                        lr.endWidth = width;
+
+                        Color c = lr.material.color;
+                        c.a = highlighted ? 0.7f : 0.25f;
+                        lr.material.color = c;
+                    }
+                }
             }
         }
 

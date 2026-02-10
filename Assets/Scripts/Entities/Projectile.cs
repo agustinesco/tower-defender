@@ -24,7 +24,17 @@ namespace TowerDefense.Entities
         private bool isPiercing;
         private Vector3 moveDirection;
         private HashSet<Enemy> hitEnemies = new HashSet<Enemy>();
-        private float pierceRadius = 0.5f;
+        private float pierceRadius = 1.0f;
+        private float pierceDamageFalloff = 0.5f;
+        private bool canTargetFlying;
+
+        // Fireball support
+        private bool isFireball;
+        private Vector3 fireballTarget;
+        private float fireDps;
+        private float firePatchDuration;
+        private float fireBurnDuration;
+        private float firePatchRadius;
 
         private TrailRenderer trail;
         private GameObject visual;
@@ -49,6 +59,7 @@ namespace TowerDefense.Entities
         private void ReturnToPool()
         {
             target = null;
+            isFireball = false;
             hitEnemies.Clear();
             gameObject.SetActive(false);
             if (trail != null)
@@ -71,11 +82,12 @@ namespace TowerDefense.Entities
             this.slowMultiplier = slowMultiplier;
             this.slowDuration = slowDuration;
             this.isPiercing = false;
+            this.lifetime = 3f;
 
             CreateVisual();
         }
 
-        public void InitializeDirectional(Vector3 direction, float damage, float speed, Color color, bool piercing = false, float lifetime = 3f)
+        public void InitializeDirectional(Vector3 direction, float damage, float speed, Color color, bool piercing = false, float lifetime = 3f, bool canTargetFlying = false)
         {
             this.target = null;
             this.moveDirection = direction.normalized;
@@ -86,6 +98,28 @@ namespace TowerDefense.Entities
             this.isAreaDamage = false;
             this.appliesSlow = false;
             this.lifetime = lifetime;
+            this.canTargetFlying = canTargetFlying;
+
+            CreateVisual();
+        }
+
+        public void InitializeFireball(Vector3 targetPos, float speed, Color color,
+            float fireDps, float firePatchDuration, float fireBurnDuration, float firePatchRadius)
+        {
+            this.target = null;
+            this.isFireball = true;
+            this.fireballTarget = targetPos;
+            this.damage = 0f;
+            this.speed = speed;
+            this.projectileColor = color;
+            this.isPiercing = false;
+            this.isAreaDamage = false;
+            this.appliesSlow = false;
+            this.lifetime = 3f;
+            this.fireDps = fireDps;
+            this.firePatchDuration = firePatchDuration;
+            this.fireBurnDuration = fireBurnDuration;
+            this.firePatchRadius = firePatchRadius;
 
             CreateVisual();
         }
@@ -151,7 +185,11 @@ namespace TowerDefense.Entities
                 return;
             }
 
-            if (isPiercing)
+            if (isFireball)
+            {
+                UpdateFireball();
+            }
+            else if (isPiercing)
             {
                 UpdatePiercing();
             }
@@ -200,14 +238,40 @@ namespace TowerDefense.Entities
                 var enemy = enemies[i];
                 if (enemy == null || enemy.IsDead) continue;
                 if (hitEnemies.Contains(enemy)) continue;
+                if (enemy.IsFlying && !canTargetFlying) continue;
 
-                Vector3 enemyCenter = enemy.transform.position + new Vector3(0f, 0.5f, 0f);
-                float distance = Vector3.Distance(transform.position, enemyCenter);
-                if (distance <= pierceRadius)
+                Vector3 enemyPos = enemy.transform.position;
+                float dx = transform.position.x - enemyPos.x;
+                float dz = transform.position.z - enemyPos.z;
+                float distXZ = Mathf.Sqrt(dx * dx + dz * dz);
+                if (distXZ <= pierceRadius)
                 {
                     enemy.TakeDamage(damage);
+                    damage *= pierceDamageFalloff;
                     hitEnemies.Add(enemy);
                 }
+            }
+        }
+
+        private void UpdateFireball()
+        {
+            Vector3 direction = (fireballTarget - transform.position).normalized;
+            float moveDistance = speed * Time.deltaTime;
+            float distanceToTarget = Vector3.Distance(transform.position, fireballTarget);
+
+            if (moveDistance >= distanceToTarget)
+            {
+                transform.position = fireballTarget;
+                // Spawn fire patch at impact point
+                Vector3 patchPos = fireballTarget;
+                patchPos.y = 0.1f;
+                var patch = FirePatch.GetFromPool(patchPos);
+                patch.Initialize(fireDps, firePatchDuration, fireBurnDuration, firePatchRadius);
+                ReturnToPool();
+            }
+            else
+            {
+                transform.position += direction * moveDistance;
             }
         }
 

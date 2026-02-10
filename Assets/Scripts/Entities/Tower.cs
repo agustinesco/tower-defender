@@ -190,6 +190,7 @@ namespace TowerDefense.Entities
             {
                 var enemy = enemies[i];
                 if (enemy == null || enemy.IsDead) continue;
+                if (enemy.IsFlying && !data.canTargetFlying) continue;
 
                 float distance = Vector3.Distance(transform.position, enemy.transform.position);
                 if (distance <= EffectiveRange)
@@ -380,13 +381,56 @@ namespace TowerDefense.Entities
 
             float damageBonus = UpgradeManager.Instance != null ? UpgradeManager.Instance.TowerDamageBonus : 0f;
             float dps = data.fireDamagePerSecond * (1f + damageBonus);
+            float patchRadius = EffectiveRange * 0.3f;
 
-            // Spawn fire patch at the enemy's current position on the path (y=0)
-            Vector3 patchPos = currentTarget.transform.position;
-            patchPos.y = 0.1f;
+            // Find the closest point on any path segment to the enemy
+            Vector3 targetPos = GetPathSnapPosition(currentTarget.transform.position);
 
-            var patch = FirePatch.GetFromPool(patchPos);
-            patch.Initialize(dps, data.firePatchDuration, data.burnDuration, EffectiveRange * 0.3f);
+            var projectile = Projectile.GetFromPool(turretHead.position);
+            projectile.InitializeFireball(
+                targetPos, data.projectileSpeed, data.towerColor,
+                dps, data.firePatchDuration, data.burnDuration, patchRadius);
+        }
+
+        private Vector3 GetPathSnapPosition(Vector3 enemyPos)
+        {
+            if (cachedTileCoord == null)
+                return new Vector3(enemyPos.x, 0.1f, enemyPos.z);
+
+            var gm = GameManager.Instance;
+            if (gm == null || !gm.MapData.TryGetValue(cachedTileCoord.Value, out var pieceData))
+                return new Vector3(enemyPos.x, 0.1f, enemyPos.z);
+
+            Vector3 hexCenter = HexGrid.HexToWorld(cachedTileCoord.Value);
+            Vector3 localEnemy = enemyPos - hexCenter;
+            localEnemy.y = 0f;
+
+            float bestDist = float.MaxValue;
+            Vector3 bestPoint = localEnemy;
+
+            foreach (int edge in pieceData.ConnectedEdges)
+            {
+                Vector3 edgeDir = HexMeshGenerator.GetEdgeDirection(edge);
+                Vector3 edgeEnd = edgeDir * HexGrid.InnerRadius;
+
+                // Project enemy onto segment (center → edge midpoint)
+                float abLenSq = edgeEnd.sqrMagnitude;
+                float t = (abLenSq > 0.0001f)
+                    ? Mathf.Clamp01(Vector3.Dot(localEnemy, edgeEnd) / abLenSq)
+                    : 0f;
+                Vector3 closestOnPath = edgeEnd * t;
+
+                float dist = Vector3.Distance(localEnemy, closestOnPath);
+                if (dist < bestDist)
+                {
+                    bestDist = dist;
+                    bestPoint = closestOnPath;
+                }
+            }
+
+            Vector3 worldSnap = hexCenter + bestPoint;
+            worldSnap.y = 0.1f;
+            return worldSnap;
         }
 
         private bool HasEnemyInRange()
@@ -428,7 +472,8 @@ namespace TowerDefense.Entities
                 speed: data.projectileSpeed,
                 color: data.towerColor,
                 piercing: true,
-                lifetime: lifetime
+                lifetime: lifetime,
+                canTargetFlying: data.canTargetFlying
             );
         }
 

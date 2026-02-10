@@ -20,7 +20,7 @@ namespace TowerDefense.UI
             canvas = GetComponentInParent<Canvas>();
             if (canvas == null)
             {
-                canvas = FindObjectOfType<Canvas>();
+                canvas = FindFirstObjectByType<Canvas>();
             }
             CreateUI();
         }

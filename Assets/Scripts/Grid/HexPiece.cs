@@ -18,6 +18,11 @@ namespace TowerDefense.Grid
         private Material ghostPathMat;
         private SphereCollider ghostCollider;
 
+        // Hold progress arc
+        private LineRenderer holdArcRenderer;
+        private Material holdArcMaterial;
+        private const int ArcSegments = 32;
+
         public HexPieceData Data => data;
         public List<TowerSlot> Slots => slots;
         public bool IsGhost => _isGhost;
@@ -309,7 +314,7 @@ namespace TowerDefense.Grid
         {
             if (!_isGhost) return;
 
-            float alpha = highlighted ? 0.6f : 0.3f;
+            float alpha = highlighted ? 0.45f : 0.12f;
 
             if (hexRenderer != null)
             {
@@ -345,6 +350,50 @@ namespace TowerDefense.Grid
                 }
 
                 pathMeshFilter.mesh = HexMeshGenerator.CreatePathMesh(newConnectedEdges);
+            }
+        }
+
+        public void SetHoldProgress(float progress)
+        {
+            if (!_isGhost) return;
+
+            if (progress <= 0f)
+            {
+                if (holdArcRenderer != null)
+                    holdArcRenderer.positionCount = 0;
+                return;
+            }
+
+            if (holdArcRenderer == null)
+            {
+                var arcObj = new GameObject("HoldArc");
+                arcObj.transform.SetParent(transform);
+                arcObj.transform.localPosition = new Vector3(0f, 0.2f, 0f);
+                holdArcRenderer = arcObj.AddComponent<LineRenderer>();
+                holdArcRenderer.useWorldSpace = false;
+                holdArcRenderer.startWidth = 0.6f;
+                holdArcRenderer.endWidth = 0.6f;
+                holdArcRenderer.loop = false;
+                holdArcMaterial = TowerDefense.Core.MaterialCache.CreateUnlit(new Color(0.4f, 1f, 0.4f));
+                holdArcRenderer.material = holdArcMaterial;
+            }
+
+            progress = Mathf.Clamp01(progress);
+            int segCount = Mathf.Max(1, Mathf.RoundToInt(progress * ArcSegments));
+            holdArcRenderer.positionCount = segCount + 1;
+
+            float arcRadius = HexGrid.InnerRadius * 0.75f;
+            float totalAngle = progress * 360f * Mathf.Deg2Rad;
+
+            for (int i = 0; i <= segCount; i++)
+            {
+                float angle = (float)i / ArcSegments * 360f * Mathf.Deg2Rad;
+                if (angle > totalAngle) angle = totalAngle;
+                holdArcRenderer.SetPosition(i, new Vector3(
+                    Mathf.Cos(angle) * arcRadius,
+                    0f,
+                    Mathf.Sin(angle) * arcRadius
+                ));
             }
         }
     }

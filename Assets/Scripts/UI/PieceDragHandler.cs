@@ -91,6 +91,7 @@ namespace TowerDefense.UI
 
             var placements = validator.GetValidPlacements(type);
             ghostManager.ShowGhosts(placements);
+            GameManager.Instance?.SetOreMarkersHighlighted(true);
         }
 
         private void OnCardDeselected()
@@ -98,6 +99,7 @@ namespace TowerDefense.UI
             isCardSelected = false;
             isPressingGhost = false;
             ghostManager.HideAllGhosts();
+            GameManager.Instance?.SetOreMarkersHighlighted(false);
         }
 
         private void OnModificationSelected(ModificationType type)
@@ -107,6 +109,7 @@ namespace TowerDefense.UI
                 isCardSelected = false;
                 isPressingGhost = false;
                 ghostManager.HideAllGhosts();
+                GameManager.Instance?.SetOreMarkersHighlighted(false);
             }
             if (isTowerSelected)
                 ClearTowerSelection();
@@ -132,6 +135,7 @@ namespace TowerDefense.UI
                 isCardSelected = false;
                 isPressingGhost = false;
                 ghostManager.HideAllGhosts();
+                GameManager.Instance?.SetOreMarkersHighlighted(false);
             }
             if (isModificationSelected)
                 ClearModificationHighlights();
@@ -352,7 +356,7 @@ namespace TowerDefense.UI
             {
                 if (valid)
                 {
-                    var towerManager = FindObjectOfType<TowerManager>();
+                    var towerManager = FindFirstObjectByType<TowerManager>();
                     if (towerManager != null && towerManager.PlaceTowerAt(selectedTowerData, snappedPos))
                     {
                         ClearTowerSelection();
@@ -442,7 +446,7 @@ namespace TowerDefense.UI
             }
 
             // Check overlap with other towers
-            var towerManager = FindObjectOfType<TowerManager>();
+            var towerManager = FindFirstObjectByType<TowerManager>();
             if (towerManager != null && towerManager.IsTooCloseToOtherTower(snappedPos, towerData.placementRadius))
                 return false;
 
@@ -536,8 +540,12 @@ namespace TowerDefense.UI
             if (Input.GetMouseButton(0) && isPressingGhost)
             {
                 float elapsed = Time.time - pressStartTime;
+                float progress = Mathf.Clamp01(elapsed / HoldDuration);
+                ghostManager.UpdateHoldProgress(pressedGhostCoord, progress);
+
                 if (elapsed >= HoldDuration)
                 {
+                    ghostManager.UpdateHoldProgress(pressedGhostCoord, 0f);
                     var rotation = ghostManager.GetCurrentPlacement(pressedGhostCoord);
                     if (rotation != null)
                     {
@@ -559,6 +567,7 @@ namespace TowerDefense.UI
                         {
                             isCardSelected = false;
                             handUI.Deselect();
+                            GameManager.Instance?.SetOreMarkersHighlighted(false);
                         }
                     }
                     else
@@ -573,6 +582,7 @@ namespace TowerDefense.UI
             {
                 float elapsed = Time.time - pressStartTime;
                 isPressingGhost = false;
+                ghostManager.UpdateHoldProgress(pressedGhostCoord, 0f);
 
                 if (elapsed < HoldDuration)
                 {

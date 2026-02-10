@@ -101,6 +101,7 @@ namespace TowerDefense.Entities
             {
                 var enemy = enemies[i];
                 if (enemy == null || enemy.IsDead) continue;
+                if (enemy.IsFlying) continue;
 
                 float dist = Vector3.Distance(transform.position, enemy.transform.position);
                 if (dist <= radius)

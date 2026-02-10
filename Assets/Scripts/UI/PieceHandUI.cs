@@ -32,6 +32,7 @@ namespace TowerDefense.UI
 
         private bool freeTowerMode;
         private List<TowerData> availableTowers;
+        private Dictionary<int, float> originalCardY = new Dictionary<int, float>();
 
         private static readonly Color TabActiveColor = new Color(0.3f, 0.6f, 0.3f);
         private static readonly Color TabInactiveColor = new Color(0.25f, 0.25f, 0.25f);
@@ -40,7 +41,8 @@ namespace TowerDefense.UI
         private const float CardHeight = 110f;
         private const float CardSpacing = 10f;
         private const float PanelPadding = 15f;
-        private const float TabColumnWidth = 50f;
+        private const float TabRowHeight = 35f;
+        private const float CardLiftAmount = 15f;
 
         private GameObject tooltipObj;
         private Text tooltipText;
@@ -126,6 +128,8 @@ namespace TowerDefense.UI
                 tooltipObj = null;
             }
 
+            originalCardY.Clear();
+
             GameObject panel = new GameObject("PieceHandPanel");
             panel.transform.SetParent(transform);
 
@@ -136,62 +140,56 @@ namespace TowerDefense.UI
 
             int maxCards = GetMaxCardCount();
             float cardsWidth = maxCards * CardWidth + (maxCards - 1) * CardSpacing + PanelPadding * 2f;
-            float totalWidth = cardsWidth + TabColumnWidth;
-            float panelHeight = CardHeight + PanelPadding * 2f;
-            panelRect.sizeDelta = new Vector2(totalWidth, panelHeight);
+            float panelHeight = CardHeight + PanelPadding * 2f + TabRowHeight;
+            panelRect.sizeDelta = new Vector2(cardsWidth, panelHeight);
             panelRect.anchoredPosition = Vector2.zero;
 
             var bg = panel.AddComponent<Image>();
             bg.color = new Color(0f, 0f, 0f, 0.6f);
 
-            // Create tab column on the left side
-            CreateTabColumn(panel.transform, panelHeight);
+            // Create tab row at the top
+            CreateTabRow(panel.transform, cardsWidth);
         }
 
-        private void CreateTabColumn(Transform parent, float panelHeight)
+        private void CreateTabRow(Transform parent, float panelWidth)
         {
             pathsTabBtn = null;
             towersTabBtn = null;
             modsTabBtn = null;
 
             int tabCount = freeTowerMode ? 3 : 2;
-            float tabHeight = (panelHeight - (tabCount + 1) * 2f) / tabCount;
+            float tabWidth = (panelWidth - (tabCount + 1) * 2f) / tabCount;
+            float tabY = (CardHeight + PanelPadding * 2f + TabRowHeight) / 2f - TabRowHeight / 2f;
 
-            // Paths tab button
-            float pathsY = (tabCount == 3)
-                ? tabHeight + 2f
-                : tabHeight / 4f + 1f;
+            float startX = -(panelWidth / 2f) + 2f + tabWidth / 2f;
 
-            pathsTabBtn = CreateTabButton(parent, "PathsTab", "Path", pathsY, tabHeight, HandTab.Paths);
+            int tabIndex = 0;
+            pathsTabBtn = CreateTabButton(parent, "PathsTab", "Paths", startX + tabIndex * (tabWidth + 2f), tabY, tabWidth, HandTab.Paths);
             pathsTabImage = pathsTabBtn.GetComponent<Image>();
+            tabIndex++;
 
-            // Towers tab button (only in free mode)
             if (freeTowerMode)
             {
-                towersTabBtn = CreateTabButton(parent, "TowersTab", "Tower", 0f, tabHeight, HandTab.Towers);
+                towersTabBtn = CreateTabButton(parent, "TowersTab", "Towers", startX + tabIndex * (tabWidth + 2f), tabY, tabWidth, HandTab.Towers);
                 towersTabImage = towersTabBtn.GetComponent<Image>();
+                tabIndex++;
             }
 
-            // Mods tab button
-            float modsY = (tabCount == 3)
-                ? -(tabHeight + 2f)
-                : -(tabHeight / 4f + 1f);
-
-            modsTabBtn = CreateTabButton(parent, "ModsTab", "Mods", modsY, tabHeight, HandTab.Modifications);
+            modsTabBtn = CreateTabButton(parent, "ModsTab", "Mods", startX + tabIndex * (tabWidth + 2f), tabY, tabWidth, HandTab.Modifications);
             modsTabImage = modsTabBtn.GetComponent<Image>();
 
             UpdateTabColors();
         }
 
-        private GameObject CreateTabButton(Transform parent, string name, string label, float yPos, float height, HandTab tab)
+        private GameObject CreateTabButton(Transform parent, string name, string label, float xPos, float yPos, float width, HandTab tab)
         {
             var btn = new GameObject(name);
             btn.transform.SetParent(parent);
             var rect = btn.AddComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0f, 0.5f);
-            rect.anchorMax = new Vector2(0f, 0.5f);
-            rect.anchoredPosition = new Vector2(TabColumnWidth / 2f + 2f, yPos);
-            rect.sizeDelta = new Vector2(TabColumnWidth - 4f, height - 2f);
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = new Vector2(xPos, yPos);
+            rect.sizeDelta = new Vector2(width, TabRowHeight - 2f);
 
             var image = btn.AddComponent<Image>();
             var button = btn.AddComponent<Button>();
@@ -209,7 +207,7 @@ namespace TowerDefense.UI
             var text = textObj.AddComponent<Text>();
             text.text = label;
             text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            text.fontSize = 11;
+            text.fontSize = 14;
             text.color = Color.white;
             text.alignment = TextAnchor.MiddleCenter;
 
@@ -291,7 +289,7 @@ namespace TowerDefense.UI
 
                 if (panelRect == null) return;
 
-                float startX = -(pieces.Count - 1) * (CardWidth + CardSpacing) / 2f + TabColumnWidth / 2f;
+                float startX = -(pieces.Count - 1) * (CardWidth + CardSpacing) / 2f;
 
                 for (int i = 0; i < pieces.Count; i++)
                 {
@@ -325,7 +323,7 @@ namespace TowerDefense.UI
 
             if (panelRect == null) return;
 
-            float startX = -(towerCount - 1) * (CardWidth + CardSpacing) / 2f + TabColumnWidth / 2f;
+            float startX = -(towerCount - 1) * (CardWidth + CardSpacing) / 2f;
 
             for (int i = 0; i < towerCount; i++)
             {
@@ -347,11 +345,13 @@ namespace TowerDefense.UI
             card.CardObject = new GameObject($"TowerCard_{towerData.towerName}");
             card.CardObject.transform.SetParent(panelRect);
 
+            float cardY = -TabRowHeight / 2f;
             var rect = card.CardObject.AddComponent<RectTransform>();
             rect.anchorMin = new Vector2(0.5f, 0.5f);
             rect.anchorMax = new Vector2(0.5f, 0.5f);
-            rect.anchoredPosition = new Vector2(xPos, 0f);
+            rect.anchoredPosition = new Vector2(xPos, cardY);
             rect.sizeDelta = new Vector2(CardWidth, CardHeight);
+            originalCardY[index] = cardY;
 
             card.Background = card.CardObject.AddComponent<Image>();
             card.Background.color = towerData.towerColor;
@@ -506,7 +506,7 @@ namespace TowerDefense.UI
             int hasteCost = gm != null ? gm.GetHasteCost() : 0;
             int goldenTouchCost = gm != null ? gm.GetGoldenTouchCost() : 0;
 
-            float startX = -(modCount - 1) * (CardWidth + CardSpacing) / 2f + TabColumnWidth / 2f;
+            float startX = -(modCount - 1) * (CardWidth + CardSpacing) / 2f;
 
             CreateModificationCard(0, ModificationType.Mine, "Mine", mineCost,
                 new Color(0.6f, 0.45f, 0.2f), startX);
@@ -534,11 +534,13 @@ namespace TowerDefense.UI
             card.CardObject = new GameObject($"ModCard_{modType}");
             card.CardObject.transform.SetParent(panelRect);
 
+            float cardY = -TabRowHeight / 2f;
             var rect = card.CardObject.AddComponent<RectTransform>();
             rect.anchorMin = new Vector2(0.5f, 0.5f);
             rect.anchorMax = new Vector2(0.5f, 0.5f);
-            rect.anchoredPosition = new Vector2(xPos, 0f);
+            rect.anchoredPosition = new Vector2(xPos, cardY);
             rect.sizeDelta = new Vector2(CardWidth, CardHeight);
+            originalCardY[index] = cardY;
 
             card.Background = card.CardObject.AddComponent<Image>();
             card.Background.color = color;
@@ -668,11 +670,13 @@ namespace TowerDefense.UI
             card.CardObject = new GameObject($"Card_{index}_{config.pieceType}");
             card.CardObject.transform.SetParent(panelRect);
 
+            float cardY = -TabRowHeight / 2f;
             var rect = card.CardObject.AddComponent<RectTransform>();
             rect.anchorMin = new Vector2(0.5f, 0.5f);
             rect.anchorMax = new Vector2(0.5f, 0.5f);
-            rect.anchoredPosition = new Vector2(xPos, 0f);
+            rect.anchoredPosition = new Vector2(xPos, cardY);
             rect.sizeDelta = new Vector2(CardWidth, CardHeight);
+            originalCardY[index] = cardY;
 
             card.Background = card.CardObject.AddComponent<Image>();
             card.Background.color = config.cardColor;
@@ -785,8 +789,18 @@ namespace TowerDefense.UI
         {
             foreach (var card in cards)
             {
+                bool isSelected = card.HandIndex == selectedIndex;
                 if (card.BorderObj != null)
-                    card.BorderObj.SetActive(card.HandIndex == selectedIndex);
+                    card.BorderObj.SetActive(isSelected);
+
+                // Lift selected card
+                var rect = card.CardObject != null ? card.CardObject.GetComponent<RectTransform>() : null;
+                if (rect != null && originalCardY.TryGetValue(card.HandIndex, out float baseY))
+                {
+                    var pos = rect.anchoredPosition;
+                    pos.y = isSelected ? baseY + CardLiftAmount : baseY;
+                    rect.anchoredPosition = pos;
+                }
             }
         }
 

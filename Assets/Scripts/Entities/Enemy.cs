@@ -514,7 +514,7 @@ namespace TowerDefense.Entities
             }
             if (remaining.Count < 2) return;
 
-            var wm = Object.FindObjectOfType<Core.WaveManager>();
+            var wm = Object.FindFirstObjectByType<Core.WaveManager>();
             for (int i = 0; i < 3; i++)
             {
                 var goblinObj = new GameObject("CartGoblin");

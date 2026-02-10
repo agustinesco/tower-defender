@@ -244,13 +244,16 @@ namespace TowerDefense.Grid
                 }
             }
 
+            // Guarantee one IronOre adjacent to starting tiles
+            int guaranteedIron = PlaceGuaranteedIronNode(innerCandidates);
+
             // Shuffle both lists
             Shuffle(innerCandidates);
             Shuffle(outerCandidates);
 
-            // Zone 1 (inner): IronOre and Gems only, 6 nodes
+            // Zone 1 (inner): IronOre and Gems only, 6 nodes (minus guaranteed)
             ResourceType[] innerTypes = { ResourceType.IronOre, ResourceType.Gems };
-            int innerCount = 6;
+            int innerCount = 6 - guaranteedIron;
             PlaceOrePatches(innerCandidates, innerTypes, innerCount, origin, minDistance, zoneBoundary);
 
             // Zone 2+ (outer): Florpus and Adamantite only, 4 nodes
@@ -259,6 +262,31 @@ namespace TowerDefense.Grid
             PlaceOrePatches(outerCandidates, outerTypes, outerCount, origin, zoneBoundary + 1, maxDistance);
 
             return new Dictionary<HexCoord, OrePatch>(orePatches);
+        }
+
+        private int PlaceGuaranteedIronNode(List<HexCoord> innerCandidates)
+        {
+            // Find empty hexes adjacent to any starting piece
+            var adjacent = new List<HexCoord>();
+            foreach (var coord in innerCandidates)
+            {
+                for (int edge = 0; edge < 6; edge++)
+                {
+                    HexCoord neighbor = coord.GetNeighbor(edge);
+                    if (pieces.ContainsKey(neighbor))
+                    {
+                        adjacent.Add(coord);
+                        break;
+                    }
+                }
+            }
+
+            if (adjacent.Count == 0) return 0;
+
+            var chosen = adjacent[random.Next(adjacent.Count)];
+            orePatches[chosen] = new OrePatch(chosen, ResourceType.IronOre, 1);
+            innerCandidates.Remove(chosen);
+            return 1;
         }
 
         private void PlaceOrePatches(List<HexCoord> candidates, ResourceType[] types, int count, HexCoord origin, int minDist, int maxDist)
