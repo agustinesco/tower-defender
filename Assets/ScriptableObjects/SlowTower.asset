@@ -23,7 +23,19 @@ MonoBehaviour:
   slowMultiplier: 0.5
   slowDuration: 2
   towerColor: {r: 0.2, g: 0.7, b: 0.7, a: 1}
+  towerIcon: {fileID: 21300000, guid: f0bdccd64daf14c2ebcbd9ad2ca99829, type: 3}
   projectileSpeed: 15
   isShotgun: 0
   shotgunProjectileCount: 5
   shotgunSpreadAngle: 60
+  isTesla: 0
+  bounceCount: 3
+  bounceRange: 10
+  damageFalloff: 0.7
+  isFlame: 0
+  firePatchDuration: 3
+  fireDamagePerSecond: 3
+  burnDuration: 2
+  canTargetFlying: 0
+  prioritizeFlying: 0
+  placementRadius: 5

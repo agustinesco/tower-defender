@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 using TowerDefense.Grid;
 using TowerDefense.Data;
 using TowerDefense.Core;
@@ -17,7 +18,6 @@ namespace TowerDefense.UI
 
         private RectTransform panelRect;
         private List<PieceCard> cards = new List<PieceCard>();
-        private Canvas parentCanvas;
         private int selectedIndex = -1;
         private Dictionary<HexPieceType, HexPieceConfig> pieceConfigs;
         private PieceProvider pieceProvider;
@@ -79,11 +79,6 @@ namespace TowerDefense.UI
             public TowerData TowerData;
         }
 
-        public void Initialize(Canvas canvas)
-        {
-            parentCanvas = canvas;
-        }
-
         public void SetPieceConfigs(Dictionary<HexPieceType, HexPieceConfig> configs)
         {
             pieceConfigs = configs;
@@ -104,6 +99,25 @@ namespace TowerDefense.UI
             availableTowers = towers;
         }
 
+        public void DeselectTowerCard()
+        {
+            if (activeTab == HandTab.Towers && selectedIndex >= 0)
+            {
+                selectedIndex = -1;
+                UpdateBorders();
+                HideTooltip();
+                OnTowerCardDeselected?.Invoke();
+            }
+        }
+
+        private int GetMaxCardCount()
+        {
+            int pathCount = pieceProvider != null ? pieceProvider.Pieces.Count : 0;
+            int towerCount = availableTowers != null ? availableTowers.Count : 0;
+            int modCount = 4;
+            return Mathf.Max(pathCount, Mathf.Max(towerCount, modCount));
+        }
+
         private void CreatePanel(int pieceCount)
         {
             if (panelRect != null)
@@ -118,12 +132,14 @@ namespace TowerDefense.UI
             panelRect = panel.AddComponent<RectTransform>();
             panelRect.anchorMin = new Vector2(0.5f, 0f);
             panelRect.anchorMax = new Vector2(0.5f, 0f);
+            panelRect.pivot = new Vector2(0.5f, 0f);
 
-            float cardsWidth = pieceCount * CardWidth + (pieceCount - 1) * CardSpacing + PanelPadding * 2f;
+            int maxCards = GetMaxCardCount();
+            float cardsWidth = maxCards * CardWidth + (maxCards - 1) * CardSpacing + PanelPadding * 2f;
             float totalWidth = cardsWidth + TabColumnWidth;
             float panelHeight = CardHeight + PanelPadding * 2f;
             panelRect.sizeDelta = new Vector2(totalWidth, panelHeight);
-            panelRect.anchoredPosition = new Vector2(0f, panelHeight / 2f + 10f);
+            panelRect.anchoredPosition = Vector2.zero;
 
             var bg = panel.AddComponent<Image>();
             bg.color = new Color(0f, 0f, 0f, 0.6f);
@@ -354,11 +370,12 @@ namespace TowerDefense.UI
             card.BorderObj.SetActive(false);
             card.BorderObj.transform.SetAsFirstSibling();
 
-            var button = card.CardObject.AddComponent<Button>();
-            button.targetGraphic = card.Background;
             int capturedIndex = index;
             TowerData capturedData = towerData;
-            button.onClick.AddListener(() => OnTowerCardClicked(capturedIndex, capturedData));
+            var trigger = card.CardObject.AddComponent<EventTrigger>();
+            var pointerDown = new EventTrigger.Entry { eventID = EventTriggerType.PointerDown };
+            pointerDown.callback.AddListener((_) => OnTowerCardDragStart(capturedIndex, capturedData));
+            trigger.triggers.Add(pointerDown);
 
             // Tower icon (colored square)
             GameObject iconObj = new GameObject("Icon");
@@ -369,7 +386,16 @@ namespace TowerDefense.UI
             iconRect.offsetMin = Vector2.zero;
             iconRect.offsetMax = Vector2.zero;
             var iconImage = iconObj.AddComponent<Image>();
-            iconImage.color = towerData.towerColor * 0.7f;
+            if (towerData.towerIcon != null)
+            {
+                iconImage.sprite = towerData.towerIcon;
+                iconImage.color = Color.white;
+                iconImage.preserveAspect = true;
+            }
+            else
+            {
+                iconImage.color = towerData.towerColor * 0.7f;
+            }
             iconImage.raycastTarget = false;
 
             // Name label
@@ -407,22 +433,12 @@ namespace TowerDefense.UI
             cards.Add(card);
         }
 
-        private void OnTowerCardClicked(int index, TowerData towerData)
+        private void OnTowerCardDragStart(int index, TowerData towerData)
         {
-            if (selectedIndex == index)
-            {
-                selectedIndex = -1;
-                UpdateBorders();
-                HideTooltip();
-                OnTowerCardDeselected?.Invoke();
-            }
-            else
-            {
-                selectedIndex = index;
-                UpdateBorders();
-                ShowTowerTooltip(towerData);
-                OnTowerCardSelected?.Invoke(towerData);
-            }
+            selectedIndex = index;
+            UpdateBorders();
+            HideTooltip();
+            OnTowerCardSelected?.Invoke(towerData);
         }
 
         private void ShowTowerTooltip(TowerData data)

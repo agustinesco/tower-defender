@@ -182,6 +182,16 @@ namespace TowerDefense.Core
             return true;
         }
 
+        public void UnlockAllTowers()
+        {
+            foreach (var upgrade in upgrades)
+            {
+                if (upgrade.upgradeType == LabUpgradeType.TowerUnlock)
+                    purchasedLevels[upgrade.upgradeName] = upgrade.maxLevel;
+            }
+            Save();
+        }
+
         public bool IsTowerUnlocked(string towerName)
         {
             foreach (var upgrade in upgrades)

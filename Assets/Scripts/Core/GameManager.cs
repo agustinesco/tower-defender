@@ -299,15 +299,16 @@ namespace TowerDefense.Core
             {
                 pieceHandUI.SetPieceConfigs(pieceConfigLookup);
                 pieceHandUI.SetPieceProvider(pieceProvider);
+
+                // Set free tower mode BEFORE first RefreshHand so tabs are created correctly
+                if (useFreeTowerPlacement && towerManager != null)
+                {
+                    pieceHandUI.SetFreeTowerMode(true);
+                    pieceHandUI.SetAvailableTowers(towerManager.AvailableTowers);
+                }
+
                 pieceDragHandler.Initialize(placementValidator, ghostPieceManager, pieceHandUI);
                 pieceHandUI.RefreshHand(pieceProvider.Pieces);
-            }
-
-            // 10. Wire free tower mode if enabled
-            if (useFreeTowerPlacement && pieceHandUI != null && towerManager != null)
-            {
-                pieceHandUI.SetFreeTowerMode(true);
-                pieceHandUI.SetAvailableTowers(towerManager.AvailableTowers);
             }
 
             Invoke(nameof(FireInitialEvents), 0.1f);

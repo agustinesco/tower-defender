@@ -33,20 +33,17 @@ namespace TowerDefense.UI
 
         // Tower placement state (free mode)
         private bool isTowerSelected;
+        private bool isTowerDragging;
         private TowerData selectedTowerData;
         private GameObject towerGhost;
         private GameObject towerRadiusIndicator;
-        private Vector3 lastStillPosition;
-        private float stillTimer;
         private Vector3 lastSnappedPosition;
         private bool lastSnapValid;
-        private const float TowerHoldDuration = 0.5f;
-        private const float StillThreshold = 1.5f;
         private const float PerpendicularOffset = 6.5f; // Same as TowerSlot generation
 
         private static readonly Color HighlightColor = new Color(0.3f, 0.9f, 0.3f);
 
-        public bool IsInteracting => isPressingGhost;
+        public bool IsInteracting => isPressingGhost || isTowerDragging;
         public bool IsPlacingPiece => isCardSelected || isModificationSelected || isTowerSelected;
 
         public event Action<int, PlacementRotation, HexCoord> OnPiecePlaced;
@@ -140,9 +137,8 @@ namespace TowerDefense.UI
                 ClearModificationHighlights();
 
             isTowerSelected = true;
+            isTowerDragging = true;
             selectedTowerData = towerData;
-            stillTimer = 0f;
-            lastStillPosition = Vector3.zero;
             CreateTowerGhost(towerData);
         }
 
@@ -154,8 +150,8 @@ namespace TowerDefense.UI
         private void ClearTowerSelection()
         {
             isTowerSelected = false;
+            isTowerDragging = false;
             selectedTowerData = null;
-            stillTimer = 0f;
             DestroyTowerGhost();
         }
 
@@ -322,7 +318,7 @@ namespace TowerDefense.UI
 
         private void HandleTowerPlacementInput()
         {
-            if (cam == null) return;
+            if (cam == null || !isTowerDragging) return;
 
             // Raycast ground plane (y=0) for cursor world position
             Ray ray = cam.ScreenPointToRay(Input.mousePosition);
@@ -351,32 +347,22 @@ namespace TowerDefense.UI
             lastSnappedPosition = snappedPos;
             SetGhostColor(valid);
 
-            // Track stillness based on snapped position
-            Vector3 trackPos = valid ? snappedPos : cursorWorld;
-            float moved = Vector3.Distance(trackPos, lastStillPosition);
-            if (moved > StillThreshold)
+            // Place tower on finger lift, deselect on cancel
+            if (Input.GetMouseButtonUp(0))
             {
-                stillTimer = 0f;
-                lastStillPosition = trackPos;
-            }
-            else
-            {
-                stillTimer += Time.deltaTime;
-            }
-
-            // Place tower when held still long enough at valid position
-            if (stillTimer >= TowerHoldDuration && valid && Input.GetMouseButton(0))
-            {
-                var towerManager = FindObjectOfType<TowerManager>();
-                if (towerManager != null)
+                if (valid)
                 {
-                    bool success = towerManager.PlaceTowerAt(selectedTowerData, snappedPos);
-                    if (success)
+                    var towerManager = FindObjectOfType<TowerManager>();
+                    if (towerManager != null && towerManager.PlaceTowerAt(selectedTowerData, snappedPos))
                     {
-                        stillTimer = 0f;
-                        lastStillPosition = snappedPos;
+                        ClearTowerSelection();
+                        handUI.DeselectTowerCard();
+                        return;
                     }
                 }
+                // Invalid position or placement failed - deselect
+                ClearTowerSelection();
+                handUI.DeselectTowerCard();
             }
         }
 

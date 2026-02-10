@@ -29,7 +29,6 @@ namespace TowerDefense.UI
         private Canvas canvas;
         private WaveManager waveManager;
         private TowerManager towerManager;
-        private PieceHandUI pieceHandUIInstance;
         private UpgradeSelectionUI upgradeSelectionUI;
         private Button upgradesButton;
         private Text enemyCountText;
@@ -217,17 +216,6 @@ namespace TowerDefense.UI
             var pickedCardsObj = new GameObject("PickedCardsUI");
             pickedCardsObj.transform.SetParent(canvasObj.transform);
             pickedCardsObj.AddComponent<PickedCardsUI>();
-
-            // Create piece hand UI
-            var pieceHandObj = new GameObject("PieceHandUI");
-            pieceHandObj.transform.SetParent(canvasObj.transform);
-            var pieceHandRect = pieceHandObj.AddComponent<RectTransform>();
-            pieceHandRect.anchorMin = Vector2.zero;
-            pieceHandRect.anchorMax = Vector2.one;
-            pieceHandRect.offsetMin = Vector2.zero;
-            pieceHandRect.offsetMax = Vector2.zero;
-            pieceHandUIInstance = pieceHandObj.AddComponent<PieceHandUI>();
-            pieceHandUIInstance.Initialize(canvas);
 
             // Cheat panel
             CreateCheatPanel(canvasObj.transform);
@@ -705,9 +693,11 @@ namespace TowerDefense.UI
             CreateButton(panel.transform, "CheatShowCamps", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(0, -54), new Vector2(120, 32), "Show Camps", OnCheatShowCamps);
 
-            // Expand panel to fit third button
+            CreateButton(panel.transform, "CheatUnlockTowers", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0, -90), new Vector2(120, 32), "All Towers", OnCheatUnlockTowers);
+
             var panelRect = panel.GetComponent<RectTransform>();
-            panelRect.sizeDelta = new Vector2(140, 130);
+            panelRect.sizeDelta = new Vector2(140, 166);
         }
 
         private void OnCheatGold()
@@ -722,6 +712,20 @@ namespace TowerDefense.UI
             PersistenceManager.Instance.AddRunResource(ResourceType.Gems, 100);
             PersistenceManager.Instance.AddRunResource(ResourceType.Florpus, 100);
             PersistenceManager.Instance.AddRunResource(ResourceType.Adamantite, 100);
+        }
+
+        private void OnCheatUnlockTowers()
+        {
+            if (LabManager.Instance == null) return;
+            LabManager.Instance.UnlockAllTowers();
+
+            // Refresh tower list in hand UI
+            if (towerManager != null && GameManager.Instance != null && GameManager.Instance.UseFreeTowerPlacement)
+            {
+                var handUI = FindObjectOfType<PieceHandUI>();
+                if (handUI != null)
+                    handUI.SetAvailableTowers(towerManager.AvailableTowers);
+            }
         }
 
         private void OnCheatShowCamps()
