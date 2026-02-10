@@ -37,9 +37,13 @@ namespace TowerDefense.Core
             }
         }
 
+        public List<TowerData> AllTowers => availableTowers;
+        public IReadOnlyList<Tower> PlacedTowers => placedTowers;
+
         public event System.Action<TowerSlot> OnSlotSelected;
         public event System.Action<Tower> OnTowerSelected;
         public event System.Action OnSelectionCleared;
+        public event System.Action<Tower> OnTowerPlaced;
 
         private void Start()
         {
@@ -191,6 +195,7 @@ namespace TowerDefense.Core
                 RegisterTowerOnTile(tower, tower.TileCoord.Value);
 
             ClearSelection();
+            OnTowerPlaced?.Invoke(tower);
 
             return true;
         }
@@ -224,6 +229,8 @@ namespace TowerDefense.Core
             // Apply haste if tile has it
             if (GameManager.Instance.HasHaste(coord))
                 tower.SetHasteMultiplier(1.3f);
+
+            OnTowerPlaced?.Invoke(tower);
 
             return true;
         }

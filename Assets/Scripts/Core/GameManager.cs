@@ -94,6 +94,7 @@ namespace TowerDefense.Core
         private Dictionary<HexCoord, GameObject> goldenTouchVisuals = new Dictionary<HexCoord, GameObject>();
 
         private int currentLives;
+        private int maxLives;
         private int currentCurrency;
         private int currentWave = 0;
         private bool gameOver = false;
@@ -104,6 +105,7 @@ namespace TowerDefense.Core
         private float continuousMineTimer = 0f;
 
         public int Lives => currentLives;
+        public int MaxLives => maxLives;
         public int Currency => currentCurrency;
         public int Wave => currentWave;
         public bool IsGameOver => gameOver;
@@ -177,13 +179,27 @@ namespace TowerDefense.Core
                 var labObj = new GameObject("LabManager");
                 labObj.AddComponent<LabManager>();
             }
+
+            // Initialize currency/lives in Awake so other scripts' Start() reads correct values
+            currentLives = startingLives + (LabManager.Instance != null ? LabManager.Instance.BonusStartingLives + LabManager.Instance.BonusMaxHP : 0);
+            maxLives = currentLives;
+            currentCurrency = startingCurrency + (LabManager.Instance != null ? LabManager.Instance.BonusStartingGold : 0);
         }
 
         private void Start()
         {
-            currentLives = startingLives + (LabManager.Instance != null ? LabManager.Instance.BonusStartingLives + LabManager.Instance.BonusMaxHP : 0);
-            currentCurrency = startingCurrency + (LabManager.Instance != null ? LabManager.Instance.BonusStartingGold : 0);
+            try
+            {
+                InitializeGame();
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"GameManager.Start FAILED: {e.Message}\n{e.StackTrace}");
+            }
+        }
 
+        private void InitializeGame()
+        {
             // Build piece config lookup
             pieceConfigLookup = new Dictionary<HexPieceType, HexPieceConfig>();
             if (pieceConfigs != null)
@@ -292,8 +308,12 @@ namespace TowerDefense.Core
                 towerManager.SetPieceDragHandler(pieceDragHandler);
             }
 
-            // 9. Find PieceHandUI (created by HUDController in Awake, so it exists by now)
+            // 9. Find PieceHandUI in scene (must exist as prefab instance)
             pieceHandUI = FindFirstObjectByType<PieceHandUI>();
+            if (pieceHandUI == null)
+            {
+                Debug.LogError("PieceHandUI not found in scene! Ensure PieceHandUI_Canvas prefab is in the scene.");
+            }
             if (pieceHandUI != null)
             {
                 pieceHandUI.SetPieceConfigs(pieceConfigLookup);
@@ -303,12 +323,16 @@ namespace TowerDefense.Core
                 if (useFreeTowerPlacement && towerManager != null)
                 {
                     pieceHandUI.SetFreeTowerMode(true);
-                    pieceHandUI.SetAvailableTowers(towerManager.AvailableTowers);
+                    pieceHandUI.SetAvailableTowers(towerManager.AllTowers);
                 }
 
                 pieceDragHandler.Initialize(placementValidator, ghostPieceManager, pieceHandUI);
                 pieceHandUI.RefreshHand(pieceProvider.Pieces);
             }
+
+            // Tutorial (first-run only, skips continuous mode)
+            var tutorialObj = new GameObject("TutorialManager");
+            tutorialObj.AddComponent<TutorialManager>();
 
             Invoke(nameof(FireInitialEvents), 0.1f);
         }
@@ -316,6 +340,7 @@ namespace TowerDefense.Core
         private void Update()
         {
             if (gameOver) return;
+            if (pieceProvider == null) return;
 
             pieceProvider.UpdateCooldowns(Time.deltaTime);
 
@@ -376,19 +401,6 @@ namespace TowerDefense.Core
             // Refresh hand UI after everything is wired
             if (pieceHandUI != null)
             {
-                pieceHandUI.RefreshHand(pieceProvider.Pieces);
-            }
-        }
-
-        public void SetPieceHandUI(PieceHandUI handUI)
-        {
-            pieceHandUI = handUI;
-
-            if (pieceDragHandler != null && placementValidator != null && ghostPieceManager != null)
-            {
-                pieceHandUI.SetPieceConfigs(pieceConfigLookup);
-                pieceHandUI.SetPieceProvider(pieceProvider);
-                pieceDragHandler.Initialize(placementValidator, ghostPieceManager, pieceHandUI);
                 pieceHandUI.RefreshHand(pieceProvider.Pieces);
             }
         }
@@ -465,7 +477,43 @@ namespace TowerDefense.Core
                 Debug.Log($"Entering zone {zone}! Boss will spawn next wave.");
             }
 
+            // Auto-build mine on ore deposits
+            if (orePatches.ContainsKey(coord) && !activeMiningOutposts.Contains(coord))
+                AutoBuildMine(coord);
+
             Debug.Log($"Piece placed at {coord}: {type} with edges [{string.Join(", ", rotation.ConnectedEdges)}]. Spawn points: {spawnPoints.Count}");
+        }
+
+        private void AutoBuildMine(HexCoord coord)
+        {
+            if (!orePatches.ContainsKey(coord)) return;
+            if (activeMiningOutposts.Contains(coord)) return;
+            if (!mapData.ContainsKey(coord)) return;
+
+            activeMiningOutposts.Add(coord);
+            UpdateNonReplaceableCoords();
+
+            if (hexPieces.TryGetValue(coord, out var hex))
+            {
+                var visual = CreateMineVisual(hex.transform);
+                mineVisuals[coord] = visual;
+            }
+
+            RemoveOrePatchMarker(coord);
+
+            if (IsContinuousMode)
+            {
+                Vector3 worldPos = HexGrid.HexToWorld(coord);
+                var indicatorObj = new GameObject("MineTimer");
+                indicatorObj.transform.position = worldPos + Vector3.up * 10f;
+                var indicator = indicatorObj.AddComponent<UI.MineTimerIndicator>();
+                indicator.Initialize(ContinuousMineInterval);
+                indicator.SetTimer(continuousMineTimer);
+                mineTimerIndicators[coord] = indicator;
+            }
+
+            var patch = orePatches[coord];
+            Debug.Log($"Auto-mine built at {coord}: {patch.ResourceType} (yield: {patch.BaseYield}/wave)");
         }
 
         private void ReplacePiece(HexCoord coord, HexPiece existingPiece)
@@ -844,6 +892,23 @@ namespace TowerDefense.Core
             }
         }
 
+        public HexCoord? GetNearestOreDeposit()
+        {
+            HexCoord castle = new HexCoord(0, 0);
+            HexCoord? nearest = null;
+            int bestDist = int.MaxValue;
+            foreach (var coord in orePatches.Keys)
+            {
+                int dist = castle.DistanceTo(coord);
+                if (dist < bestDist)
+                {
+                    bestDist = dist;
+                    nearest = coord;
+                }
+            }
+            return nearest;
+        }
+
         public OrePatch? GetOrePatchAt(HexCoord coord)
         {
             if (orePatches.TryGetValue(coord, out var patch))
@@ -959,13 +1024,11 @@ namespace TowerDefense.Core
             lure.transform.localPosition = Vector3.zero;
 
             // Glowing beacon
-            GameObject beacon = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            GameObject beacon = MaterialCache.CreatePrimitive(PrimitiveType.Sphere);
             beacon.name = "LureBeacon";
             beacon.transform.SetParent(lure.transform);
             beacon.transform.localPosition = new Vector3(0f, 4f, 0f);
             beacon.transform.localScale = new Vector3(1.5f, 1.5f, 1.5f);
-            var bc = beacon.GetComponent<Collider>();
-            if (bc != null) Destroy(bc);
             var br = beacon.GetComponent<Renderer>();
             if (br != null)
             {
@@ -973,13 +1036,11 @@ namespace TowerDefense.Core
             }
 
             // Pole
-            GameObject pole = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            GameObject pole = MaterialCache.CreatePrimitive(PrimitiveType.Cylinder);
             pole.name = "LurePole";
             pole.transform.SetParent(lure.transform);
             pole.transform.localPosition = new Vector3(0f, 2f, 0f);
             pole.transform.localScale = new Vector3(0.3f, 2f, 0.3f);
-            var pc = pole.GetComponent<Collider>();
-            if (pc != null) Destroy(pc);
             var pr = pole.GetComponent<Renderer>();
             if (pr != null)
             {
@@ -1058,14 +1119,11 @@ namespace TowerDefense.Core
 
         private GameObject CreateModRingVisual(Transform parent, Color color)
         {
-            var ring = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            var ring = MaterialCache.CreatePrimitive(PrimitiveType.Cylinder);
             ring.name = "ModRing";
             ring.transform.SetParent(parent);
             ring.transform.localPosition = new Vector3(0f, 0.02f, 0f);
             ring.transform.localScale = new Vector3(HexGrid.OuterRadius * 1.6f, 0.01f, HexGrid.OuterRadius * 1.6f);
-
-            var col = ring.GetComponent<Collider>();
-            if (col != null) Destroy(col);
 
             var rend = ring.GetComponent<Renderer>();
             if (rend != null)

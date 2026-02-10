@@ -9,7 +9,7 @@ namespace TowerDefense.UI
     {
         [SerializeField] private float minZoom = 20f;
         [SerializeField] private float maxZoom = 300f;
-        [SerializeField] private float panSpeed = 0.02f;
+        [SerializeField] private float panSpeed = 0.004f;
         [SerializeField] private float zoomSpeed = 0.1f;
         [SerializeField] private float initialPanBounds = 100f;
 
@@ -25,6 +25,11 @@ namespace TowerDefense.UI
         private bool isPanning;
         private bool isAutoPanning;
 
+        private Vector3 targetPosition;
+        private float targetZoom;
+        private const float PanSmoothing = 8f;
+        private const float ZoomSmoothing = 10f;
+
         [HideInInspector] public PieceDragHandler pieceDragHandler;
 
         private void Awake()
@@ -35,6 +40,7 @@ namespace TowerDefense.UI
                 cam = Camera.main;
             }
             currentPanBounds = initialPanBounds;
+            targetPosition = transform.position;
         }
 
         private void Start()
@@ -44,8 +50,32 @@ namespace TowerDefense.UI
             {
                 cam.orthographic = true;
                 cam.orthographicSize = (minZoom + maxZoom) / 2f;
+                targetZoom = cam.orthographicSize;
                 transform.rotation = Quaternion.Euler(90f, 0f, 0f);
                 transform.position = new Vector3(0f, 50f, 0f);
+                targetPosition = transform.position;
+
+                // Inset viewport based on device safe area (handles notches/cutouts)
+                var sa = Screen.safeArea;
+                int sw = Screen.width;
+                int sh = Screen.height;
+                if (sw > 0 && sh > 0)
+                {
+                    float left = sa.x / sw;
+                    float bottom = sa.y / sh;
+                    float width = sa.width / sw;
+                    float height = sa.height / sh;
+                    cam.rect = new Rect(left, bottom, width, height);
+                }
+
+                // Background camera fills margins with black
+                var bgCamObj = new GameObject("BackgroundCamera");
+                var bgCam = bgCamObj.AddComponent<Camera>();
+                bgCam.depth = cam.depth - 1;
+                bgCam.clearFlags = CameraClearFlags.SolidColor;
+                bgCam.backgroundColor = Color.black;
+                bgCam.cullingMask = 0;
+                bgCam.rect = new Rect(0f, 0f, 1f, 1f);
             }
         }
 
@@ -144,22 +174,30 @@ namespace TowerDefense.UI
             }
         }
 
+        private void LateUpdate()
+        {
+            if (cam == null) return;
+
+            transform.position = Vector3.Lerp(transform.position, targetPosition, Time.deltaTime * PanSmoothing);
+            cam.orthographicSize = Mathf.Lerp(cam.orthographicSize, targetZoom, Time.deltaTime * ZoomSmoothing);
+        }
+
         private void Pan(Vector3 delta)
         {
             Vector3 move = new Vector3(delta.x, 0f, delta.y);
-            Vector3 newPosition = transform.position + move;
+            Vector3 newPosition = targetPosition + move;
 
             newPosition.x = Mathf.Clamp(newPosition.x, -currentPanBounds, currentPanBounds);
             newPosition.z = Mathf.Clamp(newPosition.z, -currentPanBounds, currentPanBounds);
 
-            transform.position = newPosition;
+            targetPosition = newPosition;
         }
 
         private void Zoom(float delta)
         {
             if (cam == null) return;
 
-            cam.orthographicSize = Mathf.Clamp(cam.orthographicSize + delta, minZoom, maxZoom);
+            targetZoom = Mathf.Clamp(targetZoom + delta, minZoom, maxZoom);
         }
 
         /// <summary>
@@ -187,15 +225,15 @@ namespace TowerDefense.UI
             center /= positions.Count;
 
             // Pan partially toward the new pieces (keep some of current view)
-            Vector3 targetPosition = new Vector3(
+            Vector3 panTarget = new Vector3(
                 Mathf.Lerp(transform.position.x, center.x, 0.5f),
                 transform.position.y,
                 Mathf.Lerp(transform.position.z, center.z, 0.5f)
             );
 
             // Clamp to pan bounds
-            targetPosition.x = Mathf.Clamp(targetPosition.x, -currentPanBounds, currentPanBounds);
-            targetPosition.z = Mathf.Clamp(targetPosition.z, -currentPanBounds, currentPanBounds);
+            panTarget.x = Mathf.Clamp(panTarget.x, -currentPanBounds, currentPanBounds);
+            panTarget.z = Mathf.Clamp(panTarget.z, -currentPanBounds, currentPanBounds);
 
             // Store starting position
             Vector3 startPosition = transform.position;
@@ -210,14 +248,51 @@ namespace TowerDefense.UI
                 // Use smooth step for easing
                 t = t * t * (3f - 2f * t);
 
-                transform.position = Vector3.Lerp(startPosition, targetPosition, t);
+                Vector3 pos = Vector3.Lerp(startPosition, panTarget, t);
+                targetPosition = pos;
+                transform.position = pos;
 
                 yield return null;
             }
 
             // Ensure final position is set
-            transform.position = targetPosition;
+            targetPosition = panTarget;
+            transform.position = panTarget;
 
+            isAutoPanning = false;
+        }
+
+        public void PanToPosition(Vector3 worldTarget)
+        {
+            StartCoroutine(AnimatePanTo(worldTarget));
+        }
+
+        private IEnumerator AnimatePanTo(Vector3 worldTarget)
+        {
+            isAutoPanning = true;
+
+            Vector3 panTarget = new Vector3(
+                Mathf.Clamp(worldTarget.x, -currentPanBounds, currentPanBounds),
+                transform.position.y,
+                Mathf.Clamp(worldTarget.z, -currentPanBounds, currentPanBounds)
+            );
+
+            Vector3 startPosition = transform.position;
+            float elapsed = 0f;
+            while (elapsed < autoPanDuration)
+            {
+                elapsed += Time.deltaTime;
+                float t = elapsed / autoPanDuration;
+                t = t * t * (3f - 2f * t);
+
+                Vector3 pos = Vector3.Lerp(startPosition, panTarget, t);
+                targetPosition = pos;
+                transform.position = pos;
+                yield return null;
+            }
+
+            targetPosition = panTarget;
+            transform.position = panTarget;
             isAutoPanning = false;
         }
 
@@ -292,7 +367,9 @@ namespace TowerDefense.UI
             requiredSize = Mathf.Clamp(requiredSize, minZoom, maxZoom);
 
             // Apply
+            targetPosition = center;
             transform.position = center;
+            targetZoom = requiredSize;
             cam.orthographicSize = requiredSize;
 
             // Update pan bounds

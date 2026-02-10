@@ -266,24 +266,25 @@ namespace TowerDefense.Grid
 
         private int PlaceGuaranteedIronNode(List<HexCoord> innerCandidates)
         {
-            // Find empty hexes adjacent to any starting piece
-            var adjacent = new List<HexCoord>();
-            foreach (var coord in innerCandidates)
+            // Find empty hexes reachable from an open edge of the existing path.
+            // An open edge is a connected edge that points to an empty hex.
+            var reachable = new List<HexCoord>();
+            foreach (var kvp in pieces)
             {
-                for (int edge = 0; edge < 6; edge++)
+                foreach (int edge in kvp.Value.ConnectedEdges)
                 {
-                    HexCoord neighbor = coord.GetNeighbor(edge);
-                    if (pieces.ContainsKey(neighbor))
+                    HexCoord neighbor = kvp.Value.Coord.GetNeighbor(edge);
+                    if (!pieces.ContainsKey(neighbor) && innerCandidates.Contains(neighbor))
                     {
-                        adjacent.Add(coord);
-                        break;
+                        if (!reachable.Contains(neighbor))
+                            reachable.Add(neighbor);
                     }
                 }
             }
 
-            if (adjacent.Count == 0) return 0;
+            if (reachable.Count == 0) return 0;
 
-            var chosen = adjacent[random.Next(adjacent.Count)];
+            var chosen = reachable[random.Next(reachable.Count)];
             orePatches[chosen] = new OrePatch(chosen, ResourceType.IronOre, 1);
             innerCandidates.Remove(chosen);
             return 1;
