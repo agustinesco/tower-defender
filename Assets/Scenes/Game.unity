@@ -7747,6 +7747,7 @@ MonoBehaviour:
   adamantiteSprite: {fileID: 21300000, guid: 4c37d87bf55d64ed7ba7118f69cb57ad, type: 3}
   hexPiecePrefab: {fileID: 0}
   mineOutpostPrefab: {fileID: 2242801131017349800, guid: 41eec2429de4547da9bb7456ebcf2b83, type: 3}
+  mineConfig: {fileID: 11400000, guid: b747eadb95a7c4bd8ab2b4c31a65c75b, type: 2}
   enemyConfigs:
   - {fileID: 11400000, guid: be41d00e40e7b4f45a2d9052268aabd7, type: 2}
   - {fileID: 11400000, guid: 4929ddf51d61549168779cac9b32a5cf, type: 2}

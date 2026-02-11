@@ -39,6 +39,9 @@ namespace TowerDefense.Core
         [SerializeField] private GameObject hexPiecePrefab;
         [SerializeField] private GameObject mineOutpostPrefab;
 
+        [Header("Mine Config")]
+        [SerializeField] private MineConfig mineConfig;
+
         [Header("Enemy Configs")]
         [SerializeField] private List<EnemyData> enemyConfigs;
 
@@ -103,7 +106,8 @@ namespace TowerDefense.Core
         private bool buildPhaseActive = false;
         private float buildTimer = 0f;
 
-        private const float ContinuousMineInterval = 30f;
+        private float ContinuousMineInterval => mineConfig != null ? mineConfig.collectionInterval : 30f;
+        private int MineYieldMultiplier => mineConfig != null ? mineConfig.yieldMultiplier : 1;
         private float continuousMineTimer = 0f;
 
         public int Lives => currentLives;
@@ -1330,15 +1334,16 @@ namespace TowerDefense.Core
             {
                 if (orePatches.TryGetValue(coord, out var patch))
                 {
-                    PersistenceManager.Instance.AddRunResource(patch.ResourceType, patch.BaseYield);
+                    int yield = patch.BaseYield * MineYieldMultiplier;
+                    PersistenceManager.Instance.AddRunResource(patch.ResourceType, yield);
 
                     // Spawn fly-to-castle resource popup
                     Vector3 mineWorldPos = HexGrid.HexToWorld(coord) + Vector3.up * 2f;
                     Vector3 castleWorldPos = HexGrid.HexToWorld(new HexCoord(0, 0)) + Vector3.up * 2f;
                     var popup = new GameObject("ResourcePopup").AddComponent<UI.ResourcePopup>();
-                    popup.Initialize(patch.BaseYield, patch.ResourceType, mineWorldPos, castleWorldPos);
+                    popup.Initialize(yield, patch.ResourceType, mineWorldPos, castleWorldPos);
 
-                    Debug.Log($"Mined {patch.BaseYield} {patch.ResourceType} from outpost at {coord}");
+                    Debug.Log($"Mined {yield} {patch.ResourceType} from outpost at {coord}");
                 }
             }
         }

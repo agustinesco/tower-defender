@@ -24,6 +24,9 @@ namespace TowerDefense.UI
         [SerializeField] private Text[] labTabTexts;
         [SerializeField] private Button[] labTabButtons;
 
+        [Header("Tutorial")]
+        [SerializeField] private Sprite tutorialArrowSprite;
+
         private int activeLabTab;
         private List<GameObject> labUpgradeCards = new List<GameObject>();
 
@@ -33,6 +36,19 @@ namespace TowerDefense.UI
             new Color(0.25f, 0.45f, 0.3f)
         };
         private static readonly Color LabTabInactiveColor = new Color(0.18f, 0.18f, 0.22f);
+
+        // Tutorial state
+        private bool labTutorialActive;
+        private int labTutorialStep; // 0 = map, 1 = lab
+        private GameObject tutPanelObj;
+        private RectTransform tutPanelRect;
+        private Text tutMessageText;
+        private GameObject tutArrowObj;
+        private RectTransform tutArrowRect;
+        private RectTransform tutTargetRect;
+        private Vector2 tutArrowBounceDir;
+        private RectTransform safeAreaRect;
+        private const string LabTutorialPref = "tut_lab_upgrade";
 
         private void Awake()
         {
@@ -66,6 +82,158 @@ namespace TowerDefense.UI
             }
 
             ShowMap();
+            CheckLabTutorial();
+        }
+
+        private void Update()
+        {
+            if (labTutorialActive && tutTargetRect != null)
+                UpdateTutArrowPosition();
+        }
+
+        // --- Tutorial ---
+
+        private void CheckLabTutorial()
+        {
+            if (PlayerPrefs.GetInt(LabTutorialPref, 0) == 1) return;
+            if (!HasAffordableUpgrade()) return;
+
+            // Cache SafeArea rect from mapPanel's parent
+            if (mapPanel != null)
+                safeAreaRect = mapPanel.transform.parent as RectTransform;
+            if (safeAreaRect == null) return;
+
+            labTutorialActive = true;
+            labTutorialStep = 0;
+            CreateTutorialUI();
+            ShowLabTutorialStep();
+        }
+
+        private bool HasAffordableUpgrade()
+        {
+            if (LabManager.Instance == null) return false;
+            var upgrades = LabManager.Instance.Upgrades;
+            for (int i = 0; i < upgrades.Count; i++)
+            {
+                if (LabManager.Instance.CanPurchase(upgrades[i]))
+                    return true;
+            }
+            return false;
+        }
+
+        private void CreateTutorialUI()
+        {
+            // Panel
+            tutPanelObj = new GameObject("TutorialPanel");
+            tutPanelObj.transform.SetParent(safeAreaRect, false);
+            tutPanelRect = tutPanelObj.AddComponent<RectTransform>();
+            tutPanelRect.anchorMin = new Vector2(0.5f, 0.5f);
+            tutPanelRect.anchorMax = new Vector2(0.5f, 0.5f);
+            tutPanelRect.sizeDelta = new Vector2(600f, 100f);
+            var panelBg = tutPanelObj.AddComponent<Image>();
+            panelBg.color = new Color(0.08f, 0.08f, 0.12f, 0.92f);
+            panelBg.raycastTarget = false;
+
+            var textObj = new GameObject("Message");
+            textObj.transform.SetParent(tutPanelObj.transform, false);
+            var textRect = textObj.AddComponent<RectTransform>();
+            textRect.anchorMin = Vector2.zero;
+            textRect.anchorMax = Vector2.one;
+            textRect.offsetMin = new Vector2(16f, 8f);
+            textRect.offsetMax = new Vector2(-16f, -8f);
+            tutMessageText = textObj.AddComponent<Text>();
+            tutMessageText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            tutMessageText.fontSize = 22;
+            tutMessageText.fontStyle = FontStyle.Bold;
+            tutMessageText.color = Color.white;
+            tutMessageText.alignment = TextAnchor.MiddleCenter;
+            tutMessageText.raycastTarget = false;
+
+            // Arrow
+            tutArrowObj = new GameObject("TutorialArrow");
+            tutArrowObj.transform.SetParent(safeAreaRect, false);
+            tutArrowRect = tutArrowObj.AddComponent<RectTransform>();
+            tutArrowRect.anchorMin = new Vector2(0.5f, 0.5f);
+            tutArrowRect.anchorMax = new Vector2(0.5f, 0.5f);
+            tutArrowRect.sizeDelta = new Vector2(60f, 60f);
+            var arrowImg = tutArrowObj.AddComponent<Image>();
+            arrowImg.sprite = tutorialArrowSprite;
+            arrowImg.color = new Color(1f, 0.3f, 0.3f, 1f);
+            arrowImg.raycastTarget = false;
+        }
+
+        private void ShowLabTutorialStep()
+        {
+            if (labTutorialStep == 0)
+            {
+                tutMessageText.text = "You earned resources! Visit the Lab to power up";
+                // Position panel above center
+                tutPanelRect.anchoredPosition = new Vector2(0f, 100f);
+                // Point arrow at Lab button
+                if (labButton != null)
+                    PointTutArrowAt((RectTransform)labButton.transform, new Vector2(0f, 1f));
+            }
+            else if (labTutorialStep == 1)
+            {
+                tutMessageText.text = "Purchase an upgrade to improve your towers!";
+                // Position panel near top of lab area
+                tutPanelRect.anchoredPosition = new Vector2(0f, 200f);
+                // Point arrow at first affordable card
+                var cardRect = GetFirstAffordableCardRect();
+                if (cardRect != null)
+                    PointTutArrowAt(cardRect, new Vector2(0f, 1f));
+            }
+        }
+
+        private void PointTutArrowAt(RectTransform target, Vector2 bounceDir)
+        {
+            tutTargetRect = target;
+            tutArrowBounceDir = bounceDir;
+
+            // Rotate arrow to face toward the target (opposite of bounce direction)
+            float angle = Mathf.Atan2(-bounceDir.y, -bounceDir.x) * Mathf.Rad2Deg;
+            tutArrowRect.localRotation = Quaternion.Euler(0f, 0f, angle);
+
+            UpdateTutArrowPosition();
+        }
+
+        private void UpdateTutArrowPosition()
+        {
+            if (tutTargetRect == null || safeAreaRect == null) return;
+
+            Vector3 screenPos = RectTransformUtility.WorldToScreenPoint(null, tutTargetRect.position);
+            if (RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                safeAreaRect, screenPos, null, out Vector2 localPoint))
+            {
+                float bounce = Mathf.Sin(Time.unscaledTime * 3f) * 15f;
+                Vector2 offset = tutArrowBounceDir * (40f + bounce);
+                tutArrowRect.anchoredPosition = localPoint + offset;
+            }
+        }
+
+        private void CompleteLabTutorial()
+        {
+            PlayerPrefs.SetInt(LabTutorialPref, 1);
+            PlayerPrefs.Save();
+            if (tutPanelObj != null) Destroy(tutPanelObj);
+            if (tutArrowObj != null) Destroy(tutArrowObj);
+            labTutorialActive = false;
+        }
+
+        private RectTransform GetFirstAffordableCardRect()
+        {
+            if (LabManager.Instance == null) return null;
+            var upgrades = LabManager.Instance.Upgrades;
+            int cardIndex = 0;
+            for (int i = 0; i < upgrades.Count; i++)
+            {
+                var upgrade = upgrades[i];
+                if (!UpgradeMatchesTab(upgrade, activeLabTab)) continue;
+                if (LabManager.Instance.CanPurchase(upgrade) && cardIndex < labUpgradeCards.Count)
+                    return labUpgradeCards[cardIndex].GetComponent<RectTransform>();
+                cardIndex++;
+            }
+            return null;
         }
 
         // --- Navigation ---
@@ -93,6 +261,7 @@ namespace TowerDefense.UI
 
         private void OnContinuousClicked()
         {
+            if (labTutorialActive) return;
             GameModeSelection.SelectedMode = GameMode.Continuous;
             SceneManager.LoadScene(1);
         }
@@ -101,6 +270,12 @@ namespace TowerDefense.UI
         {
             if (mapPanel != null) mapPanel.SetActive(false);
             ShowLab();
+
+            if (labTutorialActive)
+            {
+                labTutorialStep = 1;
+                ShowLabTutorialStep();
+            }
         }
 
         // --- Lab ---
@@ -175,6 +350,13 @@ namespace TowerDefense.UI
                 var upgrade = upgrades[i];
                 if (!UpgradeMatchesTab(upgrade, activeLabTab)) continue;
                 labUpgradeCards.Add(CreateLabUpgradeCard(upgrade));
+            }
+
+            if (labTutorialActive && labTutorialStep == 1)
+            {
+                var cardRect = GetFirstAffordableCardRect();
+                if (cardRect != null)
+                    PointTutArrowAt(cardRect, new Vector2(0f, 1f));
             }
         }
 
@@ -349,11 +531,15 @@ namespace TowerDefense.UI
                 UpdateLabResources();
                 RefreshLabUpgrades();
                 UpdateResources();
+
+                if (labTutorialActive)
+                    CompleteLabTutorial();
             }
         }
 
         private void OnLabBackClicked()
         {
+            if (labTutorialActive) return;
             if (labPanel != null) labPanel.SetActive(false);
             ShowMap();
         }

@@ -725,6 +725,7 @@ MonoBehaviour:
   - {fileID: 530016989}
   - {fileID: 1575826068}
   - {fileID: 1375594180}
+  tutorialArrowSprite: {fileID: 21300000, guid: e5b1b6be71c9247de9b65c5d732496cf, type: 3}
 --- !u!4 &1478728566
 Transform:
   m_ObjectHideFlags: 0
