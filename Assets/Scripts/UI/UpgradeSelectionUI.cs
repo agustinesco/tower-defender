@@ -32,7 +32,7 @@ namespace TowerDefense.UI
             Hide();
         }
 
-        private void OnEnable()
+        private void Start()
         {
             if (UpgradeManager.Instance != null)
                 UpgradeManager.Instance.OnUpgradesChanged += RefreshCards;
@@ -40,7 +40,7 @@ namespace TowerDefense.UI
                 PersistenceManager.Instance.OnResourcesChanged += RefreshCards;
         }
 
-        private void OnDisable()
+        private void OnDestroy()
         {
             if (UpgradeManager.Instance != null)
                 UpgradeManager.Instance.OnUpgradesChanged -= RefreshCards;
@@ -143,14 +143,12 @@ namespace TowerDefense.UI
             float rowHeight = 50f;
 
             // Row root
-            GameObject rowObj = new GameObject($"Row_{cardData.cardName}");
+            GameObject rowObj = new GameObject($"Row_{cardData.cardName}", typeof(RectTransform));
             rowObj.transform.SetParent(cardsContainer.transform, false);
 
             var rowRect = rowObj.AddComponent<LayoutElement>();
             rowRect.preferredHeight = rowHeight;
             rowRect.flexibleWidth = 1;
-
-            var rowRt = rowObj.AddComponent<RectTransform>();
 
             // Background
             var bgImage = rowObj.AddComponent<Image>();
@@ -290,7 +288,8 @@ namespace TowerDefense.UI
 
         private void OnBuyClicked(UpgradeCard card)
         {
-            UpgradeManager.Instance?.BuyUpgrade(card);
+            if (UpgradeManager.Instance != null && UpgradeManager.Instance.BuyUpgrade(card))
+                RefreshCards();
         }
 
         private Color GetResourceColor(ResourceType type)
