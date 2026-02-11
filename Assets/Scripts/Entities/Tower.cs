@@ -24,6 +24,10 @@ namespace TowerDefense.Entities
         private HexCoord? cachedTileCoord;
         private float hasteMultiplier = 1f;
 
+        // Muzzle flash
+        private GameObject muzzleFlash;
+        private float muzzleFlashTimer;
+
         // Reusable lists to avoid per-frame allocations
         private readonly List<Enemy> _reusableEnemyList = new List<Enemy>();
         private readonly List<Enemy> _reusableTeslaChain = new List<Enemy>();
@@ -116,6 +120,21 @@ namespace TowerDefense.Entities
                 iconObj.AddComponent<TowerDefense.UI.BillboardSprite>();
             }
 
+            // Muzzle flash (reusable, hidden by default)
+            muzzleFlash = MaterialCache.CreatePrimitive(PrimitiveType.Sphere);
+            muzzleFlash.name = "MuzzleFlash";
+            muzzleFlash.transform.SetParent(turretHead);
+            muzzleFlash.transform.localPosition = new Vector3(0f, 0f, 0.9f);
+            muzzleFlash.transform.localScale = Vector3.zero;
+            var flashRenderer = muzzleFlash.GetComponent<Renderer>();
+            if (flashRenderer != null)
+            {
+                Color flashColor = data != null ? data.towerColor * 2f : Color.white;
+                flashColor.a = 1f;
+                flashRenderer.material = Core.MaterialCache.CreateUnlit(flashColor);
+            }
+            muzzleFlash.SetActive(false);
+
             // Range indicator (hidden by default)
             CreateRangeIndicator();
         }
@@ -188,11 +207,39 @@ namespace TowerDefense.Entities
             }
         }
 
+        private void TriggerMuzzleFlash()
+        {
+            if (muzzleFlash == null) return;
+            muzzleFlash.SetActive(true);
+            muzzleFlash.transform.localScale = Vector3.one * 1.2f;
+            muzzleFlashTimer = 0.08f;
+        }
+
         private void Update()
         {
             if (data == null) return;
 
             fireCooldown -= Time.deltaTime;
+
+            // Decay muzzle flash
+            if (muzzleFlashTimer > 0f)
+            {
+                muzzleFlashTimer -= Time.deltaTime;
+                if (muzzleFlashTimer <= 0f)
+                {
+                    if (muzzleFlash != null)
+                    {
+                        muzzleFlash.transform.localScale = Vector3.zero;
+                        muzzleFlash.SetActive(false);
+                    }
+                }
+                else
+                {
+                    float t = muzzleFlashTimer / 0.08f;
+                    if (muzzleFlash != null)
+                        muzzleFlash.transform.localScale = Vector3.one * 1.2f * t;
+                }
+            }
 
             if (data.appliesSlow)
             {
@@ -314,6 +361,9 @@ namespace TowerDefense.Entities
 
             // Show chain lightning visual
             ShowTeslaChain(chain);
+
+            Core.AudioManager.Instance?.PlayTowerShoot(data, turretHead.position);
+            TriggerMuzzleFlash();
         }
 
         private Enemy FindNearestUnhitEnemy(Vector3 from, float range, HashSet<Enemy> exclude)
@@ -328,11 +378,11 @@ namespace TowerDefense.Entities
             if (teslaLineRenderer == null)
             {
                 teslaLineRenderer = gameObject.AddComponent<LineRenderer>();
-                teslaLineRenderer.startWidth = 0.15f;
-                teslaLineRenderer.endWidth = 0.08f;
+                teslaLineRenderer.startWidth = 0.4f;
+                teslaLineRenderer.endWidth = 0.2f;
                 teslaLineRenderer.material = Core.MaterialCache.CreateSpriteDefault();
-                teslaLineRenderer.startColor = new Color(0.5f, 0.8f, 1f);
-                teslaLineRenderer.endColor = new Color(0.3f, 0.5f, 1f, 0.4f);
+                teslaLineRenderer.startColor = new Color(0.7f, 0.9f, 1f);
+                teslaLineRenderer.endColor = new Color(0.5f, 0.7f, 1f, 0.6f);
             }
 
             // Chain starts from turret head, then through each enemy
@@ -384,6 +434,9 @@ namespace TowerDefense.Entities
             projectile.InitializeFireball(
                 targetPos, data.projectileSpeed, data.towerColor,
                 dps, data.firePatchDuration, data.burnDuration, patchRadius);
+
+            Core.AudioManager.Instance?.PlayTowerShoot(data, turretHead.position);
+            TriggerMuzzleFlash();
         }
 
         private Vector3 GetPathSnapPosition(Vector3 enemyPos)
@@ -454,6 +507,9 @@ namespace TowerDefense.Entities
 
                 SpawnPiercingProjectile(direction, actualDamage);
             }
+
+            Core.AudioManager.Instance?.PlayTowerShoot(data, turretHead.position);
+            TriggerMuzzleFlash();
         }
 
         private void SpawnPiercingProjectile(Vector3 direction, float damage)
@@ -535,6 +591,9 @@ namespace TowerDefense.Entities
             {
                 SpawnProjectile(target, actualDamage);
             }
+
+            Core.AudioManager.Instance?.PlayTowerShoot(data, turretHead.position);
+            TriggerMuzzleFlash();
         }
 
         private List<Enemy> GetTargetsForProjectiles(int count)

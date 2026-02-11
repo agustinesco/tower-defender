@@ -86,6 +86,10 @@ namespace TowerDefense.UI
         private ParticleSystem upgradeGlowPS;
         private Camera cachedCamera;
 
+        // Damage flash overlay
+        private Image damageFlashImage;
+        private float damageFlashTimer;
+
         // Cached values for throttling UI text updates
         private int lastBuildSeconds = -1;
         private int lastEscapeMin = -1;
@@ -192,6 +196,7 @@ namespace TowerDefense.UI
 
             cachedCamera = Camera.main;
             CreateUpgradeGlowParticles();
+            CreateDamageFlashOverlay();
         }
 
         private static void WireButton(GameObject obj, UnityEngine.Events.UnityAction action)
@@ -542,6 +547,14 @@ namespace TowerDefense.UI
                 }
             }
 
+            // Damage flash fade
+            if (damageFlashTimer > 0f && damageFlashImage != null)
+            {
+                damageFlashTimer -= Time.deltaTime;
+                float alpha = Mathf.Max(0f, damageFlashTimer / 0.35f) * 0.35f;
+                damageFlashImage.color = new Color(1f, 0f, 0f, alpha);
+            }
+
             // Continuous escape timer
             if (continuousStarted && escapeButtonObj != null && escapeButtonObj.activeSelf)
             {
@@ -768,6 +781,26 @@ namespace TowerDefense.UI
 
             upgradeGlowPS.Stop();
             psObj.SetActive(false);
+        }
+
+        private void CreateDamageFlashOverlay()
+        {
+            if (canvas == null) return;
+            var flashObj = new GameObject("DamageFlash");
+            flashObj.transform.SetParent(canvas.transform, false);
+            var rect = flashObj.AddComponent<RectTransform>();
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+            damageFlashImage = flashObj.AddComponent<Image>();
+            damageFlashImage.color = new Color(1f, 0f, 0f, 0f);
+            damageFlashImage.raycastTarget = false;
+        }
+
+        public void FlashDamage()
+        {
+            damageFlashTimer = 0.35f;
         }
 
         public RectTransform GetStartWaveButtonRectTransform()

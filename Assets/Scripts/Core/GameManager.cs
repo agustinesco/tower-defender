@@ -248,6 +248,13 @@ namespace TowerDefense.Core
                 enemyMgrObj.AddComponent<EnemyManager>();
             }
 
+            // 0b. Create AudioManager
+            if (AudioManager.Instance == null)
+            {
+                var audioObj = new GameObject("AudioManager");
+                audioObj.AddComponent<AudioManager>();
+            }
+
             // 1. Generate castle and starting path
             mapGenerator = new MapGenerator();
             mapData = mapGenerator.GenerateInitialCastle();
@@ -815,6 +822,22 @@ namespace TowerDefense.Core
         {
             currentLives--;
             OnLivesChanged?.Invoke(currentLives);
+
+            AudioManager.Instance?.PlayCastleHit();
+
+            // Screen shake
+            var cam = FindFirstObjectByType<CameraController>();
+            cam?.Shake(0.3f, 1.5f);
+
+            // Red flash overlay
+            var hud = FindFirstObjectByType<HUDController>();
+            hud?.FlashDamage();
+
+            // Castle damage popup at castle position
+            Vector3 castlePos = HexGrid.HexToWorld(new HexCoord(0, 0)) + Vector3.up * 3f;
+            var popupObj = new GameObject("CastleDamagePopup");
+            popupObj.transform.position = castlePos;
+            popupObj.AddComponent<UI.CastleDamagePopup>().Initialize();
 
             if (currentLives <= 0)
             {

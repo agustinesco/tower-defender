@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 using System.Collections.Generic;
 using TowerDefense.Core;
 using TowerDefense.Grid;
@@ -24,6 +25,8 @@ namespace TowerDefense.Entities
         private float burnDps;
         private float goldMultiplier = 1f;
         private bool isBoss;
+        private bool isDying;
+        private Color enemyColor;
         private EnemyType enemyType = EnemyType.Ground;
         private int currencyReward;
 
@@ -36,7 +39,7 @@ namespace TowerDefense.Entities
 
         public float Health => currentHealth;
         public float MaxHealth => maxHealth;
-        public bool IsDead => currentHealth <= 0;
+        public bool IsDead => currentHealth <= 0 || isDying;
         public bool IsBoss => isBoss;
         public EnemyType EnemyType => enemyType;
         public bool IsFlying => enemyType == EnemyType.Flying;
@@ -103,17 +106,16 @@ namespace TowerDefense.Entities
 
         private void ApplyMaterials()
         {
-            Color color;
             switch (enemyType)
             {
                 case EnemyType.Flying:
-                    color = new Color(0.9f, 0.6f, 0.1f);
+                    enemyColor = new Color(0.9f, 0.6f, 0.1f);
                     break;
                 case EnemyType.Cart:
-                    color = new Color(0.55f, 0.35f, 0.15f);
+                    enemyColor = new Color(0.55f, 0.35f, 0.15f);
                     break;
                 default:
-                    color = Color.red;
+                    enemyColor = Color.red;
                     break;
             }
 
@@ -122,7 +124,7 @@ namespace TowerDefense.Entities
             {
                 if (r.gameObject.name == "HealthBarBG" || r.gameObject.name == "HealthBarFill")
                     continue;
-                r.material = Core.MaterialCache.CreateUnlit(color);
+                r.material = Core.MaterialCache.CreateUnlit(enemyColor);
             }
         }
 
@@ -192,7 +194,7 @@ namespace TowerDefense.Entities
 
         private void Update()
         {
-            if (IsDead || waypoints == null || waypoints.Count == 0)
+            if (isDying || IsDead || waypoints == null || waypoints.Count == 0)
                 return;
 
             UpdateSlowEffect();
@@ -253,6 +255,8 @@ namespace TowerDefense.Entities
 
         public void TakeDamage(float damage)
         {
+            if (isDying) return;
+
             currentHealth -= damage;
             UpdateHealthBar();
 
@@ -308,10 +312,22 @@ namespace TowerDefense.Entities
                 Core.MaterialCache.ReturnPropertyBlock(healthBarPropBlock);
                 healthBarPropBlock = null;
             }
+
+            // Destroy materials to prevent leaks
+            var renderers = GetComponentsInChildren<Renderer>(true);
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                var r = renderers[i];
+                if (r != null && r.sharedMaterial != null)
+                    Destroy(r.sharedMaterial);
+            }
         }
 
         private void Die()
         {
+            if (isDying) return;
+            isDying = true;
+
             float goldBonus = UpgradeManager.Instance != null ? UpgradeManager.Instance.EnemyGoldBonus : 0f;
             float goldenTouchMul = GameManager.Instance != null ? GameManager.Instance.GetGoldenTouchMultiplierAt(transform.position) : 1f;
             int actualReward = Mathf.RoundToInt(currencyReward * (1f + goldBonus) * goldMultiplier * goldenTouchMul);
@@ -331,7 +347,66 @@ namespace TowerDefense.Entities
             // Spawn currency popup
             SpawnCurrencyPopup(actualReward);
 
+            Core.AudioManager.Instance?.PlayEnemyDeath(transform.position);
+
+            // Spawn death burst particles (distinct from AoE ring)
+            SpawnDeathBurst();
+
             OnDeath?.Invoke(this);
+            StartCoroutine(DeathAnimation());
+        }
+
+        private void SpawnDeathBurst()
+        {
+            int count = isBoss ? 12 : 6;
+            for (int i = 0; i < count; i++)
+            {
+                var obj = Core.MaterialCache.CreatePrimitive(PrimitiveType.Sphere);
+                obj.name = "DeathParticle";
+                obj.transform.position = transform.position;
+                float size = Random.Range(0.2f, 0.5f);
+                obj.transform.localScale = Vector3.one * size;
+                var r = obj.GetComponent<Renderer>();
+                if (r != null)
+                    r.material = Core.MaterialCache.CreateUnlit(enemyColor);
+                obj.AddComponent<DeathBurstParticle>().Initialize(enemyColor);
+            }
+        }
+
+        private IEnumerator DeathAnimation()
+        {
+            Vector3 startScale = transform.localScale;
+            float duration = 0.25f;
+            float elapsed = 0f;
+
+            // Hide health bar immediately
+            if (healthBarContainer != null)
+                healthBarContainer.gameObject.SetActive(false);
+
+            // Cache renderers and property block once
+            var renderers = GetComponentsInChildren<Renderer>();
+            var fadeBlock = Core.MaterialCache.GetPropertyBlock();
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float t = elapsed / duration;
+                transform.localScale = Vector3.Lerp(startScale, Vector3.zero, t);
+
+                float alpha = 1f - t;
+                Color fadeColor = new Color(enemyColor.r, enemyColor.g, enemyColor.b, alpha);
+                fadeBlock.SetColor("_Color", fadeColor);
+                for (int i = 0; i < renderers.Length; i++)
+                {
+                    var r = renderers[i];
+                    if (r != null)
+                        r.SetPropertyBlock(fadeBlock);
+                }
+
+                yield return null;
+            }
+
+            Core.MaterialCache.ReturnPropertyBlock(fadeBlock);
             Destroy(gameObject);
         }
 
@@ -376,6 +451,69 @@ namespace TowerDefense.Entities
             GameManager.Instance?.LoseLife();
             OnReachedCastle?.Invoke(this);
             Destroy(gameObject);
+        }
+    }
+
+    public class DeathBurstParticle : MonoBehaviour
+    {
+        private Vector3 velocity;
+        private float lifetime = 0.35f;
+        private float timer;
+        private Vector3 startScale;
+        private Renderer rend;
+        private MaterialPropertyBlock propBlock;
+        private Color baseColor;
+
+        public void Initialize(Color color)
+        {
+            velocity = new Vector3(
+                Random.Range(-5f, 5f),
+                Random.Range(1f, 4f),
+                Random.Range(-5f, 5f)
+            );
+            startScale = transform.localScale;
+            rend = GetComponent<Renderer>();
+            baseColor = color;
+            propBlock = Core.MaterialCache.GetPropertyBlock();
+        }
+
+        private void Update()
+        {
+            timer += Time.deltaTime;
+            if (timer >= lifetime)
+            {
+                Cleanup();
+                Destroy(gameObject);
+                return;
+            }
+
+            velocity.y -= 12f * Time.deltaTime;
+            transform.position += velocity * Time.deltaTime;
+
+            float t = 1f - (timer / lifetime);
+            transform.localScale = startScale * t;
+
+            if (rend != null && propBlock != null)
+            {
+                propBlock.SetColor("_Color", new Color(baseColor.r, baseColor.g, baseColor.b, t));
+                rend.SetPropertyBlock(propBlock);
+            }
+        }
+
+        private void Cleanup()
+        {
+            if (rend != null && rend.sharedMaterial != null)
+                Destroy(rend.sharedMaterial);
+            if (propBlock != null)
+            {
+                Core.MaterialCache.ReturnPropertyBlock(propBlock);
+                propBlock = null;
+            }
+        }
+
+        private void OnDestroy()
+        {
+            Cleanup();
         }
     }
 }

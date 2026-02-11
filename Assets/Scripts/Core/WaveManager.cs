@@ -112,6 +112,7 @@ namespace TowerDefense.Core
         private IEnumerator SpawnWave()
         {
             waveInProgress = true;
+            AudioManager.Instance?.PlayWaveStart();
 
             var gm = GameManager.Instance;
 
@@ -222,6 +223,7 @@ namespace TowerDefense.Core
             yield return wait3_0s;
 
             waveInProgress = false;
+            AudioManager.Instance?.PlayWaveComplete();
             int waveBonus = 50 + (currentWave - 1) * 10;
             GameManager.Instance?.AddCurrency(waveBonus);
             OnWaveComplete?.Invoke();
@@ -373,6 +375,7 @@ namespace TowerDefense.Core
         {
             isContinuousMode = true;
             waveInProgress = true;
+            AudioManager.Instance?.PlayWaveStart();
             GameManager.Instance?.StartNextWave();
             StartCoroutine(ContinuousSpawnLoop());
         }

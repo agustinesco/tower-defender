@@ -30,6 +30,11 @@ namespace TowerDefense.UI
         private const float PanSmoothing = 8f;
         private const float ZoomSmoothing = 10f;
 
+        // Screen shake
+        private float shakeTimer;
+        private float shakeMagnitude;
+        private Vector3 shakeOffset;
+
         [HideInInspector] public PieceDragHandler pieceDragHandler;
 
         private void Awake()
@@ -178,8 +183,29 @@ namespace TowerDefense.UI
         {
             if (cam == null) return;
 
-            transform.position = Vector3.Lerp(transform.position, targetPosition, Time.deltaTime * PanSmoothing);
+            Vector3 lerpTarget = targetPosition;
+
+            // Apply screen shake
+            if (shakeTimer > 0f)
+            {
+                shakeTimer -= Time.deltaTime;
+                float decay = shakeTimer > 0f ? shakeTimer / 0.3f : 0f;
+                shakeOffset = new Vector3(
+                    Random.Range(-1f, 1f) * shakeMagnitude * decay,
+                    0f,
+                    Random.Range(-1f, 1f) * shakeMagnitude * decay
+                );
+                lerpTarget += shakeOffset;
+            }
+
+            transform.position = Vector3.Lerp(transform.position, lerpTarget, Time.deltaTime * PanSmoothing);
             cam.orthographicSize = Mathf.Lerp(cam.orthographicSize, targetZoom, Time.deltaTime * ZoomSmoothing);
+        }
+
+        public void Shake(float duration, float magnitude)
+        {
+            shakeTimer = duration;
+            shakeMagnitude = magnitude;
         }
 
         private void Pan(Vector3 delta)

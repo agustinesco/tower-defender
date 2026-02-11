@@ -79,4 +79,53 @@ namespace TowerDefense.UI
                 Destroy(gameObject);
         }
     }
+
+    public class CastleDamagePopup : MonoBehaviour
+    {
+        private float lifetime = 1f;
+        private float riseSpeed = 4f;
+        private float timer;
+        private TextMesh textMesh;
+        private Color textColor;
+
+        public void Initialize()
+        {
+            var textObj = new GameObject("Text");
+            textObj.transform.SetParent(transform);
+            textObj.transform.localPosition = Vector3.zero;
+
+            textMesh = textObj.AddComponent<TextMesh>();
+            textMesh.text = "-1";
+            textMesh.fontSize = 64;
+            textMesh.characterSize = 0.2f;
+            textMesh.anchor = TextAnchor.MiddleCenter;
+            textMesh.alignment = TextAlignment.Center;
+            textMesh.fontStyle = FontStyle.Bold;
+            textColor = new Color(1f, 0.15f, 0.15f);
+            textMesh.color = textColor;
+
+            var textRenderer = textObj.GetComponent<MeshRenderer>();
+            textRenderer.sortingOrder = 100;
+
+            gameObject.AddComponent<BillboardSprite>();
+        }
+
+        private void Update()
+        {
+            timer += Time.deltaTime;
+            transform.position += Vector3.up * riseSpeed * Time.deltaTime;
+
+            float fadeStart = lifetime * 0.3f;
+            if (timer > fadeStart)
+            {
+                float alpha = 1f - (timer - fadeStart) / (lifetime - fadeStart);
+                textColor.a = alpha;
+                if (textMesh != null)
+                    textMesh.color = textColor;
+            }
+
+            if (timer >= lifetime)
+                Destroy(gameObject);
+        }
+    }
 }
