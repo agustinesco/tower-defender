@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace TowerDefense.Data
 {
-    public enum UpgradeEffectType { TowerSpeed, TowerDamage, EnemySpeedAndGold, ExtraProjectiles }
+    public enum UpgradeEffectType { TowerSpeed, TowerDamage, EnemySpeedAndGold, ExtraProjectiles, CriticalHit, GoldInterest, Restoration }
 
     [CreateAssetMenu(fileName = "NewUpgrade", menuName = "Tower Defense/Upgrade Card")]
     public class UpgradeCard : ScriptableObject

@@ -2030,6 +2030,9 @@ MonoBehaviour:
   - {fileID: 11400000, guid: fd0566f6568b54c5fbfdd8676882705a, type: 2}
   - {fileID: 11400000, guid: 75db376f09411439e9b2451b369a38b3, type: 2}
   - {fileID: 11400000, guid: da9964af04f8e45b78dea3651d1ba631, type: 2}
+  - {fileID: 11400000, guid: 7652617def72f4a679bf15178c74facc, type: 2}
+  - {fileID: 11400000, guid: 752e7a80f2b064478aa420df2ff0e580, type: 2}
+  - {fileID: 11400000, guid: 6f75c9657fa754e239a42111b18197e6, type: 2}
 --- !u!4 &341108101
 Transform:
   m_ObjectHideFlags: 0
@@ -2389,6 +2392,7 @@ MonoBehaviour:
   nextWaveButtonObj: {fileID: 0}
   exitRunButtonObj: {fileID: 0}
   closeButtonObj: {fileID: 529122606}
+  upgradeCardPrefab: {fileID: 1000000000000000, guid: d9e8a09b77c15452ba35e8a51e890c16, type: 3}
 --- !u!1 &433699568
 GameObject:
   m_ObjectHideFlags: 0

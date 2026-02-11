@@ -805,6 +805,12 @@ namespace TowerDefense.Core
             return true;
         }
 
+        public void AddLife(int amount)
+        {
+            currentLives = Mathf.Min(currentLives + amount, maxLives);
+            OnLivesChanged?.Invoke(currentLives);
+        }
+
         public void LoseLife()
         {
             currentLives--;

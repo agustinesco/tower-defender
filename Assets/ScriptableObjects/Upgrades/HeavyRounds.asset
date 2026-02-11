@@ -11,13 +11,13 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: de48094b32bfe4a30aaa7eeda6bfc66a, type: 3}
   m_Name: HeavyRounds
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   cardName: Heavy Rounds
   description: Tower attack damage +5%
   effectType: 1
   effectValue: 0.05
   secondaryValue: 0
-  costResource: 1
+  costResource: 0
   baseCost: 5
   costPerLevel: 3
   maxLevel: 10

@@ -16,6 +16,7 @@ namespace TowerDefense.Core
         private float enemySpeedBonus = 0f;
         private float enemyGoldBonus = 0f;
         private int extraProjectiles = 0;
+        private float critChance = 0f;
 
         private Dictionary<UpgradeCard, int> upgradeLevels = new Dictionary<UpgradeCard, int>();
 
@@ -25,6 +26,7 @@ namespace TowerDefense.Core
         public float EnemySpeedBonus => enemySpeedBonus;
         public float EnemyGoldBonus => enemyGoldBonus;
         public int ExtraProjectiles => extraProjectiles;
+        public float CritChance => critChance;
         public IReadOnlyList<UpgradeCard> AllUpgradeCards => allUpgradeCards;
 
         public event System.Action OnUpgradesChanged;
@@ -61,6 +63,7 @@ namespace TowerDefense.Core
 
         public bool IsMaxLevel(UpgradeCard card)
         {
+            if (card.maxLevel <= 0) return false;
             return GetLevel(card) >= card.maxLevel;
         }
 
@@ -90,6 +93,15 @@ namespace TowerDefense.Core
                 case UpgradeEffectType.ExtraProjectiles:
                     extraProjectiles += (int)card.effectValue;
                     break;
+                case UpgradeEffectType.CriticalHit:
+                    critChance += card.effectValue;
+                    break;
+                case UpgradeEffectType.GoldInterest:
+                    enemyGoldBonus += card.effectValue;
+                    break;
+                case UpgradeEffectType.Restoration:
+                    GameManager.Instance?.AddLife(1);
+                    break;
             }
 
             OnUpgradesChanged?.Invoke();
@@ -105,6 +117,7 @@ namespace TowerDefense.Core
             enemySpeedBonus = 0f;
             enemyGoldBonus = 0f;
             extraProjectiles = 0;
+            critChance = 0f;
             upgradeLevels.Clear();
             OnUpgradesChanged?.Invoke();
         }

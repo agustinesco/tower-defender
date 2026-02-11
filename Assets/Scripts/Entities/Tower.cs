@@ -280,6 +280,9 @@ namespace TowerDefense.Entities
 
             float damageBonus = UpgradeManager.Instance != null ? UpgradeManager.Instance.TowerDamageBonus : 0f;
             float baseDamage = data.damage * (1f + damageBonus);
+            float critChance = UpgradeManager.Instance != null ? UpgradeManager.Instance.CritChance : 0f;
+            if (critChance > 0f && Random.value < critChance)
+                baseDamage *= 2f;
             int totalBounces = data.bounceCount + (UpgradeManager.Instance != null ? UpgradeManager.Instance.ExtraProjectiles : 0);
 
             // Build chain of targets (reuse collections)
@@ -369,6 +372,9 @@ namespace TowerDefense.Entities
 
             float damageBonus = UpgradeManager.Instance != null ? UpgradeManager.Instance.TowerDamageBonus : 0f;
             float dps = data.fireDamagePerSecond * (1f + damageBonus);
+            float critChance = UpgradeManager.Instance != null ? UpgradeManager.Instance.CritChance : 0f;
+            if (critChance > 0f && Random.value < critChance)
+                dps *= 2f;
             float patchRadius = EffectiveRange * 0.3f;
 
             // Find the closest point on any path segment to the enemy
@@ -432,6 +438,9 @@ namespace TowerDefense.Entities
         {
             float damageBonus = UpgradeManager.Instance != null ? UpgradeManager.Instance.TowerDamageBonus : 0f;
             float actualDamage = data.damage * (1f + damageBonus);
+            float critChance = UpgradeManager.Instance != null ? UpgradeManager.Instance.CritChance : 0f;
+            if (critChance > 0f && Random.value < critChance)
+                actualDamage *= 2f;
             int projectileCount = data.shotgunProjectileCount + (UpgradeManager.Instance != null ? UpgradeManager.Instance.ExtraProjectiles : 0);
 
             float totalSpread = data.shotgunSpreadAngle;
@@ -513,6 +522,9 @@ namespace TowerDefense.Entities
 
             float damageBonus = UpgradeManager.Instance != null ? UpgradeManager.Instance.TowerDamageBonus : 0f;
             float actualDamage = data.damage * (1f + damageBonus);
+            float critChance = UpgradeManager.Instance != null ? UpgradeManager.Instance.CritChance : 0f;
+            if (critChance > 0f && Random.value < critChance)
+                actualDamage *= 2f;
             int projectileCount = 1 + (UpgradeManager.Instance != null ? UpgradeManager.Instance.ExtraProjectiles : 0);
 
             // Get targets for projectiles

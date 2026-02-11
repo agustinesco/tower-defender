@@ -13,6 +13,7 @@ namespace TowerDefense.UI
         [SerializeField] private GameObject nextWaveButtonObj;
         [SerializeField] private GameObject exitRunButtonObj;
         [SerializeField] private GameObject closeButtonObj;
+        [SerializeField] private GameObject upgradeCardPrefab;
 
         private List<GameObject> cardObjects = new List<GameObject>();
         private bool didPause;
@@ -107,6 +108,9 @@ namespace TowerDefense.UI
             }
         }
 
+        private readonly List<ResourceType> _groupOrder = new List<ResourceType>();
+        private readonly Dictionary<ResourceType, List<UpgradeCard>> _groups = new Dictionary<ResourceType, List<UpgradeCard>>();
+
         private void RefreshCards()
         {
             ClearCards();
@@ -116,10 +120,22 @@ namespace TowerDefense.UI
             var allCards = UpgradeManager.Instance.AllUpgradeCards;
             if (allCards.Count == 0) return;
 
+            // Group cards by resource type, preserving insertion order
+            _groupOrder.Clear();
+            _groups.Clear();
             foreach (var card in allCards)
             {
-                CreateCard(card);
+                if (!_groups.TryGetValue(card.costResource, out var list))
+                {
+                    list = new List<UpgradeCard>();
+                    _groups[card.costResource] = list;
+                    _groupOrder.Add(card.costResource);
+                }
+                list.Add(card);
             }
+
+            foreach (var res in _groupOrder)
+                CreateResourceSection(res, _groups[res]);
         }
 
         private void ClearCards()
@@ -131,7 +147,102 @@ namespace TowerDefense.UI
             cardObjects.Clear();
         }
 
-        private void CreateCard(UpgradeCard cardData)
+        private void CreateResourceSection(ResourceType resource, List<UpgradeCard> cards)
+        {
+            Color resColor = GetResourceColor(resource);
+
+            // Section root
+            var sectionObj = new GameObject($"Section_{resource}", typeof(RectTransform));
+            sectionObj.transform.SetParent(cardsContainer.transform, false);
+            var sectionLE = sectionObj.AddComponent<LayoutElement>();
+            sectionLE.flexibleWidth = 1;
+
+            var sectionVLG = sectionObj.AddComponent<VerticalLayoutGroup>();
+            sectionVLG.spacing = 4;
+            sectionVLG.padding = new RectOffset(0, 0, 0, 4);
+            sectionVLG.childForceExpandWidth = true;
+            sectionVLG.childForceExpandHeight = false;
+            sectionVLG.childControlWidth = true;
+            sectionVLG.childControlHeight = true;
+
+            // --- Header ---
+            var headerObj = new GameObject("Header", typeof(RectTransform));
+            headerObj.transform.SetParent(sectionObj.transform, false);
+            var headerLE = headerObj.AddComponent<LayoutElement>();
+            headerLE.preferredHeight = 28;
+            headerLE.flexibleWidth = 1;
+
+            var headerBg = headerObj.AddComponent<Image>();
+            headerBg.color = new Color(resColor.r * 0.3f, resColor.g * 0.3f, resColor.b * 0.3f, 0.8f);
+
+            var headerHLG = headerObj.AddComponent<HorizontalLayoutGroup>();
+            headerHLG.spacing = 6;
+            headerHLG.padding = new RectOffset(8, 8, 2, 2);
+            headerHLG.childAlignment = TextAnchor.MiddleLeft;
+            headerHLG.childForceExpandWidth = false;
+            headerHLG.childForceExpandHeight = false;
+            headerHLG.childControlWidth = true;
+            headerHLG.childControlHeight = true;
+
+            // Resource icon
+            var hIconObj = new GameObject("Icon", typeof(RectTransform));
+            hIconObj.transform.SetParent(headerObj.transform, false);
+            var hIconLE = hIconObj.AddComponent<LayoutElement>();
+            hIconLE.preferredWidth = 20;
+            hIconLE.preferredHeight = 20;
+            var hIconImg = hIconObj.AddComponent<Image>();
+            hIconImg.preserveAspect = true;
+            if (GameManager.Instance != null)
+            {
+                var sprite = GameManager.Instance.GetResourceSprite(resource);
+                if (sprite != null) hIconImg.sprite = sprite;
+                hIconImg.color = GameManager.Instance.GetResourceColor(resource);
+            }
+
+            // Resource name
+            var hNameObj = new GameObject("Name", typeof(RectTransform));
+            hNameObj.transform.SetParent(headerObj.transform, false);
+            var hNameLE = hNameObj.AddComponent<LayoutElement>();
+            hNameLE.flexibleWidth = 1;
+            var hNameText = hNameObj.AddComponent<Text>();
+            hNameText.text = resource.ToString();
+            hNameText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            hNameText.fontSize = 14;
+            hNameText.fontStyle = FontStyle.Bold;
+            hNameText.color = resColor;
+            hNameText.alignment = TextAnchor.MiddleLeft;
+
+            // Balance
+            var hBalObj = new GameObject("Balance", typeof(RectTransform));
+            hBalObj.transform.SetParent(headerObj.transform, false);
+            var hBalLE = hBalObj.AddComponent<LayoutElement>();
+            hBalLE.preferredWidth = 60;
+            var hBalText = hBalObj.AddComponent<Text>();
+            int balance = PersistenceManager.Instance != null ? PersistenceManager.Instance.GetRunGathered(resource) : 0;
+            hBalText.text = $"{balance}";
+            hBalText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            hBalText.fontSize = 14;
+            hBalText.color = Color.white;
+            hBalText.alignment = TextAnchor.MiddleRight;
+
+            // --- Cards Row ---
+            var rowObj = new GameObject("CardsRow", typeof(RectTransform));
+            rowObj.transform.SetParent(sectionObj.transform, false);
+
+            var rowHLG = rowObj.AddComponent<HorizontalLayoutGroup>();
+            rowHLG.spacing = 6;
+            rowHLG.childForceExpandWidth = true;
+            rowHLG.childForceExpandHeight = false;
+            rowHLG.childControlWidth = true;
+            rowHLG.childControlHeight = true;
+
+            foreach (var card in cards)
+                CreateCardTile(rowObj, card);
+
+            cardObjects.Add(sectionObj);
+        }
+
+        private void CreateCardTile(GameObject parent, UpgradeCard cardData)
         {
             var mgr = UpgradeManager.Instance;
             int level = mgr.GetLevel(cardData);
@@ -140,150 +251,48 @@ namespace TowerDefense.UI
             bool canAfford = !maxed && PersistenceManager.Instance != null &&
                              PersistenceManager.Instance.GetRunGathered(cardData.costResource) >= cost;
 
-            float rowHeight = 50f;
-
-            // Row root
-            GameObject rowObj = new GameObject($"Row_{cardData.cardName}", typeof(RectTransform));
-            rowObj.transform.SetParent(cardsContainer.transform, false);
-
-            var rowRect = rowObj.AddComponent<LayoutElement>();
-            rowRect.preferredHeight = rowHeight;
-            rowRect.flexibleWidth = 1;
+            var tileObj = Instantiate(upgradeCardPrefab, parent.transform);
+            tileObj.name = $"Tile_{cardData.cardName}";
+            var ui = tileObj.GetComponent<UpgradeCardUI>();
 
             // Background
-            var bgImage = rowObj.AddComponent<Image>();
-            Color borderColor = GetResourceColor(cardData.costResource);
-            bgImage.color = maxed ? new Color(0.12f, 0.12f, 0.12f) : new Color(0.18f, 0.18f, 0.22f);
+            ui.Background.color = maxed ? new Color(0.12f, 0.12f, 0.12f) : new Color(0.18f, 0.18f, 0.22f);
 
-            // Left color accent bar
-            var accentObj = new GameObject("Accent");
-            accentObj.transform.SetParent(rowObj.transform, false);
-            var accentRect = accentObj.AddComponent<RectTransform>();
-            accentRect.anchorMin = new Vector2(0, 0);
-            accentRect.anchorMax = new Vector2(0, 1);
-            accentRect.anchoredPosition = Vector2.zero;
-            accentRect.sizeDelta = new Vector2(4, 0);
-            accentRect.pivot = new Vector2(0, 0.5f);
-            var accentImage = accentObj.AddComponent<Image>();
-            accentImage.color = borderColor;
+            // Name + Level
+            string levelStr;
+            if (maxed) levelStr = "(MAX)";
+            else if (cardData.maxLevel <= 0) levelStr = $"Lv.{level}";
+            else levelStr = $"Lv.{level}/{cardData.maxLevel}";
+            ui.NameLabel.text = $"{cardData.cardName} <color=#FFE680>{levelStr}</color>";
 
-            // Description + level (left side)
-            var descObj = new GameObject("Desc");
-            descObj.transform.SetParent(rowObj.transform, false);
-            var descRect = descObj.AddComponent<RectTransform>();
-            descRect.anchorMin = new Vector2(0, 0);
-            descRect.anchorMax = new Vector2(0.50f, 1);
-            descRect.offsetMin = new Vector2(12, 2);
-            descRect.offsetMax = new Vector2(0, -2);
+            // Description
+            ui.DescriptionLabel.text = cardData.description;
 
-            var descText = descObj.AddComponent<Text>();
-            string levelStr = maxed ? $"(MAX)" : $"Lv.{level}/{cardData.maxLevel}";
-            descText.text = $"{cardData.cardName}  <color=#FFE680>{levelStr}</color>\n<color=#CCCCCC><size=12>{cardData.description}</size></color>";
-            descText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            descText.fontSize = 15;
-            descText.color = Color.white;
-            descText.alignment = TextAnchor.MiddleLeft;
-            descText.supportRichText = true;
-
-            // Resource icon (center-right)
-            var iconObj = new GameObject("Icon");
-            iconObj.transform.SetParent(rowObj.transform, false);
-            var iconRect = iconObj.AddComponent<RectTransform>();
-            iconRect.anchorMin = new Vector2(0.52f, 0.15f);
-            iconRect.anchorMax = new Vector2(0.52f, 0.85f);
-            iconRect.anchoredPosition = Vector2.zero;
-            iconRect.sizeDelta = new Vector2(24, 0);
-
-            var iconImage = iconObj.AddComponent<Image>();
-            iconImage.preserveAspect = true;
-            if (GameManager.Instance != null)
-            {
-                var sprite = GameManager.Instance.GetResourceSprite(cardData.costResource);
-                if (sprite != null)
-                    iconImage.sprite = sprite;
-                iconImage.color = GameManager.Instance.GetResourceColor(cardData.costResource);
-            }
-
-            // Resource name (next to icon)
-            var resNameObj = new GameObject("ResName");
-            resNameObj.transform.SetParent(rowObj.transform, false);
-            var resNameRect = resNameObj.AddComponent<RectTransform>();
-            resNameRect.anchorMin = new Vector2(0.55f, 0);
-            resNameRect.anchorMax = new Vector2(0.72f, 1);
-            resNameRect.offsetMin = Vector2.zero;
-            resNameRect.offsetMax = Vector2.zero;
-
-            var resNameText = resNameObj.AddComponent<Text>();
-            resNameText.text = cardData.costResource.ToString();
-            resNameText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            resNameText.fontSize = 13;
-            resNameText.color = GetResourceColor(cardData.costResource);
-            resNameText.alignment = TextAnchor.MiddleLeft;
-
-            // Cost text (right side)
-            var costObj = new GameObject("Cost");
-            costObj.transform.SetParent(rowObj.transform, false);
-            var costRect = costObj.AddComponent<RectTransform>();
-            costRect.anchorMin = new Vector2(0.73f, 0);
-            costRect.anchorMax = new Vector2(0.86f, 1);
-            costRect.offsetMin = Vector2.zero;
-            costRect.offsetMax = Vector2.zero;
-
-            var costText = costObj.AddComponent<Text>();
-            costText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            costText.fontSize = 16;
-            costText.alignment = TextAnchor.MiddleCenter;
+            // Cost
             if (maxed)
             {
-                costText.text = "MAX";
-                costText.color = new Color(0.5f, 0.5f, 0.5f);
+                ui.CostLabel.text = "MAX";
+                ui.CostLabel.color = new Color(0.5f, 0.5f, 0.5f);
             }
             else
             {
-                costText.text = $"{cost}";
-                costText.color = canAfford ? new Color(0.5f, 1f, 0.5f) : new Color(1f, 0.4f, 0.4f);
+                ui.CostLabel.text = $"{cost}";
+                ui.CostLabel.color = canAfford ? new Color(0.5f, 1f, 0.5f) : new Color(1f, 0.4f, 0.4f);
             }
 
-            // Buy button (right edge)
-            var buyObj = new GameObject("BuyBtn");
-            buyObj.transform.SetParent(rowObj.transform, false);
-            var buyRect = buyObj.AddComponent<RectTransform>();
-            buyRect.anchorMin = new Vector2(0.87f, 0.1f);
-            buyRect.anchorMax = new Vector2(0.99f, 0.9f);
-            buyRect.offsetMin = Vector2.zero;
-            buyRect.offsetMax = Vector2.zero;
-
-            var buyBg = buyObj.AddComponent<Image>();
+            // Buy button
             if (maxed)
-                buyBg.color = new Color(0.25f, 0.25f, 0.25f);
+                ui.BuyButtonBg.color = new Color(0.25f, 0.25f, 0.25f);
             else if (canAfford)
-                buyBg.color = new Color(0.2f, 0.6f, 0.3f);
+                ui.BuyButtonBg.color = new Color(0.2f, 0.6f, 0.3f);
             else
-                buyBg.color = new Color(0.4f, 0.2f, 0.2f);
+                ui.BuyButtonBg.color = new Color(0.4f, 0.2f, 0.2f);
 
-            var buyButton = buyObj.AddComponent<Button>();
-            buyButton.targetGraphic = buyBg;
-            buyButton.interactable = canAfford;
+            ui.BuyButton.interactable = canAfford;
+            ui.BuyButtonText.text = maxed ? "-" : "Buy";
 
             var data = cardData;
-            buyButton.onClick.AddListener(() => OnBuyClicked(data));
-
-            var buyTextObj = new GameObject("Text");
-            buyTextObj.transform.SetParent(buyObj.transform, false);
-            var buyTextRect = buyTextObj.AddComponent<RectTransform>();
-            buyTextRect.anchorMin = Vector2.zero;
-            buyTextRect.anchorMax = Vector2.one;
-            buyTextRect.offsetMin = Vector2.zero;
-            buyTextRect.offsetMax = Vector2.zero;
-
-            var buyText = buyTextObj.AddComponent<Text>();
-            buyText.text = maxed ? "-" : "Buy";
-            buyText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            buyText.fontSize = 14;
-            buyText.color = Color.white;
-            buyText.alignment = TextAnchor.MiddleCenter;
-
-            cardObjects.Add(rowObj);
+            ui.BuyButton.onClick.AddListener(() => OnBuyClicked(data));
         }
 
         private void OnBuyClicked(UpgradeCard card)
