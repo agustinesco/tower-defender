@@ -350,6 +350,12 @@ namespace TowerDefense.UI
         private void HandleTowerPlacementInput()
         {
             if (cam == null) return;
+
+            // Tutorial gate
+            var tut = TowerDefense.Core.TutorialManager.Instance;
+            if (tut != null && !tut.AllowTowerPlace())
+                return;
+
             if (!Input.GetMouseButtonDown(0)) return;
 
             if (UnityEngine.EventSystems.EventSystem.current != null &&
@@ -531,6 +537,11 @@ namespace TowerDefense.UI
                     var ghost = hit.collider.GetComponent<HexPiece>();
                     if (ghost != null && ghost.IsGhost)
                     {
+                        // Tutorial gate
+                        var tut = TowerDefense.Core.TutorialManager.Instance;
+                        if (tut != null && !tut.AllowGhostInteract(ghost.Data.Coord))
+                            return;
+
                         pressedGhostCoord = ghost.Data.Coord;
                         pressStartTime = Time.time;
                         isPressingGhost = true;

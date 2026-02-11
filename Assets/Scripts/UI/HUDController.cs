@@ -1096,6 +1096,12 @@ namespace TowerDefense.UI
             psObj.SetActive(false);
         }
 
+        public RectTransform GetStartWaveButtonRectTransform()
+        {
+            if (startWaveButton == null) return null;
+            return startWaveButton.GetComponent<RectTransform>();
+        }
+
         private void OnDestroy()
         {
             if (upgradeGlowPS != null)

@@ -8,50 +8,76 @@ namespace TowerDefense.Core
 {
     public class TutorialManager : MonoBehaviour
     {
-        private enum TutorialStep
+        public enum TutorialStep
         {
-            Welcome,
-            Mining,
-            SpawnPoints,
+            SelectPathCard,
+            BuildOnOre,
+            MineExplanation,
+            SpawnExplanation,
+            PathEditInfo,
+            SwitchToTowers,
+            SelectTower,
             PlaceTower,
             StartWave,
-            Upgrades,
-            Escape,
+            Complete,
             Done
         }
 
+        public static TutorialManager Instance { get; private set; }
+
         private const string PrefPrefix = "tut_";
-        private const int StepCount = 7; // Everything before Done
+        private const int StepCount = 10; // Everything before Done
 
         private static readonly string[] StepMessages = new string[]
         {
-            "Select a path card on the left, then hold on a valid hex to build it. Tap the card again to rotate before placing. You can also place over existing tiles to replace them!",
-            "Ore deposits are scattered nearby (colored icons). Place a path over one to auto-build a mine and gather resources over time!",
-            "Enemies spawn at open path edges (goblin icons). More paths = more spawn points!",
-            "Switch to the Towers tab and tap a tower card, then tap near a path to place it.",
-            "Towers attack enemies automatically. Press 'Start Wave' when you're ready!",
-            "You survived! The shop lets you spend gathered resources on permanent upgrades.",
-            "Resources you gather are only kept if you Exit Run or Escape. Dying loses everything!"
+            "Select a path card",
+            "Hold on the ore deposit to build a path and mine!",
+            "Mine built! Resources gathered each run can be spent on upgrades",
+            "Enemies spawn from open path edges. Kill them to earn gold for more towers and paths!",
+            "You can rebuild over existing paths, but not over mines. Towers on replaced paths are removed and refunded",
+            "Switch to the Towers tab",
+            "Select a tower to place",
+            "Tap near the path to place your tower",
+            "Tap Start Wave to send enemies!",
+            "Your tower attacks automatically. You're ready!"
         };
 
-        private Canvas canvas;
-        private GameObject panel;
-        private RectTransform panelRect;
-        private Text messageText;
-        private Button okButton;
+        [Header("UI References")]
+        [SerializeField] private Canvas canvas;
+        [SerializeField] private GraphicRaycaster raycaster;
+        [SerializeField] private GameObject panel;
+        [SerializeField] private RectTransform panelRect;
+        [SerializeField] private Text messageText;
+        [SerializeField] private Button okButton;
+        [SerializeField] private Image arrowImage;
+        [SerializeField] private RectTransform arrowRect;
+        [SerializeField] private RectTransform safeAreaRect;
+
         private TutorialStep currentStep;
 
-        private GameObject arrowObj;
-        private RectTransform arrowRect;
-        private Text arrowText;
-
-        private GraphicRaycaster raycaster;
-
         private PieceDragHandler pieceDragHandler;
+        private PieceHandUI pieceHandUI;
         private TowerManager towerManager;
-        private WaveManager waveManager;
+        private HUDController hudController;
         private CameraController cameraController;
-        private Vector3 savedCameraPos;
+        private Camera mainCamera;
+
+        private bool isTrackingWorldPosition;
+        private Vector3 trackedWorldPos;
+        private Vector3 arrowBounceDir;
+
+        private bool isTrackingUITarget;
+        private RectTransform trackedUITarget;
+
+        private void Awake()
+        {
+            if (Instance != null && Instance != this)
+            {
+                Destroy(gameObject);
+                return;
+            }
+            Instance = this;
+        }
 
         private static bool IsStepSeen(TutorialStep step)
         {
@@ -67,179 +93,210 @@ namespace TowerDefense.Core
         {
             for (int i = 0; i < StepCount; i++)
             {
-                if (!IsStepSeen((TutorialStep)i))
-                    return (TutorialStep)i;
+                var step = (TutorialStep)i;
+                if (ShouldSkipStep(step))
+                    continue;
+                if (!IsStepSeen(step))
+                    return step;
             }
             return TutorialStep.Done;
         }
+
+        private bool ShouldSkipStep(TutorialStep step)
+        {
+            // Skip tower steps if no towers are unlocked
+            if (step == TutorialStep.SwitchToTowers ||
+                step == TutorialStep.SelectTower ||
+                step == TutorialStep.PlaceTower ||
+                step == TutorialStep.StartWave)
+            {
+                if (!HasUnlockedTowers())
+                    return true;
+            }
+            return false;
+        }
+
+        private bool HasUnlockedTowers()
+        {
+            if (!GameManager.Instance.UseFreeTowerPlacement)
+                return false;
+            var tm = FindFirstObjectByType<TowerManager>();
+            if (tm == null || tm.AllTowers == null || tm.AllTowers.Count == 0)
+                return false;
+            for (int i = 0; i < tm.AllTowers.Count; i++)
+            {
+                if (LabManager.Instance == null || LabManager.Instance.IsTowerUnlocked(tm.AllTowers[i].towerName))
+                    return true;
+            }
+            return false;
+        }
+
+        private bool subscribed;
 
         private void Start()
         {
             var firstUnseen = FindFirstUnseenStep();
             if (firstUnseen == TutorialStep.Done)
             {
-                Debug.Log("TutorialManager: all steps seen, skipping.");
+                Debug.Log("TutorialManager: all steps seen, destroying.");
                 Destroy(gameObject);
                 return;
             }
 
             Debug.Log($"TutorialManager: resuming from {firstUnseen}.");
 
-            pieceDragHandler = FindFirstObjectByType<PieceDragHandler>();
-            towerManager = FindFirstObjectByType<TowerManager>();
-            waveManager = FindFirstObjectByType<WaveManager>();
-            cameraController = FindFirstObjectByType<CameraController>();
-
-            CreateUI();
-            Subscribe();
+            if (okButton != null)
+                okButton.onClick.AddListener(OnOKPressed);
 
             panel.SetActive(false);
-            arrowObj.SetActive(false);
+            arrowImage.gameObject.SetActive(false);
+            if (raycaster != null)
+                raycaster.enabled = false;
             currentStep = firstUnseen;
 
-            // For event-driven steps, just wait silently for the trigger
-            if (StepNeedsEventTrigger(firstUnseen))
-                return;
-
-            Invoke(nameof(ShowCurrentStep), 0.3f);
+            // Delay to ensure GameManager has created PieceDragHandler etc.
+            Invoke(nameof(LateInit), 0.5f);
         }
 
-        private void ShowCurrentStep()
+        private void LateInit()
         {
-            ShowStep(currentStep);
-        }
+            pieceDragHandler = FindFirstObjectByType<PieceDragHandler>();
+            pieceHandUI = FindFirstObjectByType<PieceHandUI>();
+            towerManager = FindFirstObjectByType<TowerManager>();
+            hudController = FindFirstObjectByType<HUDController>();
+            cameraController = FindFirstObjectByType<CameraController>();
+            mainCamera = Camera.main;
 
-        private bool StepNeedsEventTrigger(TutorialStep step)
-        {
-            // These steps should only appear after their triggering event
-            return step == TutorialStep.SpawnPoints
-                || step == TutorialStep.StartWave
-                || step == TutorialStep.Upgrades;
+            Subscribe();
+            subscribed = true;
+
+            ShowCurrentStep();
         }
 
         private void Subscribe()
         {
+            if (pieceHandUI != null)
+            {
+                pieceHandUI.OnCardSelected += OnCardSelected;
+                pieceHandUI.OnTowerCardSelected += OnTowerCardSelected;
+                pieceHandUI.OnTabSwitched += OnTabSwitched;
+            }
             if (pieceDragHandler != null)
                 pieceDragHandler.OnPiecePlaced += OnPiecePlaced;
             if (towerManager != null)
                 towerManager.OnTowerPlaced += OnTowerPlaced;
-            if (waveManager != null)
-                waveManager.OnWaveComplete += OnWaveComplete;
+            if (GameManager.Instance != null)
+                GameManager.Instance.OnWaveChanged += OnWaveStarted;
         }
 
         private void OnDestroy()
         {
+            if (Instance == this)
+                Instance = null;
+
+            if (!subscribed) return;
+
+            if (pieceHandUI != null)
+            {
+                pieceHandUI.OnCardSelected -= OnCardSelected;
+                pieceHandUI.OnTowerCardSelected -= OnTowerCardSelected;
+                pieceHandUI.OnTabSwitched -= OnTabSwitched;
+            }
             if (pieceDragHandler != null)
                 pieceDragHandler.OnPiecePlaced -= OnPiecePlaced;
             if (towerManager != null)
                 towerManager.OnTowerPlaced -= OnTowerPlaced;
-            if (waveManager != null)
-                waveManager.OnWaveComplete -= OnWaveComplete;
-
-            if (canvas != null)
-                Destroy(canvas.gameObject);
+            if (GameManager.Instance != null)
+                GameManager.Instance.OnWaveChanged -= OnWaveStarted;
         }
 
-        private void CreateUI()
+        // --- Gate methods ---
+
+        public bool AllowCardSelect(int index)
         {
-            // Canvas
-            var canvasObj = new GameObject("TutorialCanvas");
-            canvas = canvasObj.AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 12;
+            if (currentStep == TutorialStep.SelectPathCard)
+                return index == 0;
+            if (currentStep == TutorialStep.SelectTower)
+                return true; // any tower card
+            // Block card selection during non-card steps
+            if (currentStep == TutorialStep.SwitchToTowers ||
+                currentStep == TutorialStep.PlaceTower ||
+                currentStep == TutorialStep.StartWave ||
+                currentStep == TutorialStep.MineExplanation ||
+                currentStep == TutorialStep.SpawnExplanation ||
+                currentStep == TutorialStep.PathEditInfo ||
+                currentStep == TutorialStep.Complete)
+                return false;
+            return true;
+        }
 
-            var scaler = canvasObj.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920, 1080);
-            scaler.matchWidthOrHeight = 1f;
+        public bool AllowTabSwitch(int tabIndex)
+        {
+            if (currentStep == TutorialStep.SwitchToTowers)
+                return tabIndex == 1; // Towers tab
+            // Block tab switching during other blocking steps
+            if (currentStep == TutorialStep.SelectPathCard ||
+                currentStep == TutorialStep.BuildOnOre ||
+                currentStep == TutorialStep.SelectTower ||
+                currentStep == TutorialStep.PlaceTower ||
+                currentStep == TutorialStep.StartWave ||
+                currentStep == TutorialStep.MineExplanation ||
+                currentStep == TutorialStep.SpawnExplanation ||
+                currentStep == TutorialStep.PathEditInfo ||
+                currentStep == TutorialStep.Complete)
+                return false;
+            return true;
+        }
 
-            raycaster = canvasObj.AddComponent<GraphicRaycaster>();
+        public bool AllowGhostInteract(HexCoord coord)
+        {
+            if (currentStep == TutorialStep.BuildOnOre)
+            {
+                // Only allow placing on ore deposits
+                var gm = GameManager.Instance;
+                if (gm != null)
+                {
+                    var patch = gm.GetOrePatchAt(coord);
+                    return patch.HasValue;
+                }
+                return false;
+            }
+            // Block ghost interaction during non-placement steps
+            if (currentStep == TutorialStep.SelectPathCard ||
+                currentStep == TutorialStep.SwitchToTowers ||
+                currentStep == TutorialStep.SelectTower ||
+                currentStep == TutorialStep.StartWave ||
+                currentStep == TutorialStep.MineExplanation ||
+                currentStep == TutorialStep.SpawnExplanation ||
+                currentStep == TutorialStep.PathEditInfo ||
+                currentStep == TutorialStep.Complete)
+                return false;
+            return true;
+        }
 
-            // SafeArea child
-            var safeObj = new GameObject("SafeArea");
-            safeObj.transform.SetParent(canvasObj.transform, false);
-            var safeRect = safeObj.AddComponent<RectTransform>();
-            safeRect.anchorMin = Vector2.zero;
-            safeRect.anchorMax = Vector2.one;
-            safeRect.offsetMin = Vector2.zero;
-            safeRect.offsetMax = Vector2.zero;
-            safeObj.AddComponent<SafeArea>();
+        public bool AllowTowerPlace()
+        {
+            if (currentStep == TutorialStep.PlaceTower)
+                return true;
+            // Block during non-tower steps
+            if (currentStep == TutorialStep.SelectPathCard ||
+                currentStep == TutorialStep.BuildOnOre ||
+                currentStep == TutorialStep.SwitchToTowers ||
+                currentStep == TutorialStep.SelectTower ||
+                currentStep == TutorialStep.StartWave ||
+                currentStep == TutorialStep.MineExplanation ||
+                currentStep == TutorialStep.SpawnExplanation ||
+                currentStep == TutorialStep.PathEditInfo ||
+                currentStep == TutorialStep.Complete)
+                return false;
+            return true;
+        }
 
-            // Panel (centered, 700x160)
-            panel = new GameObject("TutorialPanel");
-            panel.transform.SetParent(safeObj.transform, false);
-            panelRect = panel.AddComponent<RectTransform>();
-            panelRect.anchorMin = new Vector2(0.5f, 0.5f);
-            panelRect.anchorMax = new Vector2(0.5f, 0.5f);
-            panelRect.sizeDelta = new Vector2(700, 160);
-            panelRect.anchoredPosition = Vector2.zero;
+        // --- Step display ---
 
-            var panelImg = panel.AddComponent<Image>();
-            panelImg.color = new Color(0.08f, 0.08f, 0.12f, 0.92f);
-
-            // Message text
-            var textObj = new GameObject("Message");
-            textObj.transform.SetParent(panel.transform, false);
-            var textRect = textObj.AddComponent<RectTransform>();
-            textRect.anchorMin = new Vector2(0, 0.35f);
-            textRect.anchorMax = Vector2.one;
-            textRect.offsetMin = new Vector2(20, 0);
-            textRect.offsetMax = new Vector2(-20, -10);
-
-            messageText = textObj.AddComponent<Text>();
-            messageText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            messageText.fontSize = 24;
-            messageText.color = Color.white;
-            messageText.alignment = TextAnchor.MiddleCenter;
-            messageText.horizontalOverflow = HorizontalWrapMode.Wrap;
-            messageText.verticalOverflow = VerticalWrapMode.Overflow;
-
-            // OK button
-            var btnObj = new GameObject("OKButton");
-            btnObj.transform.SetParent(panel.transform, false);
-            var btnRect = btnObj.AddComponent<RectTransform>();
-            btnRect.anchorMin = new Vector2(0.5f, 0f);
-            btnRect.anchorMax = new Vector2(0.5f, 0f);
-            btnRect.sizeDelta = new Vector2(100, 36);
-            btnRect.anchoredPosition = new Vector2(0, 22);
-
-            var btnImg = btnObj.AddComponent<Image>();
-            btnImg.color = new Color(0.2f, 0.55f, 0.9f, 1f);
-
-            okButton = btnObj.AddComponent<Button>();
-            okButton.targetGraphic = btnImg;
-            okButton.onClick.AddListener(OnOKPressed);
-
-            var btnTextObj = new GameObject("Text");
-            btnTextObj.transform.SetParent(btnObj.transform, false);
-            var btnTextRect = btnTextObj.AddComponent<RectTransform>();
-            btnTextRect.anchorMin = Vector2.zero;
-            btnTextRect.anchorMax = Vector2.one;
-            btnTextRect.offsetMin = Vector2.zero;
-            btnTextRect.offsetMax = Vector2.zero;
-
-            var btnText = btnTextObj.AddComponent<Text>();
-            btnText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            btnText.fontSize = 22;
-            btnText.color = Color.white;
-            btnText.alignment = TextAnchor.MiddleCenter;
-            btnText.text = "OK";
-
-            // Arrow indicator (child of SafeArea so it can be positioned anywhere)
-            arrowObj = new GameObject("Arrow");
-            arrowObj.transform.SetParent(safeObj.transform, false);
-            arrowRect = arrowObj.AddComponent<RectTransform>();
-            arrowRect.sizeDelta = new Vector2(80, 80);
-
-            arrowText = arrowObj.AddComponent<Text>();
-            arrowText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            arrowText.fontSize = 64;
-            arrowText.color = new Color(0.3f, 0.7f, 1f);
-            arrowText.alignment = TextAnchor.MiddleCenter;
-
-            var arrowOutline = arrowObj.AddComponent<Outline>();
-            arrowOutline.effectColor = Color.black;
-            arrowOutline.effectDistance = new Vector2(2, -2);
+        private void ShowCurrentStep()
+        {
+            ShowStep(currentStep);
         }
 
         private void ShowStep(TutorialStep step)
@@ -252,156 +309,363 @@ namespace TowerDefense.Core
                 return;
             }
 
-            // Mark this step as seen immediately
             MarkStepSeen(step);
-
-            // Pan camera to deposit for Mining step
-            if (step == TutorialStep.Mining)
-                PanToNearestDeposit();
 
             messageText.text = StepMessages[(int)step];
             panel.SetActive(true);
-            if (raycaster != null)
-                raycaster.enabled = true;
+
+            bool isInfoStep = IsInfoStep(step);
+            okButton.gameObject.SetActive(isInfoStep);
+
+            if (isInfoStep)
+            {
+                // Info steps: show raycaster so OK button is clickable
+                if (raycaster != null)
+                    raycaster.enabled = true;
+            }
+            else
+            {
+                // Action steps: disable raycaster so input passes through to game
+                if (raycaster != null)
+                    raycaster.enabled = false;
+            }
+
+            isTrackingWorldPosition = false;
+            isTrackingUITarget = false;
+
+            PositionPanel(step);
             UpdateArrow(step);
         }
 
-        private TutorialStep NextUnseenStep(TutorialStep after)
+        private bool IsInfoStep(TutorialStep step)
         {
-            for (int i = (int)after + 1; i < StepCount; i++)
+            return step == TutorialStep.MineExplanation ||
+                   step == TutorialStep.SpawnExplanation ||
+                   step == TutorialStep.PathEditInfo ||
+                   step == TutorialStep.Complete;
+        }
+
+        private void PositionPanel(TutorialStep step)
+        {
+            switch (step)
             {
-                if (!IsStepSeen((TutorialStep)i))
-                    return (TutorialStep)i;
+                // Card/tab steps — center-left, near hand panel
+                case TutorialStep.SelectPathCard:
+                case TutorialStep.SwitchToTowers:
+                case TutorialStep.SelectTower:
+                    panelRect.anchorMin = new Vector2(0.35f, 0.5f);
+                    panelRect.anchorMax = new Vector2(0.35f, 0.5f);
+                    panelRect.anchoredPosition = Vector2.zero;
+                    break;
+
+                // HUD button steps — center-right, near start wave button
+                case TutorialStep.StartWave:
+                    panelRect.anchorMin = new Vector2(0.65f, 0.3f);
+                    panelRect.anchorMax = new Vector2(0.65f, 0.3f);
+                    panelRect.anchoredPosition = Vector2.zero;
+                    break;
+
+                // World steps — top-center
+                case TutorialStep.BuildOnOre:
+                case TutorialStep.PlaceTower:
+                    panelRect.anchorMin = new Vector2(0.5f, 0.85f);
+                    panelRect.anchorMax = new Vector2(0.5f, 0.85f);
+                    panelRect.anchoredPosition = Vector2.zero;
+                    break;
+
+                // Info steps — centered
+                default:
+                    panelRect.anchorMin = new Vector2(0.5f, 0.5f);
+                    panelRect.anchorMax = new Vector2(0.5f, 0.5f);
+                    panelRect.anchoredPosition = Vector2.zero;
+                    break;
             }
-            return TutorialStep.Done;
-        }
-
-        private void PanToNearestDeposit()
-        {
-            if (GameManager.Instance == null || cameraController == null)
-                return;
-
-            var nearest = GameManager.Instance.GetNearestOreDeposit();
-            if (!nearest.HasValue)
-                return;
-
-            savedCameraPos = cameraController.transform.position;
-            Vector3 depositWorld = HexGrid.HexToWorld(nearest.Value);
-            cameraController.PanToPosition(depositWorld);
-        }
-
-        private void PanBackFromDeposit()
-        {
-            if (cameraController == null)
-                return;
-
-            cameraController.PanToPosition(savedCameraPos);
         }
 
         private void UpdateArrow(TutorialStep step)
         {
             switch (step)
             {
-                case TutorialStep.Welcome:
-                    // Arrow pointing left at path cards
-                    arrowObj.SetActive(true);
-                    arrowRect.anchorMin = new Vector2(0.14f, 0.5f);
-                    arrowRect.anchorMax = new Vector2(0.14f, 0.5f);
-                    arrowRect.anchoredPosition = Vector2.zero;
-                    arrowText.text = "\u25C0";
+                case TutorialStep.SelectPathCard:
+                    PointArrowAtUI(pieceHandUI?.GetCardRectTransform(0), Vector2.right);
+                    break;
+
+                case TutorialStep.BuildOnOre:
+                    var oreCoord = GameManager.Instance?.GetGuaranteedOreDeposit();
+                    if (oreCoord.HasValue)
+                    {
+                        PanToOreDeposit(oreCoord.Value);
+                        PointArrowAtWorldPos(HexGrid.HexToWorld(oreCoord.Value) + Vector3.up * 5f, Vector2.down);
+                    }
+                    else
+                    {
+                        arrowImage.gameObject.SetActive(false);
+                    }
+                    break;
+
+                case TutorialStep.SwitchToTowers:
+                    PointArrowAtUI(pieceHandUI?.GetTowersTabRectTransform(), Vector2.right);
+                    break;
+
+                case TutorialStep.SelectTower:
+                    PointArrowAtUI(pieceHandUI?.GetCardRectTransform(0), Vector2.right);
                     break;
 
                 case TutorialStep.PlaceTower:
-                    // Arrow pointing left at Towers tab
-                    arrowObj.SetActive(true);
-                    arrowRect.anchorMin = new Vector2(0.14f, 0.38f);
-                    arrowRect.anchorMax = new Vector2(0.14f, 0.38f);
-                    arrowRect.anchoredPosition = Vector2.zero;
-                    arrowText.text = "\u25C0";
+                    // Point near a placed path tile
+                    var nearPathCoord = FindNearPathCoord();
+                    if (nearPathCoord.HasValue)
+                        PointArrowAtWorldPos(HexGrid.HexToWorld(nearPathCoord.Value) + Vector3.up * 2f, Vector2.down);
+                    else
+                        arrowImage.gameObject.SetActive(false);
                     break;
 
                 case TutorialStep.StartWave:
-                    // Arrow pointing right at Start Wave button
-                    arrowObj.SetActive(true);
-                    arrowRect.anchorMin = new Vector2(0.84f, 0.12f);
-                    arrowRect.anchorMax = new Vector2(0.84f, 0.12f);
-                    arrowRect.anchoredPosition = Vector2.zero;
-                    arrowText.text = "\u25B6";
+                    PointArrowAtUI(hudController?.GetStartWaveButtonRectTransform(), Vector2.down);
                     break;
 
                 default:
-                    arrowObj.SetActive(false);
+                    arrowImage.gameObject.SetActive(false);
                     break;
             }
         }
 
-        private void HideAll()
+        private HexCoord? FindNearPathCoord()
         {
-            panel.SetActive(false);
-            arrowObj.SetActive(false);
-            if (raycaster != null)
-                raycaster.enabled = false;
-        }
+            var gm = GameManager.Instance;
+            if (gm == null) return null;
 
-        private void AdvanceAfterDismiss()
-        {
-            if (currentStep == TutorialStep.Mining)
-                PanBackFromDeposit();
+            HexCoord? best = null;
+            int bestDist = int.MaxValue;
+            var castle = new HexCoord(0, 0);
 
-            HideAll();
-
-            switch (currentStep)
+            foreach (var kvp in gm.MapData)
             {
-                case TutorialStep.Welcome:
-                    ShowStep(NextUnseenStep(TutorialStep.Welcome));
-                    break;
-                case TutorialStep.Mining:
-                    // Wait for OnPiecePlaced to advance
-                    break;
-                case TutorialStep.SpawnPoints:
-                    ShowStep(NextUnseenStep(TutorialStep.SpawnPoints));
-                    break;
-                case TutorialStep.PlaceTower:
-                    // Wait for OnTowerPlaced to advance
-                    break;
-                case TutorialStep.StartWave:
-                    // Wait for OnWaveComplete to advance
-                    break;
-                case TutorialStep.Upgrades:
-                    ShowStep(NextUnseenStep(TutorialStep.Upgrades));
-                    break;
-                case TutorialStep.Escape:
-                    ShowStep(TutorialStep.Done);
-                    break;
+                if (kvp.Value.IsCastle) continue;
+                if (kvp.Value.ConnectedEdges.Count == 0) continue;
+                int dist = castle.DistanceTo(kvp.Key);
+                if (dist < bestDist)
+                {
+                    bestDist = dist;
+                    best = kvp.Key;
+                }
+            }
+            return best;
+        }
+
+        private void PointArrowAtUI(RectTransform target, Vector2 bounceDir)
+        {
+            if (target == null)
+            {
+                arrowImage.gameObject.SetActive(false);
+                return;
+            }
+
+            arrowImage.gameObject.SetActive(true);
+            isTrackingUITarget = true;
+            trackedUITarget = target;
+            arrowBounceDir = new Vector3(bounceDir.x, bounceDir.y, 0f);
+
+            // Rotate arrow to face TOWARD the target (opposite of bounce offset)
+            float angle = Mathf.Atan2(-bounceDir.y, -bounceDir.x) * Mathf.Rad2Deg;
+            arrowRect.localRotation = Quaternion.Euler(0f, 0f, angle);
+
+            UpdateUIArrowPosition();
+        }
+
+        private void UpdateUIArrowPosition()
+        {
+            if (trackedUITarget == null) return;
+
+            Vector3 screenPos = RectTransformUtility.WorldToScreenPoint(null, trackedUITarget.position);
+            if (RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                safeAreaRect, screenPos, null, out Vector2 localPoint))
+            {
+                // Offset the arrow away from the target
+                float bounce = Mathf.Sin(Time.unscaledTime * 3f) * 15f;
+                Vector2 offset = new Vector2(arrowBounceDir.x, arrowBounceDir.y) * (40f + bounce);
+                arrowRect.anchoredPosition = localPoint + offset;
+                arrowRect.anchorMin = new Vector2(0.5f, 0.5f);
+                arrowRect.anchorMax = new Vector2(0.5f, 0.5f);
             }
         }
 
-        private void OnOKPressed()
+        private void PointArrowAtWorldPos(Vector3 worldPos, Vector2 bounceDir)
         {
-            AdvanceAfterDismiss();
+            arrowImage.gameObject.SetActive(true);
+            isTrackingWorldPosition = true;
+            trackedWorldPos = worldPos;
+            arrowBounceDir = new Vector3(bounceDir.x, bounceDir.y, 0f);
+
+            // Rotate arrow to face TOWARD the target (opposite of bounce offset)
+            float angle = Mathf.Atan2(-bounceDir.y, -bounceDir.x) * Mathf.Rad2Deg;
+            arrowRect.localRotation = Quaternion.Euler(0f, 0f, angle);
+
+            UpdateWorldArrowPosition();
+        }
+
+        private void UpdateWorldArrowPosition()
+        {
+            if (mainCamera == null) return;
+
+            Vector3 screenPos = mainCamera.WorldToScreenPoint(trackedWorldPos);
+            if (screenPos.z < 0f)
+            {
+                arrowImage.gameObject.SetActive(false);
+                return;
+            }
+
+            if (RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                safeAreaRect, screenPos, null, out Vector2 localPoint))
+            {
+                float bounce = Mathf.Sin(Time.unscaledTime * 3f) * 15f;
+                Vector2 offset = new Vector2(arrowBounceDir.x, arrowBounceDir.y) * (40f + bounce);
+                arrowRect.anchoredPosition = localPoint + offset;
+                arrowRect.anchorMin = new Vector2(0.5f, 0.5f);
+                arrowRect.anchorMax = new Vector2(0.5f, 0.5f);
+            }
+        }
+
+        private void Update()
+        {
+            if (isTrackingWorldPosition)
+                UpdateWorldArrowPosition();
+            else if (isTrackingUITarget)
+                UpdateUIArrowPosition();
+        }
+
+        // --- Camera panning ---
+
+        private void PanToOreDeposit(HexCoord coord)
+        {
+            if (cameraController == null) return;
+            Vector3 depositWorld = HexGrid.HexToWorld(coord);
+            cameraController.PanToPosition(depositWorld);
+        }
+
+        // --- Event handlers ---
+
+        private void OnCardSelected(int index, HexPieceType type)
+        {
+            if (currentStep == TutorialStep.SelectPathCard)
+            {
+                AdvanceTo(TutorialStep.BuildOnOre);
+            }
+            else if (currentStep == TutorialStep.SelectTower)
+            {
+                AdvanceTo(TutorialStep.PlaceTower);
+            }
+        }
+
+        private void OnTowerCardSelected(TowerData data)
+        {
+            if (currentStep == TutorialStep.SelectTower)
+            {
+                AdvanceTo(TutorialStep.PlaceTower);
+            }
+        }
+
+        private void OnTabSwitched(int tabIndex)
+        {
+            if (currentStep == TutorialStep.SwitchToTowers && tabIndex == 1)
+            {
+                AdvanceTo(TutorialStep.SelectTower);
+            }
         }
 
         private void OnPiecePlaced(int handIndex, PlacementRotation rotation, HexCoord coord)
         {
-            if (currentStep == TutorialStep.Mining)
-                ShowStep(NextUnseenStep(TutorialStep.Mining));
+            if (currentStep == TutorialStep.BuildOnOre)
+            {
+                AdvanceTo(TutorialStep.MineExplanation);
+            }
         }
 
         private void OnTowerPlaced(Tower tower)
         {
             if (currentStep == TutorialStep.PlaceTower)
-                ShowStep(NextUnseenStep(TutorialStep.PlaceTower));
+            {
+                AdvanceTo(TutorialStep.StartWave);
+            }
         }
 
-        private void OnWaveComplete()
+        private void OnWaveStarted(int wave)
         {
             if (currentStep == TutorialStep.StartWave)
-                ShowStep(NextUnseenStep(TutorialStep.StartWave));
+            {
+                AdvanceTo(TutorialStep.Complete);
+            }
+        }
+
+        private void OnOKPressed()
+        {
+            AdvanceFromInfo();
+        }
+
+        private void AdvanceFromInfo()
+        {
+            switch (currentStep)
+            {
+                case TutorialStep.MineExplanation:
+                    AdvanceTo(TutorialStep.SpawnExplanation);
+                    break;
+                case TutorialStep.SpawnExplanation:
+                    AdvanceTo(TutorialStep.PathEditInfo);
+                    break;
+                case TutorialStep.PathEditInfo:
+                    AdvanceToNextActionStep(TutorialStep.PathEditInfo);
+                    break;
+                case TutorialStep.Complete:
+                    AdvanceTo(TutorialStep.Done);
+                    break;
+            }
+        }
+
+        private void AdvanceTo(TutorialStep next)
+        {
+            HideAll();
+
+            // Skip steps that should be skipped
+            while (next != TutorialStep.Done && ShouldSkipStep(next))
+            {
+                MarkStepSeen(next);
+                next = (TutorialStep)((int)next + 1);
+            }
+
+            ShowStep(next);
+        }
+
+        private void AdvanceToNextActionStep(TutorialStep after)
+        {
+            var next = (TutorialStep)((int)after + 1);
+            while (next != TutorialStep.Done && ShouldSkipStep(next))
+            {
+                MarkStepSeen(next);
+                next = (TutorialStep)((int)next + 1);
+            }
+            if ((int)next >= StepCount)
+                next = TutorialStep.Done;
+
+            HideAll();
+            ShowStep(next);
+        }
+
+        // --- Utility ---
+
+        private void HideAll()
+        {
+            panel.SetActive(false);
+            arrowImage.gameObject.SetActive(false);
+            isTrackingWorldPosition = false;
+            isTrackingUITarget = false;
+            if (raycaster != null)
+                raycaster.enabled = false;
         }
 
         private void CompleteTutorial()
         {
             HideAll();
+            Debug.Log("Tutorial complete!");
             Destroy(gameObject);
         }
     }

@@ -330,10 +330,6 @@ namespace TowerDefense.Core
                 pieceHandUI.RefreshHand(pieceProvider.Pieces);
             }
 
-            // Tutorial (first-run only, skips continuous mode)
-            var tutorialObj = new GameObject("TutorialManager");
-            tutorialObj.AddComponent<TutorialManager>();
-
             Invoke(nameof(FireInitialEvents), 0.1f);
         }
 
@@ -909,6 +905,11 @@ namespace TowerDefense.Core
             return nearest;
         }
 
+        public HexCoord? GetGuaranteedOreDeposit()
+        {
+            return mapGenerator?.GuaranteedOreCoord;
+        }
+
         public OrePatch? GetOrePatchAt(HexCoord coord)
         {
             if (orePatches.TryGetValue(coord, out var patch))
@@ -1132,37 +1133,43 @@ namespace TowerDefense.Core
             return ring;
         }
 
+        // Reusable lists to avoid per-frame allocations in UpdateModificationTimers
+        private readonly List<HexCoord> _expiredModCoords = new List<HexCoord>();
+        private readonly List<HexCoord> _modKeySnapshot = new List<HexCoord>();
+
         private void UpdateModificationTimers(float dt)
         {
             // Tick haste timers
-            var expiredHastes = new List<HexCoord>();
-            var hasteKeys = new List<HexCoord>(activeHastes.Keys);
-            for (int i = 0; i < hasteKeys.Count; i++)
+            _expiredModCoords.Clear();
+            _modKeySnapshot.Clear();
+            _modKeySnapshot.AddRange(activeHastes.Keys);
+            for (int i = 0; i < _modKeySnapshot.Count; i++)
             {
-                var coord = hasteKeys[i];
+                var coord = _modKeySnapshot[i];
                 float t = activeHastes[coord] - dt;
                 if (t <= 0f)
-                    expiredHastes.Add(coord);
+                    _expiredModCoords.Add(coord);
                 else
                     activeHastes[coord] = t;
             }
-            foreach (var coord in expiredHastes)
-                RemoveHaste(coord);
+            for (int i = 0; i < _expiredModCoords.Count; i++)
+                RemoveHaste(_expiredModCoords[i]);
 
             // Tick golden touch timers
-            var expiredGT = new List<HexCoord>();
-            var gtKeys = new List<HexCoord>(activeGoldenTouches.Keys);
-            for (int i = 0; i < gtKeys.Count; i++)
+            _expiredModCoords.Clear();
+            _modKeySnapshot.Clear();
+            _modKeySnapshot.AddRange(activeGoldenTouches.Keys);
+            for (int i = 0; i < _modKeySnapshot.Count; i++)
             {
-                var coord = gtKeys[i];
+                var coord = _modKeySnapshot[i];
                 float t = activeGoldenTouches[coord] - dt;
                 if (t <= 0f)
-                    expiredGT.Add(coord);
+                    _expiredModCoords.Add(coord);
                 else
                     activeGoldenTouches[coord] = t;
             }
-            foreach (var coord in expiredGT)
-                RemoveGoldenTouch(coord);
+            for (int i = 0; i < _expiredModCoords.Count; i++)
+                RemoveGoldenTouch(_expiredModCoords[i]);
         }
 
         private void ExpireWaveModifications()

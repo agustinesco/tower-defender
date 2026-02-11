@@ -5,15 +5,24 @@ public static class ClearTutorialPrefs
 {
     private static readonly string[] StepNames =
     {
-        "Welcome", "Mining", "SpawnPoints", "PlaceTower",
-        "StartWave", "Upgrades", "Escape"
+        "SelectPathCard", "BuildOnOre",
+        "MineExplanation", "SpawnExplanation", "PathEditInfo",
+        "SwitchToTowers", "SelectTower", "PlaceTower", "StartWave", "Complete"
     };
 
     [MenuItem("Tools/Clear Tutorial PlayerPrefs")]
     public static void Clear()
     {
-        // Clear legacy key
+        // Clear legacy keys
         PlayerPrefs.DeleteKey("tutorial_complete");
+        PlayerPrefs.DeleteKey("tut_Welcome");
+        PlayerPrefs.DeleteKey("tut_Mining");
+        PlayerPrefs.DeleteKey("tut_SpawnPoints");
+        PlayerPrefs.DeleteKey("tut_StartWave");
+        PlayerPrefs.DeleteKey("tut_Upgrades");
+        PlayerPrefs.DeleteKey("tut_Escape");
+        PlayerPrefs.DeleteKey("tut_PlacePath");
+        PlayerPrefs.DeleteKey("tut_RotationInfo");
 
         // Clear per-step keys
         foreach (var name in StepNames)

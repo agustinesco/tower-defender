@@ -20,6 +20,8 @@ namespace TowerDefense.Core
 
         public TowerSlot SelectedSlot => selectedSlot;
         public Tower SelectedTower => selectedTower;
+        private readonly List<TowerData> _unlockedTowersCache = new List<TowerData>();
+
         public List<TowerData> AvailableTowers
         {
             get
@@ -27,13 +29,13 @@ namespace TowerDefense.Core
                 if (LabManager.Instance == null)
                     return availableTowers;
 
-                var unlocked = new List<TowerData>();
+                _unlockedTowersCache.Clear();
                 foreach (var tower in availableTowers)
                 {
                     if (LabManager.Instance.IsTowerUnlocked(tower.towerName))
-                        unlocked.Add(tower);
+                        _unlockedTowersCache.Add(tower);
                 }
-                return unlocked;
+                return _unlockedTowersCache;
             }
         }
 

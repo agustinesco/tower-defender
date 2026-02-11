@@ -25,6 +25,8 @@ namespace TowerDefense.Grid
         private HashSet<HexCoord> hiddenSpawners = new HashSet<HexCoord>();
         private Dictionary<HexCoord, OrePatch> orePatches = new Dictionary<HexCoord, OrePatch>();
 
+        public HexCoord? GuaranteedOreCoord { get; private set; }
+
         public MapGenerator(int seed = -1)
         {
             random = seed >= 0 ? new System.Random(seed) : new System.Random();
@@ -287,6 +289,7 @@ namespace TowerDefense.Grid
             var chosen = reachable[random.Next(reachable.Count)];
             orePatches[chosen] = new OrePatch(chosen, ResourceType.IronOre, 1);
             innerCandidates.Remove(chosen);
+            GuaranteedOreCoord = chosen;
             return 1;
         }
 

@@ -65,6 +65,7 @@ namespace TowerDefense.UI
         public event Action OnModificationDeselected;
         public event Action<TowerData> OnTowerCardSelected;
         public event Action OnTowerCardDeselected;
+        public event Action<int> OnTabSwitched;
 
         private class PieceCard
         {
@@ -236,6 +237,11 @@ namespace TowerDefense.UI
         {
             if (activeTab == tab) return;
 
+            // Tutorial gate
+            var tut = TowerDefense.Core.TutorialManager.Instance;
+            if (tut != null && !tut.AllowTabSwitch((int)tab))
+                return;
+
             if (activeTab == HandTab.Paths && selectedIndex >= 0)
             {
                 selectedIndex = -1;
@@ -271,6 +277,8 @@ namespace TowerDefense.UI
             {
                 RefreshModifications();
             }
+
+            OnTabSwitched?.Invoke((int)tab);
         }
 
         private void ClearCards()
@@ -421,6 +429,11 @@ namespace TowerDefense.UI
 
         private void OnTowerCardClicked(int index, TowerData towerData)
         {
+            // Tutorial gate
+            var tut = TowerDefense.Core.TutorialManager.Instance;
+            if (tut != null && !tut.AllowCardSelect(index))
+                return;
+
             if (selectedIndex == index)
             {
                 selectedIndex = -1;
@@ -574,6 +587,11 @@ namespace TowerDefense.UI
             if (pieceProvider != null && !pieceProvider.IsReady(index))
                 return;
 
+            // Tutorial gate
+            var tut = TowerDefense.Core.TutorialManager.Instance;
+            if (tut != null && !tut.AllowCardSelect(index))
+                return;
+
             if (selectedIndex == index)
             {
                 selectedIndex = -1;
@@ -635,6 +653,20 @@ namespace TowerDefense.UI
         {
             if (tooltipObj != null)
                 tooltipObj.SetActive(false);
+        }
+
+        public RectTransform GetCardRectTransform(int index)
+        {
+            if (index >= 0 && index < cards.Count && cards[index].UI != null)
+                return cards[index].UI.GetComponent<RectTransform>();
+            return null;
+        }
+
+        public RectTransform GetTowersTabRectTransform()
+        {
+            if (towersTabButton != null)
+                return towersTabButton.GetComponent<RectTransform>();
+            return null;
         }
 
         private void CreatePathPreview(RectTransform container, HexPieceConfig config)
