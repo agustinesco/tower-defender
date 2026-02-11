@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: CannonTower
   m_EditorClassIdentifier: 
   towerName: Cannon
-  cost: 100
+  cost: 200
   damage: 15
   range: 12
   fireRate: 0.75

@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: ShotgunTower
   m_EditorClassIdentifier: 
   towerName: Shotgun
-  cost: 75
+  cost: 150
   damage: 8
   range: 8
   fireRate: 1.2

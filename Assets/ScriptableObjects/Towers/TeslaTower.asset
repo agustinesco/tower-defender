@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: TeslaTower
   m_EditorClassIdentifier: 
   towerName: Tesla
-  cost: 120
+  cost: 400
   damage: 8
   range: 10
   fireRate: 0.8
