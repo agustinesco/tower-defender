@@ -1211,8 +1211,10 @@ MonoBehaviour:
   adamantiteSprite: {fileID: 21300000, guid: 4c37d87bf55d64ed7ba7118f69cb57ad, type: 3}
   hexPiecePrefab: {fileID: 0}
   mineOutpostPrefab: {fileID: 2242801131017349800, guid: 41eec2429de4547da9bb7456ebcf2b83, type: 3}
-  groundEnemyPrefab: {fileID: 5544113186760210693, guid: a53ca8c8cc3f244ccafa6864df8d3685, type: 3}
-  flyingEnemyPrefab: {fileID: 714363205396627139, guid: 14443359e08cf4780bc8e01b3897acd8, type: 3}
+  enemyConfigs:
+  - {fileID: 11400000, guid: be41d00e40e7b4f45a2d9052268aabd7, type: 2}
+  - {fileID: 11400000, guid: 4929ddf51d61549168779cac9b32a5cf, type: 2}
+  - {fileID: 11400000, guid: f6fdbf264f059404b9d8ccf2ce280115, type: 2}
   pieceConfigs:
   - {fileID: 11400000, guid: cb91964deb0347128a057b801db09d1d, type: 2}
   - {fileID: 11400000, guid: 077954badff3426d8faff80cd7f1a560, type: 2}

@@ -16,8 +16,8 @@ A tower defense game where you build the map with hex pieces that are given to y
 ### Main Menu
 
 A screen with different areas to enter:
+- **Continuous**: Start a run in continuous mode (endless, scaling difficulty) — the primary game mode
 - **Battlefield**: Start a run in wave mode
-- **Continuous**: Start a run in continuous mode (endless, scaling difficulty)
 - **Lab**: Spend banked resources on permanent upgrades
 
 Resource totals are displayed at the top.
@@ -32,19 +32,22 @@ The gameplay scene shared by both wave and continuous modes.
 
 ## Game Modes
 
-### Wave Mode
-
-Traditional tower defense with discrete waves. Between waves the player gets a build phase (30s) and an upgrade shop. Defeating all enemies in a wave awards a gold bonus of 50 + (wave - 1) * 10.
-
-### Continuous Mode
+### Continuous Mode (Primary)
 
 Enemies spawn endlessly from random spawn points with scaling difficulty. There are no discrete waves or build phases. The player can open the upgrade shop at any time via the Upgrades button without pausing the game. Mines collect resources on a 30-second timer instead of per-wave.
+
+The player can escape the run after 5 minutes via the Escape button (or cheat shortcut), banking all gathered resources.
 
 Continuous spawn details:
 - Spawn interval: starts at 2s, decays to 0.3s minimum over ~4 minutes
 - Health scaling: +1x per minute elapsed
 - Speed scaling: +1x per 5 minutes elapsed
 - Flying enemies: 25% chance after 30 seconds
+- Cart enemies: 15% chance after 5 minutes
+
+### Wave Mode (Alternative)
+
+Traditional tower defense with discrete waves. Between waves the player gets a build phase (30s) and an upgrade shop. Defeating all enemies in a wave awards a gold bonus of 50 + (wave - 1) * 10.
 
 ## Currencies
 
@@ -73,6 +76,14 @@ Starting stats (before lab bonuses):
 
 The player has a hand of piece cards, each with a cooldown after use. Pieces are dragged onto valid hex positions adjacent to existing tiles. Placing a piece on an occupied tile replaces it (refunding any towers). Pieces cannot be placed if doing so would disconnect existing paths.
 
+### Continuous Flow
+
+1. Player places pieces and towers freely
+2. Enemies spawn continuously from random spawn points
+3. Mines collect resources every 30 seconds (with visual countdown timer)
+4. Player opens the upgrade shop at any time via the Upgrades button
+5. After 5 minutes, escape becomes available to bank resources and exit
+
 ### Wave Flow (Wave Mode)
 
 1. Player places pieces and towers during build phase
@@ -82,20 +93,13 @@ The player has a hand of piece cards, each with a cooldown after use. Pieces are
 5. After all enemies die, a 3-second pause occurs, then the upgrade shop opens
 6. Player buys upgrades with gathered resources, then starts the next build phase
 
-### Continuous Flow
-
-1. Player places pieces and towers freely
-2. Enemies spawn continuously from random spawn points
-3. Mines collect resources every 30 seconds (with visual countdown timer)
-4. Player opens the upgrade shop at any time via the Upgrades button
-
 ### Losing
 
 When lives reach 0, the game ends. All run resources are lost. The player returns to the main menu.
 
 ### Exiting Voluntarily
 
-The player can exit between waves (wave mode) via the Exit Run button. All gathered resources are banked permanently.
+The player can exit between waves (wave mode) via the Exit Run button. All gathered resources are banked permanently. In continuous mode, the escape mechanic becomes available after 5 minutes.
 
 ## Hex Grid
 
@@ -144,17 +148,27 @@ Only Arrow and Tesla towers can target flying enemies.
 
 ## Enemies
 
+All enemy stats are defined in EnemyData ScriptableObjects. Each type has a complete prefab with visuals, collider, and Enemy component.
+
 ### Ground Enemies
 - Base health: 10, scaling: +5 per wave
 - Base speed: 2.0, scaling: +0.1 per wave
 - Gold reward: 10 + (wave - 1) * 2
+- Visual: red capsule
 
 ### Flying Enemies
-- Appear from wave 3 onward
+- Appear from wave 3 onward (wave mode) or after 30s (continuous)
 - Count per spawn point: 1 + (wave - 3) / 2
-- 1.3x speed, 0.7x health multiplier, 1.5x gold reward
+- Base speed: 2.6, base health: 10, reward: 15
 - Fly at Y=4, visually distinct (orange, flattened sphere with wings)
 - Only targetable by Arrow and Tesla towers
+
+### Cart Enemies
+- Appear from wave 3 onward (wave mode) or after 5 min (continuous, 15% chance)
+- Count per spawn point: 1 + (wave - 3) / 3
+- Base health: 20 (2x ground), base speed: 1.2 (0.6x ground), reward: 12
+- 1.5x visual scale, brown wagon with roof and wheels
+- On death: spawns 3 ground goblins with 0.5x health, 1.1x speed
 
 ### Boss Enemies
 - Spawned when the player places a piece entering a new zone
@@ -233,18 +247,16 @@ Purchased between runs with banked resources. Progress saved via PlayerPrefs.
 
 ## UI
 
-All UI is created programmatically in code (no prefabs).
-
 ### HUD Elements
-- Lives, wave number, gold (top bar)
+- Lives bar (top, shows current/max lives)
+- Gold display
 - Resource panel (top-right): banked + run-gathered counts for each resource
 - Start Wave / Start Now button (wave mode only)
-- Exit Run button (visible after wave 1 completes, wave mode)
+- Exit Run / Escape button
 - Build phase countdown timer
 - Upgrades button (always visible, both modes, purple)
-- Enemy count display (continuous mode, replaces wave counter purpose)
 - Tower build/sell panel (appears when selecting tower slots)
-- Piece hand (bottom of screen, draggable cards)
+- Piece hand (bottom of screen, draggable cards with tabs for Paths/Towers/Mods)
 
 ### Upgrade Shop Overlay
 - Full-screen dark overlay with card rows

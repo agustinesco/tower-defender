@@ -229,35 +229,9 @@ namespace TowerDefense.Core
 
         private Enemy SpawnEnemy(List<Vector3> path, float healthMultiplier, float speedMultiplier, Data.EnemyType type = Data.EnemyType.Ground)
         {
-            var gm = GameManager.Instance;
-            // Cart uses ground prefab (visual is overridden in Enemy)
-            GameObject prefab = type == Data.EnemyType.Flying
-                ? (gm != null ? gm.FlyingEnemyPrefab : null)
-                : (gm != null ? gm.GroundEnemyPrefab : null);
-
-            GameObject enemyObj;
-            Enemy enemy;
-
-            string enemyName = type == Data.EnemyType.Flying ? "FlyingEnemy" :
-                               type == Data.EnemyType.Cart ? "CartEnemy" : "Enemy";
-
-            if (prefab != null && type != Data.EnemyType.Cart)
-            {
-                enemyObj = Instantiate(prefab);
-                enemyObj.name = enemyName;
-                enemy = enemyObj.GetComponent<Enemy>();
-                if (enemy == null)
-                    enemy = enemyObj.AddComponent<Enemy>();
-            }
-            else
-            {
-                enemyObj = new GameObject(enemyName);
-                enemy = enemyObj.AddComponent<Enemy>();
-            }
-
-            enemy.Initialize(new List<Vector3>(path), currentWave, healthMultiplier, speedMultiplier, type);
-
-            TrackEnemy(enemy);
+            var enemy = GameManager.Instance.SpawnEnemy(type, new List<Vector3>(path), currentWave, healthMultiplier, speedMultiplier);
+            if (enemy != null)
+                TrackEnemy(enemy);
             return enemy;
         }
 

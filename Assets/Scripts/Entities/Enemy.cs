@@ -9,10 +9,7 @@ namespace TowerDefense.Entities
 {
     public class Enemy : MonoBehaviour
     {
-        [SerializeField] private float baseSpeed = 2f;
-        [SerializeField] private float baseHealth = 10f;
-        [SerializeField] private int currencyReward = 10;
-
+        private EnemyData data;
         private List<Vector3> waypoints;
         private int currentWaypointIndex;
         private int cachedWaveNumber = 1;
@@ -28,7 +25,7 @@ namespace TowerDefense.Entities
         private float goldMultiplier = 1f;
         private bool isBoss;
         private EnemyType enemyType = EnemyType.Ground;
-        private float flyHeight = 4f;
+        private int currencyReward;
 
         // Health bar
         private GameObject healthBarBackground;
@@ -47,33 +44,21 @@ namespace TowerDefense.Entities
         public event System.Action<Enemy> OnDeath;
         public event System.Action<Enemy> OnReachedCastle;
 
-        public void Initialize(List<Vector3> path, int waveNumber, float healthMultiplier = 1f, float speedMultiplierConfig = 1f, EnemyType type = EnemyType.Ground)
+        public void Initialize(EnemyData enemyData, List<Vector3> path, int waveNumber, float healthMultiplier = 1f, float speedMultiplierConfig = 1f)
         {
-            enemyType = type;
+            data = enemyData;
+            enemyType = data.enemyType;
             currentWaypointIndex = 0;
             cachedWaveNumber = waveNumber;
             cachedHealthMultiplier = healthMultiplier;
             cachedSpeedMultiplier = speedMultiplierConfig;
-            maxHealth = (baseHealth + (waveNumber - 1) * 5f) * healthMultiplier;
+
+            maxHealth = (data.baseHealth + (waveNumber - 1) * 5f) * healthMultiplier;
             currentHealth = maxHealth;
             float speedBonus = UpgradeManager.Instance != null ? UpgradeManager.Instance.EnemySpeedBonus : 0f;
-            currentSpeed = (baseSpeed + (waveNumber - 1) * 0.1f) * speedMultiplierConfig * (1f + speedBonus);
+            currentSpeed = (data.baseSpeed + (waveNumber - 1) * 0.1f) * speedMultiplierConfig * (1f + speedBonus);
             speedMultiplier = 1f;
-            currencyReward = 10 + (waveNumber - 1) * 2;
-
-            if (IsFlying)
-            {
-                currentSpeed *= 1.3f;
-                currencyReward = Mathf.RoundToInt(currencyReward * 1.5f);
-            }
-
-            if (enemyType == EnemyType.Cart)
-            {
-                maxHealth *= 2f;
-                currentHealth = maxHealth;
-                currentSpeed *= 0.6f;
-                currencyReward = Mathf.RoundToInt(currencyReward * 1.2f);
-            }
+            currencyReward = data.baseCurrencyReward + (waveNumber - 1) * 2;
 
             // Apply random perpendicular offset to ALL waypoints so enemy maintains lane
             float randomOffset = Random.Range(-3.0f, 3.0f);
@@ -110,164 +95,35 @@ namespace TowerDefense.Entities
 
             healthBarPropBlock = Core.MaterialCache.GetPropertyBlock();
 
-            CreateVisual();
+            ApplyMaterials();
             CreateHealthBar();
 
             Core.EnemyManager.Instance?.Register(this);
         }
 
-        private void CreateVisual()
-        {
-            // If a "Body" child already exists (from prefab), keep prefab visuals as-is
-            if (transform.Find("Body") != null)
-                return;
-
-            // Fallback: create visuals from scratch
-            if (enemyType == EnemyType.Cart)
-                CreateCartVisual();
-            else if (IsFlying)
-                CreateFlyingVisual();
-            else
-                CreateGroundVisual();
-        }
-
         private void ApplyMaterials()
         {
-            if (IsFlying)
+            Color color;
+            switch (enemyType)
             {
-                ApplyMaterialToChild("Body", new Color(0.9f, 0.6f, 0.1f));
-                ApplyMaterialToChild("LeftWing", new Color(0.8f, 0.5f, 0.05f));
-                ApplyMaterialToChild("RightWing", new Color(0.8f, 0.5f, 0.05f));
-            }
-            else
-            {
-                ApplyMaterialToChild("Body", Color.red);
-            }
-        }
-
-        private void ApplyMaterialToChild(string childName, Color color)
-        {
-            var child = transform.Find(childName);
-            if (child != null)
-            {
-                var renderer = child.GetComponent<Renderer>();
-                if (renderer != null)
-                    renderer.material = Core.MaterialCache.CreateUnlit(color);
-            }
-        }
-
-        private void CreateGroundVisual()
-        {
-            var visual = MaterialCache.CreatePrimitive(PrimitiveType.Capsule);
-            visual.name = "Body";
-            visual.transform.SetParent(transform);
-            visual.transform.localPosition = new Vector3(0f, 0.5f, 0f);
-            visual.transform.localScale = new Vector3(0.6f, 0.5f, 0.6f);
-
-            var renderer = visual.GetComponent<Renderer>();
-            if (renderer != null)
-            {
-                renderer.material = Core.MaterialCache.CreateUnlit(Color.red);
+                case EnemyType.Flying:
+                    color = new Color(0.9f, 0.6f, 0.1f);
+                    break;
+                case EnemyType.Cart:
+                    color = new Color(0.55f, 0.35f, 0.15f);
+                    break;
+                default:
+                    color = Color.red;
+                    break;
             }
 
-            var sphereCollider = gameObject.AddComponent<SphereCollider>();
-            sphereCollider.radius = 0.4f;
-            sphereCollider.center = new Vector3(0f, 0.5f, 0f);
-        }
-
-        private void CreateFlyingVisual()
-        {
-            // Body - flattened sphere
-            var body = MaterialCache.CreatePrimitive(PrimitiveType.Sphere);
-            body.name = "Body";
-            body.transform.SetParent(transform);
-            body.transform.localPosition = new Vector3(0f, flyHeight, 0f);
-            body.transform.localScale = new Vector3(0.7f, 0.35f, 0.7f);
-
-            var bodyRenderer = body.GetComponent<Renderer>();
-            if (bodyRenderer != null)
-                bodyRenderer.material = Core.MaterialCache.CreateUnlit(new Color(0.9f, 0.6f, 0.1f));
-
-            // Left wing
-            var leftWing = MaterialCache.CreatePrimitive(PrimitiveType.Cube);
-            leftWing.name = "LeftWing";
-            leftWing.transform.SetParent(transform);
-            leftWing.transform.localPosition = new Vector3(-0.5f, flyHeight + 0.1f, 0f);
-            leftWing.transform.localScale = new Vector3(0.6f, 0.05f, 0.4f);
-            leftWing.transform.localRotation = Quaternion.Euler(0f, 0f, 15f);
-
-            var lwR = leftWing.GetComponent<Renderer>();
-            if (lwR != null)
-                lwR.material = Core.MaterialCache.CreateUnlit(new Color(0.8f, 0.5f, 0.05f));
-
-            // Right wing
-            var rightWing = MaterialCache.CreatePrimitive(PrimitiveType.Cube);
-            rightWing.name = "RightWing";
-            rightWing.transform.SetParent(transform);
-            rightWing.transform.localPosition = new Vector3(0.5f, flyHeight + 0.1f, 0f);
-            rightWing.transform.localScale = new Vector3(0.6f, 0.05f, 0.4f);
-            rightWing.transform.localRotation = Quaternion.Euler(0f, 0f, -15f);
-
-            var rwR = rightWing.GetComponent<Renderer>();
-            if (rwR != null)
-                rwR.material = Core.MaterialCache.CreateUnlit(new Color(0.8f, 0.5f, 0.05f));
-
-            var sphereCollider = gameObject.AddComponent<SphereCollider>();
-            sphereCollider.radius = 0.5f;
-            sphereCollider.center = new Vector3(0f, flyHeight, 0f);
-        }
-
-        private void CreateCartVisual()
-        {
-            // Body - large box (wagon)
-            var body = MaterialCache.CreatePrimitive(PrimitiveType.Cube);
-            body.name = "Body";
-            body.transform.SetParent(transform);
-            body.transform.localPosition = new Vector3(0f, 0.7f, 0f);
-            body.transform.localScale = new Vector3(1.2f, 0.8f, 1.8f);
-
-            var bodyRenderer = body.GetComponent<Renderer>();
-            if (bodyRenderer != null)
-                bodyRenderer.material = Core.MaterialCache.CreateUnlit(new Color(0.55f, 0.35f, 0.15f));
-
-            // Roof
-            var roof = MaterialCache.CreatePrimitive(PrimitiveType.Cube);
-            roof.name = "Roof";
-            roof.transform.SetParent(transform);
-            roof.transform.localPosition = new Vector3(0f, 1.3f, 0f);
-            roof.transform.localScale = new Vector3(1.3f, 0.15f, 2f);
-            var roofR = roof.GetComponent<Renderer>();
-            if (roofR != null)
-                roofR.material = Core.MaterialCache.CreateUnlit(new Color(0.4f, 0.25f, 0.1f));
-
-            // Front wheel (left)
-            CreateWheel(new Vector3(-0.7f, 0.25f, 0.6f));
-            // Front wheel (right)
-            CreateWheel(new Vector3(0.7f, 0.25f, 0.6f));
-            // Rear wheel (left)
-            CreateWheel(new Vector3(-0.7f, 0.25f, -0.6f));
-            // Rear wheel (right)
-            CreateWheel(new Vector3(0.7f, 0.25f, -0.6f));
-
-            // Scale up the whole enemy
-            transform.localScale = Vector3.one * 1.5f;
-
-            var sphereCollider = gameObject.AddComponent<SphereCollider>();
-            sphereCollider.radius = 0.6f;
-            sphereCollider.center = new Vector3(0f, 0.7f, 0f);
-        }
-
-        private void CreateWheel(Vector3 localPos)
-        {
-            var wheel = MaterialCache.CreatePrimitive(PrimitiveType.Cylinder);
-            wheel.name = "Wheel";
-            wheel.transform.SetParent(transform);
-            wheel.transform.localPosition = localPos;
-            wheel.transform.localScale = new Vector3(0.35f, 0.08f, 0.35f);
-            wheel.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
-            var r = wheel.GetComponent<Renderer>();
-            if (r != null)
-                r.material = Core.MaterialCache.CreateUnlit(new Color(0.3f, 0.2f, 0.1f));
+            var renderers = GetComponentsInChildren<Renderer>();
+            foreach (var r in renderers)
+            {
+                if (r.gameObject.name == "HealthBarBG" || r.gameObject.name == "HealthBarFill")
+                    continue;
+                r.material = Core.MaterialCache.CreateUnlit(color);
+            }
         }
 
         private void CreateHealthBar()
@@ -275,7 +131,7 @@ namespace TowerDefense.Entities
             // Container positioned in front of enemy, facing up for top-down view
             healthBarContainer = new GameObject("HealthBar").transform;
             healthBarContainer.SetParent(transform);
-            float hbY = IsFlying ? flyHeight - 0.4f : 0.1f;
+            float hbY = IsFlying ? data.flyHeight - 0.4f : 0.1f;
             float hbZ = IsFlying ? 0.9f : 0.8f;
             healthBarContainer.localPosition = new Vector3(0f, hbY, hbZ);
             healthBarContainer.localRotation = Quaternion.Euler(90f, 0f, 0f);
@@ -491,15 +347,16 @@ namespace TowerDefense.Entities
             }
             if (remaining.Count < 2) return;
 
+            var gm = GameManager.Instance;
+            if (gm == null) return;
+
             var wm = Object.FindFirstObjectByType<Core.WaveManager>();
             for (int i = 0; i < 3; i++)
             {
-                var goblinObj = new GameObject("CartGoblin");
-                var goblin = goblinObj.AddComponent<Enemy>();
                 var path = new List<Vector3>(remaining);
                 // Slight offset so they don't stack
                 path[0] += new Vector3(Random.Range(-1f, 1f), 0f, Random.Range(-1f, 1f));
-                goblin.Initialize(path, cachedWaveNumber, cachedHealthMultiplier * 0.5f, cachedSpeedMultiplier * 1.1f, EnemyType.Ground);
+                var goblin = gm.SpawnEnemy(EnemyType.Ground, path, cachedWaveNumber, cachedHealthMultiplier * 0.5f, cachedSpeedMultiplier * 1.1f);
                 wm?.TrackEnemy(goblin);
             }
         }

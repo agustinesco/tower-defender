@@ -38,13 +38,15 @@ namespace TowerDefense.Core
         [Header("Prefabs")]
         [SerializeField] private GameObject hexPiecePrefab;
         [SerializeField] private GameObject mineOutpostPrefab;
-        [SerializeField] private GameObject groundEnemyPrefab;
-        [SerializeField] private GameObject flyingEnemyPrefab;
+
+        [Header("Enemy Configs")]
+        [SerializeField] private List<EnemyData> enemyConfigs;
 
         [Header("Piece Configs")]
         [SerializeField] private List<HexPieceConfig> pieceConfigs;
 
         private Dictionary<HexPieceType, HexPieceConfig> pieceConfigLookup;
+        private Dictionary<EnemyType, EnemyData> enemyDataLookup;
         private Dictionary<HexCoord, HexPiece> hexPieces = new Dictionary<HexCoord, HexPiece>();
         private Dictionary<HexCoord, HexPieceData> mapData = new Dictionary<HexCoord, HexPieceData>();
         private List<HexCoord> spawnPoints = new List<HexCoord>();
@@ -124,8 +126,6 @@ namespace TowerDefense.Core
         public float BuildTimer => buildTimer;
         public Sprite GoblinCampSprite => goblinCampSprite;
         public Sprite GoldSprite => goldSprite;
-        public GameObject GroundEnemyPrefab => groundEnemyPrefab;
-        public GameObject FlyingEnemyPrefab => flyingEnemyPrefab;
         public IReadOnlyCollection<HexCoord> HiddenSpawners => hiddenSpawners;
         public IReadOnlyDictionary<HexCoord, int> SpawnPointEdges => spawnPointEdges;
 
@@ -150,6 +150,25 @@ namespace TowerDefense.Core
                 case ResourceType.Adamantite: return new Color(1f, 0.3f, 0.3f);
                 default: return Color.white;
             }
+        }
+
+        public EnemyData GetEnemyData(EnemyType type) => enemyDataLookup != null && enemyDataLookup.TryGetValue(type, out var d) ? d : null;
+
+        public Enemy SpawnEnemy(EnemyType type, List<Vector3> path, int waveNumber, float healthMul = 1f, float speedMul = 1f)
+        {
+            var data = GetEnemyData(type);
+            if (data == null || data.prefab == null)
+            {
+                Debug.LogError($"No EnemyData or prefab for type {type}");
+                return null;
+            }
+            var obj = Instantiate(data.prefab);
+            obj.name = data.enemyName;
+            var enemy = obj.GetComponent<Enemy>();
+            if (enemy == null)
+                enemy = obj.AddComponent<Enemy>();
+            enemy.Initialize(data, path, waveNumber, healthMul, speedMul);
+            return enemy;
         }
 
         public event System.Action<int> OnLivesChanged;
@@ -208,6 +227,14 @@ namespace TowerDefense.Core
                 {
                     pieceConfigLookup[config.pieceType] = config;
                 }
+            }
+
+            // Build enemy data lookup
+            enemyDataLookup = new Dictionary<EnemyType, EnemyData>();
+            if (enemyConfigs != null)
+            {
+                foreach (var config in enemyConfigs)
+                    enemyDataLookup[config.enemyType] = config;
             }
 
             // 0. Create EnemyManager (per-scene, not DontDestroyOnLoad)

@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bca1b9756e2304743aee371a932bd446, type: 3}
+  m_Name: CartEnemy
+  m_EditorClassIdentifier: Assembly-CSharp::TowerDefense.Data.EnemyData
+  enemyName: Cart Enemy
+  enemyType: 2
+  baseSpeed: 1.2
+  baseHealth: 20
+  baseCurrencyReward: 12
+  flyHeight: 0
+  prefab: {fileID: 3429754805352011558, guid: ecfa1d98672c44b0baf5cb9e49854494, type: 3}

@@ -1069,6 +1069,7 @@ namespace TowerDefense.UI
         {
             var psObj = new GameObject("UpgradeGlowPS");
             upgradeGlowPS = psObj.AddComponent<ParticleSystem>();
+            upgradeGlowPS.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
 
             var main = upgradeGlowPS.main;
             main.duration = 1f;
