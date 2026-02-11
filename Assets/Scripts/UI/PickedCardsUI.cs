@@ -8,21 +8,29 @@ namespace TowerDefense.UI
 {
     public class PickedCardsUI : MonoBehaviour
     {
-        private GameObject viewButton;
-        private GameObject overlayPanel;
-        private GameObject cardsContainer;
+        [SerializeField] private GameObject viewButton;
+        [SerializeField] private GameObject overlayPanel;
+        [SerializeField] private GameObject cardsContainer;
+
         private List<GameObject> cardObjects = new List<GameObject>();
-        private Canvas canvas;
         private bool isShowing = false;
 
         private void Awake()
         {
-            canvas = GetComponentInParent<Canvas>();
-            if (canvas == null)
+            // Wire button events
+            if (viewButton != null)
             {
-                canvas = FindFirstObjectByType<Canvas>();
+                var btn = viewButton.GetComponent<Button>();
+                if (btn != null) btn.onClick.AddListener(ToggleOverlay);
             }
-            CreateUI();
+            if (overlayPanel != null)
+            {
+                var btn = overlayPanel.GetComponent<Button>();
+                if (btn != null) btn.onClick.AddListener(Hide);
+            }
+
+            if (overlayPanel != null)
+                overlayPanel.SetActive(false);
         }
 
         private void Start()
@@ -42,101 +50,14 @@ namespace TowerDefense.UI
             }
         }
 
-        private void CreateUI()
-        {
-            CreateViewButton();
-            CreateOverlay();
-            overlayPanel.SetActive(false);
-        }
-
-        private void CreateViewButton()
-        {
-            viewButton = new GameObject("ViewCardsButton");
-            viewButton.transform.SetParent(canvas.transform);
-
-            var rect = viewButton.AddComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0, 0);
-            rect.anchorMax = new Vector2(0, 0);
-            rect.anchoredPosition = new Vector2(60, 60);
-            rect.sizeDelta = new Vector2(50, 50);
-
-            var image = viewButton.AddComponent<Image>();
-            image.color = new Color(0.3f, 0.3f, 0.5f);
-
-            var button = viewButton.AddComponent<Button>();
-            button.targetGraphic = image;
-            button.onClick.AddListener(ToggleOverlay);
-
-            GameObject iconObj = new GameObject("Icon");
-            iconObj.transform.SetParent(viewButton.transform);
-
-            var iconRect = iconObj.AddComponent<RectTransform>();
-            iconRect.anchorMin = Vector2.zero;
-            iconRect.anchorMax = Vector2.one;
-            iconRect.offsetMin = Vector2.zero;
-            iconRect.offsetMax = Vector2.zero;
-
-            var iconText = iconObj.AddComponent<Text>();
-            iconText.text = "+";
-            iconText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            iconText.fontSize = 30;
-            iconText.color = Color.white;
-            iconText.alignment = TextAnchor.MiddleCenter;
-
-            viewButton.SetActive(false);
-        }
-
-        private void CreateOverlay()
-        {
-            overlayPanel = new GameObject("PickedCardsOverlay");
-            overlayPanel.transform.SetParent(canvas.transform);
-
-            var overlayRect = overlayPanel.AddComponent<RectTransform>();
-            overlayRect.anchorMin = Vector2.zero;
-            overlayRect.anchorMax = Vector2.one;
-            overlayRect.offsetMin = Vector2.zero;
-            overlayRect.offsetMax = Vector2.zero;
-
-            var overlayImage = overlayPanel.AddComponent<Image>();
-            overlayImage.color = new Color(0, 0, 0, 0.7f);
-
-            var overlayButton = overlayPanel.AddComponent<Button>();
-            overlayButton.targetGraphic = overlayImage;
-            overlayButton.onClick.AddListener(Hide);
-
-            GameObject titleObj = new GameObject("Title");
-            titleObj.transform.SetParent(overlayPanel.transform);
-
-            var titleRect = titleObj.AddComponent<RectTransform>();
-            titleRect.anchorMin = new Vector2(0.5f, 1f);
-            titleRect.anchorMax = new Vector2(0.5f, 1f);
-            titleRect.anchoredPosition = new Vector2(0, -80);
-            titleRect.sizeDelta = new Vector2(400, 60);
-
-            var titleText = titleObj.AddComponent<Text>();
-            titleText.text = "Your Upgrades";
-            titleText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            titleText.fontSize = 36;
-            titleText.color = Color.white;
-            titleText.alignment = TextAnchor.MiddleCenter;
-
-            cardsContainer = new GameObject("CardsContainer");
-            cardsContainer.transform.SetParent(overlayPanel.transform);
-
-            var containerRect = cardsContainer.AddComponent<RectTransform>();
-            containerRect.anchorMin = new Vector2(0.5f, 0.5f);
-            containerRect.anchorMax = new Vector2(0.5f, 0.5f);
-            containerRect.anchoredPosition = Vector2.zero;
-            containerRect.sizeDelta = new Vector2(800, 400);
-        }
-
         private void UpdateButtonVisibility()
         {
             if (UpgradeManager.Instance == null) return;
 
             var levels = UpgradeManager.Instance.GetUpgradeLevels();
             bool hasUpgrades = levels.Count > 0;
-            viewButton.SetActive(hasUpgrades);
+            if (viewButton != null)
+                viewButton.SetActive(hasUpgrades);
         }
 
         private void ToggleOverlay()
@@ -152,13 +73,15 @@ namespace TowerDefense.UI
             if (UpgradeManager.Instance == null) return;
 
             PopulateCards();
-            overlayPanel.SetActive(true);
+            if (overlayPanel != null)
+                overlayPanel.SetActive(true);
             isShowing = true;
         }
 
         public void Hide()
         {
-            overlayPanel.SetActive(false);
+            if (overlayPanel != null)
+                overlayPanel.SetActive(false);
             isShowing = false;
         }
 

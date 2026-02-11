@@ -85,15 +85,6 @@ namespace TowerDefense.UI
         private void Awake()
         {
             parentCanvasScaler = GetComponentInParent<CanvasScaler>();
-            if (parentCanvasScaler != null)
-            {
-                parentCanvasScaler.referenceResolution = new Vector2(1920f, 1080f);
-                parentCanvasScaler.matchWidthOrHeight = 1f;
-            }
-
-            var parentCanvas = GetComponentInParent<Canvas>();
-            if (parentCanvas != null)
-                parentCanvas.sortingOrder = 5;
         }
 
         private void Start()
