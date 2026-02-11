@@ -9,7 +9,8 @@ namespace TowerDefense.Data
         PieceCooldownReduction,
         TowerUnlock,
         MaxHP,
-        ModUnlock
+        ModUnlock,
+        PieceUnlock
     }
 
     [System.Serializable]

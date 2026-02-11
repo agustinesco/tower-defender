@@ -178,6 +178,39 @@ namespace TowerDefense.Core
                     costResource = ResourceType.Florpus,
                     baseCost = 20,
                     costPerLevel = 0
+                },
+                new LabUpgrade
+                {
+                    upgradeName = "Cross",
+                    description = "Unlock the Cross path piece",
+                    upgradeType = LabUpgradeType.PieceUnlock,
+                    valuePerLevel = 1f,
+                    maxLevel = 1,
+                    costResource = ResourceType.IronOre,
+                    baseCost = 10,
+                    costPerLevel = 0
+                },
+                new LabUpgrade
+                {
+                    upgradeName = "Star",
+                    description = "Unlock the Star path piece",
+                    upgradeType = LabUpgradeType.PieceUnlock,
+                    valuePerLevel = 1f,
+                    maxLevel = 1,
+                    costResource = ResourceType.Gems,
+                    baseCost = 15,
+                    costPerLevel = 0
+                },
+                new LabUpgrade
+                {
+                    upgradeName = "Crossroads",
+                    description = "Unlock the Crossroads path piece",
+                    upgradeType = LabUpgradeType.PieceUnlock,
+                    valuePerLevel = 1f,
+                    maxLevel = 1,
+                    costResource = ResourceType.Florpus,
+                    baseCost = 20,
+                    costPerLevel = 0
                 }
             };
         }
@@ -250,6 +283,20 @@ namespace TowerDefense.Core
                 }
             }
             // No unlock entry means the mod is available by default
+            return true;
+        }
+
+        public bool IsPieceUnlocked(string pieceName)
+        {
+            foreach (var upgrade in upgrades)
+            {
+                if (upgrade.upgradeType == LabUpgradeType.PieceUnlock &&
+                    upgrade.upgradeName == pieceName)
+                {
+                    return GetLevel(upgrade) >= 1;
+                }
+            }
+            // No unlock entry means the piece is available by default
             return true;
         }
 

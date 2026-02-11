@@ -117,6 +117,7 @@ namespace TowerDefense.Core
         private int MineYieldMultiplier => mineConfig != null ? mineConfig.yieldMultiplier : 1;
         private Dictionary<HexCoord, float> mineTimers = new Dictionary<HexCoord, float>();
         private readonly List<HexCoord> _readyMines = new List<HexCoord>();
+        private readonly List<HexCoord> _mineKeySnapshot = new List<HexCoord>();
 
         public int Lives => currentLives;
         public int MaxLives => maxLives;
@@ -307,8 +308,17 @@ namespace TowerDefense.Core
             // 1e. Create zone boundary visuals
             CreateZoneRings();
 
-            // 2. Initialize piece provider
-            pieceProvider = new PieceProvider(pieceConfigs);
+            // 2. Initialize piece provider (filter out locked pieces)
+            var availablePieces = new List<HexPieceConfig>();
+            if (pieceConfigs != null)
+            {
+                foreach (var config in pieceConfigs)
+                {
+                    if (LabManager.Instance == null || LabManager.Instance.IsPieceUnlocked(config.pieceType.ToString()))
+                        availablePieces.Add(config);
+                }
+            }
+            pieceProvider = new PieceProvider(availablePieces);
             pieceProvider.Initialize();
             pieceProvider.OnHandChanged += OnHandChanged;
 
@@ -430,13 +440,16 @@ namespace TowerDefense.Core
                 float dt = Time.deltaTime;
                 float interval = ContinuousMineInterval;
                 _readyMines.Clear();
-                foreach (var kvp in mineTimers)
+                _mineKeySnapshot.Clear();
+                _mineKeySnapshot.AddRange(mineTimers.Keys);
+                for (int i = 0; i < _mineKeySnapshot.Count; i++)
                 {
-                    float t = kvp.Value + dt;
+                    var coord = _mineKeySnapshot[i];
+                    float t = mineTimers[coord] + dt;
                     if (t >= interval)
-                        _readyMines.Add(kvp.Key);
+                        _readyMines.Add(coord);
                     else
-                        mineTimers[kvp.Key] = t;
+                        mineTimers[coord] = t;
                 }
                 for (int i = 0; i < _readyMines.Count; i++)
                 {
