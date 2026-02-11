@@ -12,11 +12,13 @@ namespace TowerDefense.UI
 {
     public class HUDController : MonoBehaviour
     {
-        private Text livesText;
-        private Text waveText;
+        private Image livesBarFill;
+        private Text livesBarText;
+        private int lastLives = -1;
         private Text currencyText;
         private Dictionary<ResourceType, Text> resourceTexts = new Dictionary<ResourceType, Text>();
         private Dictionary<ResourceType, Image> resourceIcons = new Dictionary<ResourceType, Image>();
+        private Dictionary<ResourceType, GameObject> resourceRows = new Dictionary<ResourceType, GameObject>();
         private Image goldIcons;
         private Text buildTimerText;
         private Button startWaveButton;
@@ -31,9 +33,9 @@ namespace TowerDefense.UI
         private TowerManager towerManager;
         private UpgradeSelectionUI upgradeSelectionUI;
         private Button upgradesButton;
-        private Text enemyCountText;
         private List<GameObject> cheatSpawnerMarkers = new List<GameObject>();
         private bool showingSpawners;
+        private GameObject cheatPanelObj;
 
         // Continuous mode escape
         private GameObject escapeButtonObj;
@@ -45,9 +47,23 @@ namespace TowerDefense.UI
         private const float EscapeInterval = 300f; // 5 minutes
         private bool escapeAvailable;
 
+        private CanvasScaler canvasScaler;
+
+        // Upgrade button glow
+        private Image upgradesButtonImage;
+        private bool canAffordUpgrade;
+        private float upgradeCheckTimer;
+        private static readonly Color NormalUpgradeColor = new Color(0.3f, 0.2f, 0.6f);
+
+        // Particle glow for upgrade button
+        private ParticleSystem upgradeGlowPS;
+        private Camera cachedCamera;
+
+        // Overlay canvas for escape confirm (renders above PieceHandUI_Canvas)
+        private GameObject escapeOverlayCanvasObj;
+
         // Cached values for throttling UI text updates
         private int lastBuildSeconds = -1;
-        private int lastEnemyCount = -1;
         private int lastEscapeMin = -1;
         private int lastEscapeSec = -1;
 
@@ -66,14 +82,12 @@ namespace TowerDefense.UI
             {
                 GameManager.Instance.OnLivesChanged += UpdateLives;
                 GameManager.Instance.OnCurrencyChanged += UpdateCurrency;
-                GameManager.Instance.OnWaveChanged += UpdateWave;
                 GameManager.Instance.OnGameOver += ShowGameOver;
                 GameManager.Instance.OnBuildPhaseStarted += OnBuildPhaseStarted;
                 GameManager.Instance.OnBuildPhaseEnded += OnBuildPhaseEnded;
 
                 UpdateLives(GameManager.Instance.Lives);
                 UpdateCurrency(GameManager.Instance.Currency);
-                UpdateWave(GameManager.Instance.Wave);
 
                 // Set resource icons now that GameManager is available
                 if (goldIcons != null)
@@ -110,6 +124,9 @@ namespace TowerDefense.UI
                 PersistenceManager.Instance.OnResourcesChanged += UpdateResources;
                 UpdateResources();
             }
+
+            cachedCamera = Camera.main;
+            CreateUpgradeGlowParticles();
         }
 
         private void CreateUI()
@@ -127,61 +144,67 @@ namespace TowerDefense.UI
             canvas = canvasObj.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
 
-            var scaler = canvasObj.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920, 1080);
-            scaler.matchWidthOrHeight = 0.5f;
+            canvasScaler = canvasObj.AddComponent<CanvasScaler>();
+            canvasScaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            canvasScaler.matchWidthOrHeight = 1f;
+            canvasScaler.referenceResolution = new Vector2(1920f, 1080f);
 
             canvasObj.AddComponent<GraphicRaycaster>();
 
-            // Top bar background
-            CreatePanel(canvasObj.transform, "TopBar", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0, -30), new Vector2(400, 60), new Color(0, 0, 0, 0.7f));
+            // Use device safe area for proper anchoring on all devices
+            var safeAreaObj = new GameObject("SafeArea");
+            safeAreaObj.transform.SetParent(canvasObj.transform);
+            var safeRect = safeAreaObj.AddComponent<RectTransform>();
+            safeRect.anchorMin = Vector2.zero;
+            safeRect.anchorMax = Vector2.one;
+            safeRect.offsetMin = Vector2.zero;
+            safeRect.offsetMax = Vector2.zero;
+            safeAreaObj.AddComponent<SafeArea>();
+            Transform uiRoot = safeAreaObj.transform;
 
-            // Lives text
-            livesText = CreateText(canvasObj.transform, "LivesText", new Vector2(0, 1), new Vector2(0, 1),
-                new Vector2(80, -30), "Lives: 10");
+            // Sub-canvas for static UI (rarely changes — avoids Canvas rebuild from dynamic text)
+            Transform staticRoot = CreateSubCanvas(uiRoot, "StaticUI");
+            // Sub-canvas for dynamic UI (text that changes frequently)
+            Transform dynamicRoot = CreateSubCanvas(uiRoot, "DynamicUI");
 
-            // Wave text
-            waveText = CreateText(canvasObj.transform, "WaveText", new Vector2(0.5f, 1), new Vector2(0.5f, 1),
-                new Vector2(0, -30), "Wave: 0");
+            // Lives bar (dynamic, top-left)
+            CreateLivesBar(dynamicRoot);
 
-            // Resource panel (top-right, vertical layout with gold on top)
-            CreateResourcePanel(canvasObj.transform);
+            // Resource panel (dynamic — text updates)
+            CreateResourcePanel(dynamicRoot);
 
-            // Start Wave button (raised to not overlap piece hand panel)
-            startWaveButton = CreateButton(canvasObj.transform, "StartWaveButton", new Vector2(0.5f, 0), new Vector2(0.5f, 0),
-                new Vector2(-90, 200), new Vector2(160, 50), "Start Wave", OnStartWaveClicked);
+            // Start Wave button (static)
+            startWaveButton = CreateButton(staticRoot, "StartWaveButton", new Vector2(1, 0), new Vector2(1, 0),
+                new Vector2(-85, 170), new Vector2(150, 50), "Start Wave", OnStartWaveClicked);
 
-            // Exit Run button (next to Start Wave, hidden until wave 1 completes)
-            var exitBtn = CreateButton(canvasObj.transform, "ExitRunButton", new Vector2(0.5f, 0), new Vector2(0.5f, 0),
-                new Vector2(90, 200), new Vector2(160, 50), "Exit Run", OnExitRunClicked);
+            // Exit Run button (static)
+            var exitBtn = CreateButton(staticRoot, "ExitRunButton", new Vector2(1, 0), new Vector2(1, 0),
+                new Vector2(-85, 115), new Vector2(150, 50), "Exit Run", OnExitRunClicked);
             exitRunButtonObj = exitBtn.gameObject;
-            // Style it red to distinguish from Start Wave
             exitRunButtonObj.GetComponent<Image>().color = new Color(0.6f, 0.2f, 0.2f);
             exitRunButtonObj.SetActive(false);
 
-            // Escape button (continuous mode, beside Start Wave)
-            escapeButton = CreateButton(canvasObj.transform, "EscapeButton", new Vector2(0.5f, 0), new Vector2(0.5f, 0),
-                new Vector2(90, 200), new Vector2(160, 50), "Escape", OnEscapeClicked);
+            // Escape button (dynamic — timer text changes)
+            escapeButton = CreateButton(dynamicRoot, "EscapeButton", new Vector2(1, 0), new Vector2(1, 0),
+                new Vector2(-85, 115), new Vector2(150, 50), "Escape", OnEscapeClicked);
             escapeButtonObj = escapeButton.gameObject;
             escapeButtonObj.GetComponent<Image>().color = new Color(0.6f, 0.5f, 0.1f);
             escapeButtonText = escapeButtonObj.GetComponentInChildren<Text>();
             escapeButton.interactable = false;
             escapeButtonObj.SetActive(false);
 
-            // Escape confirmation overlay
-            CreateEscapeConfirmOverlay(canvasObj.transform);
+            // Escape confirmation overlay (its own canvas, above PieceHandUI)
+            CreateEscapeConfirmOverlay();
 
-            // Build phase countdown timer (above Start Wave / Exit Run buttons)
+            // Build phase countdown timer (dynamic)
             buildTimerObj = new GameObject("BuildTimer");
-            buildTimerObj.transform.SetParent(canvasObj.transform);
+            buildTimerObj.transform.SetParent(dynamicRoot);
 
             var timerRect = buildTimerObj.AddComponent<RectTransform>();
-            timerRect.anchorMin = new Vector2(0.5f, 0);
-            timerRect.anchorMax = new Vector2(0.5f, 0);
-            timerRect.anchoredPosition = new Vector2(0, 260);
-            timerRect.sizeDelta = new Vector2(300, 40);
+            timerRect.anchorMin = new Vector2(1, 0);
+            timerRect.anchorMax = new Vector2(1, 0);
+            timerRect.anchoredPosition = new Vector2(-105, 225);
+            timerRect.sizeDelta = new Vector2(210, 40);
 
             buildTimerText = buildTimerObj.AddComponent<Text>();
             buildTimerText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
@@ -190,35 +213,46 @@ namespace TowerDefense.UI
             buildTimerText.alignment = TextAnchor.MiddleCenter;
             buildTimerObj.SetActive(false);
 
-            // Tower selection panel (hidden by default)
-            towerPanel = CreateTowerPanel(canvasObj.transform);
+            // Tower selection panel (static — hidden by default)
+            towerPanel = CreateTowerPanel(staticRoot);
             towerPanel.SetActive(false);
 
-            // Tower info panel (hidden by default)
-            towerInfoPanel = CreateTowerInfoPanel(canvasObj.transform);
+            // Tower info panel (static — hidden by default)
+            towerInfoPanel = CreateTowerInfoPanel(staticRoot);
             towerInfoPanel.SetActive(false);
 
-            // Upgrades button (always visible, both modes)
-            upgradesButton = CreateButton(canvasObj.transform, "UpgradesButton", new Vector2(0, 0), new Vector2(0, 0),
-                new Vector2(100, 200), new Vector2(140, 50), "Upgrades", OnUpgradesClicked);
-            upgradesButton.GetComponent<Image>().color = new Color(0.3f, 0.2f, 0.6f);
+            // Upgrades button (static)
+            upgradesButton = CreateButton(staticRoot, "UpgradesButton", new Vector2(1, 0), new Vector2(1, 0),
+                new Vector2(-85, 60), new Vector2(150, 50), "Upgrades", OnUpgradesClicked);
+            upgradesButtonImage = upgradesButton.GetComponent<Image>();
+            upgradesButtonImage.color = NormalUpgradeColor;
 
-            // Enemy count text (for continuous mode)
-            enemyCountText = CreateText(canvasObj.transform, "EnemyCountText", new Vector2(0.5f, 1), new Vector2(0.5f, 1),
-                new Vector2(160, -30), "");
-
-            // Create upgrade selection UI
+            // Create upgrade selection UI (under uiRoot — has its own canvas)
             var upgradeSelectionObj = new GameObject("UpgradeSelectionUI");
-            upgradeSelectionObj.transform.SetParent(canvasObj.transform);
+            upgradeSelectionObj.transform.SetParent(uiRoot);
             upgradeSelectionObj.AddComponent<UpgradeSelectionUI>();
 
             // Create picked cards UI
             var pickedCardsObj = new GameObject("PickedCardsUI");
-            pickedCardsObj.transform.SetParent(canvasObj.transform);
+            pickedCardsObj.transform.SetParent(uiRoot);
             pickedCardsObj.AddComponent<PickedCardsUI>();
 
-            // Cheat panel
-            CreateCheatPanel(canvasObj.transform);
+            // Cheat panel (static)
+            CreateCheatPanel(staticRoot);
+        }
+
+        private Transform CreateSubCanvas(Transform parent, string name)
+        {
+            var obj = new GameObject(name);
+            obj.transform.SetParent(parent);
+            var rect = obj.AddComponent<RectTransform>();
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+            obj.AddComponent<Canvas>(); // Sub-canvas isolates rebuild
+            obj.AddComponent<GraphicRaycaster>(); // Required for button clicks
+            return obj.transform;
         }
 
         private GameObject CreatePanel(Transform parent, string name, Vector2 anchorMin, Vector2 anchorMax,
@@ -265,7 +299,7 @@ namespace TowerDefense.UI
             Vector2 position, Vector2 size, string label, UnityEngine.Events.UnityAction onClick)
         {
             GameObject buttonObj = new GameObject(name);
-            buttonObj.transform.SetParent(parent);
+            buttonObj.transform.SetParent(parent, false);
 
             var rect = buttonObj.AddComponent<RectTransform>();
             rect.anchorMin = anchorMin;
@@ -282,7 +316,7 @@ namespace TowerDefense.UI
 
             // Button text
             var textObj = new GameObject("Text");
-            textObj.transform.SetParent(buttonObj.transform);
+            textObj.transform.SetParent(buttonObj.transform, false);
             var textRect = textObj.AddComponent<RectTransform>();
             textRect.anchorMin = Vector2.zero;
             textRect.anchorMax = Vector2.one;
@@ -301,8 +335,16 @@ namespace TowerDefense.UI
 
         private GameObject CreateTowerPanel(Transform parent)
         {
-            var panel = CreatePanel(parent, "TowerPanel", new Vector2(0.5f, 0), new Vector2(0.5f, 0),
-                new Vector2(0, 200), new Vector2(800, 80), new Color(0, 0, 0, 0.8f));
+            // Stretch horizontally so it scales with screen width
+            var panel = new GameObject("TowerPanel");
+            panel.transform.SetParent(parent);
+            var panelRect = panel.AddComponent<RectTransform>();
+            panelRect.anchorMin = new Vector2(0.15f, 0);
+            panelRect.anchorMax = new Vector2(0.85f, 0);
+            panelRect.pivot = new Vector2(0.5f, 0);
+            panelRect.anchoredPosition = new Vector2(0, 230);
+            panelRect.sizeDelta = new Vector2(0, 80);
+            panel.AddComponent<Image>().color = new Color(0, 0, 0, 0.8f);
 
             // Will be populated with tower buttons dynamically
             return panel;
@@ -311,7 +353,7 @@ namespace TowerDefense.UI
         private GameObject CreateTowerInfoPanel(Transform parent)
         {
             var panel = CreatePanel(parent, "TowerInfoPanel", new Vector2(0.5f, 0), new Vector2(0.5f, 0),
-                new Vector2(0, 200), new Vector2(200, 100), new Color(0, 0, 0, 0.8f));
+                new Vector2(0, 230), new Vector2(200, 100), new Color(0, 0, 0, 0.8f));
 
             CreateButton(panel.transform, "SellButton", new Vector2(0.5f, 0), new Vector2(0.5f, 0),
                 new Vector2(0, 30), new Vector2(120, 40), "Sell", OnSellClicked);
@@ -319,22 +361,81 @@ namespace TowerDefense.UI
             return panel;
         }
 
+        private void CreateLivesBar(Transform parent)
+        {
+            // Container anchored at top-left
+            var container = new GameObject("LivesBar");
+            container.transform.SetParent(parent);
+            var containerRect = container.AddComponent<RectTransform>();
+            containerRect.anchorMin = new Vector2(0, 1);
+            containerRect.anchorMax = new Vector2(0, 1);
+            containerRect.pivot = new Vector2(0, 1);
+            containerRect.anchoredPosition = new Vector2(10, -10);
+            containerRect.sizeDelta = new Vector2(200, 28);
+
+            // Background (dark bar)
+            var bgObj = new GameObject("Background");
+            bgObj.transform.SetParent(container.transform);
+            var bgRect = bgObj.AddComponent<RectTransform>();
+            bgRect.anchorMin = Vector2.zero;
+            bgRect.anchorMax = Vector2.one;
+            bgRect.offsetMin = Vector2.zero;
+            bgRect.offsetMax = Vector2.zero;
+            var bgImage = bgObj.AddComponent<Image>();
+            bgImage.color = new Color(0.1f, 0.1f, 0.1f, 0.8f);
+
+            // Fill bar (uses Filled image type)
+            var fillObj = new GameObject("Fill");
+            fillObj.transform.SetParent(container.transform);
+            var fillRect = fillObj.AddComponent<RectTransform>();
+            fillRect.anchorMin = Vector2.zero;
+            fillRect.anchorMax = Vector2.one;
+            fillRect.offsetMin = new Vector2(2, 2);
+            fillRect.offsetMax = new Vector2(-2, -2);
+            livesBarFill = fillObj.AddComponent<Image>();
+            livesBarFill.type = Image.Type.Filled;
+            livesBarFill.fillMethod = Image.FillMethod.Horizontal;
+            livesBarFill.fillAmount = 1f;
+            livesBarFill.color = new Color(0.2f, 0.75f, 0.2f);
+
+            // Text overlay (centered on bar)
+            var textObj = new GameObject("Text");
+            textObj.transform.SetParent(container.transform);
+            var textRect = textObj.AddComponent<RectTransform>();
+            textRect.anchorMin = Vector2.zero;
+            textRect.anchorMax = Vector2.one;
+            textRect.offsetMin = Vector2.zero;
+            textRect.offsetMax = Vector2.zero;
+            livesBarText = textObj.AddComponent<Text>();
+            livesBarText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            livesBarText.fontSize = 16;
+            livesBarText.color = Color.white;
+            livesBarText.alignment = TextAnchor.MiddleCenter;
+            livesBarText.text = "";
+        }
+
         private void UpdateLives(int lives)
         {
-            if (livesText != null)
-                livesText.text = $"Lives: {lives}";
+            if (lives == lastLives) return;
+            lastLives = lives;
+
+            if (livesBarFill != null && GameManager.Instance != null)
+            {
+                int max = GameManager.Instance.MaxLives;
+                float fraction = max > 0 ? Mathf.Clamp01((float)lives / max) : 0f;
+                livesBarFill.fillAmount = fraction;
+
+                // Color shifts from green to red as health drops
+                livesBarFill.color = Color.Lerp(new Color(0.8f, 0.15f, 0.15f), new Color(0.2f, 0.75f, 0.2f), fraction);
+            }
+            if (livesBarText != null)
+                livesBarText.text = $"{lives}";
         }
 
         private void UpdateCurrency(int currency)
         {
             if (currencyText != null)
                 currencyText.text = $"Gold: {currency}g";
-        }
-
-        private void UpdateWave(int wave)
-        {
-            if (waveText != null)
-                waveText.text = $"Wave: {wave}";
         }
 
         private TowerSlot currentSlot;
@@ -536,14 +637,52 @@ namespace TowerDefense.UI
                 }
             }
 
-            // Show enemy count in continuous mode
-            if (enemyCountText != null && waveManager != null && waveManager.IsContinuousMode)
+            // Upgrade button glow (considers banked + run-gathered resources)
+            upgradeCheckTimer -= Time.unscaledDeltaTime;
+            if (upgradeCheckTimer <= 0f)
             {
-                int count = waveManager.EnemyCount;
-                if (count != lastEnemyCount)
+                upgradeCheckTimer = 1f;
+                canAffordUpgrade = false;
+                if (LabManager.Instance != null && PersistenceManager.Instance != null)
                 {
-                    lastEnemyCount = count;
-                    enemyCountText.text = $"Enemies: {count}";
+                    var upgrades = LabManager.Instance.Upgrades;
+                    var pm = PersistenceManager.Instance;
+                    for (int i = 0; i < upgrades.Count; i++)
+                    {
+                        var upgrade = upgrades[i];
+                        int level = LabManager.Instance.GetLevel(upgrade);
+                        if (level >= upgrade.maxLevel) continue;
+                        int cost = upgrade.GetCost(level);
+                        int available = pm.GetBanked(upgrade.costResource) + pm.GetRunGathered(upgrade.costResource);
+                        if (available >= cost)
+                        {
+                            canAffordUpgrade = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (upgradeGlowPS != null)
+            {
+                if (canAffordUpgrade)
+                {
+                    if (!upgradeGlowPS.gameObject.activeSelf)
+                    {
+                        upgradeGlowPS.gameObject.SetActive(true);
+                        upgradeGlowPS.Play();
+                    }
+                    // Position particle system behind the button via camera projection
+                    if (cachedCamera != null && upgradesButton != null)
+                    {
+                        Vector3 screenPos = RectTransformUtility.WorldToScreenPoint(null, upgradesButton.transform.position);
+                        Ray ray = cachedCamera.ScreenPointToRay(screenPos);
+                        upgradeGlowPS.transform.position = ray.GetPoint(30f);
+                    }
+                }
+                else if (upgradeGlowPS.gameObject.activeSelf)
+                {
+                    upgradeGlowPS.Stop();
+                    upgradeGlowPS.gameObject.SetActive(false);
                 }
             }
 
@@ -614,6 +753,7 @@ namespace TowerDefense.UI
                 CreateResourceRow(panel.transform, label, yPos, rowHeight, out var text, out var icon);
                 resourceTexts[resType] = text;
                 resourceIcons[resType] = icon;
+                resourceRows[resType] = text.transform.parent.gameObject;
                 text.text = $"{label}: 0(+0)";
             }
         }
@@ -675,29 +815,65 @@ namespace TowerDefense.UI
                 var text = kvp.Value;
                 if (text == null) continue;
                 string name = names.TryGetValue(resType, out var n) ? n : resType.ToString();
-                text.text = $"{name}: {pm.GetBanked(resType)}(+{pm.GetRunGathered(resType)})";
+                int banked = pm.GetBanked(resType);
+                int runGathered = pm.GetRunGathered(resType);
+                text.text = $"{name}: {banked}(+{runGathered})";
+
+                // Hide rows with no resources
+                if (resourceRows.TryGetValue(resType, out var row) && row != null)
+                    row.SetActive(banked + runGathered > 0);
             }
         }
 
         private void CreateCheatPanel(Transform parent)
         {
-            var panel = CreatePanel(parent, "CheatPanel", new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
+            // Toggle button (always visible)
+            var toggleBtn = CreateButton(parent, "CheatToggle", new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
+                new Vector2(-20, 0), new Vector2(30, 30), "?", OnCheatToggle);
+            toggleBtn.GetComponent<Image>().color = new Color(0.3f, 0f, 0f, 0.5f);
+
+            // Cheat panel (starts hidden)
+            cheatPanelObj = CreatePanel(parent, "CheatPanel", new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
                 new Vector2(-80, 0), new Vector2(140, 90), new Color(0.3f, 0f, 0f, 0.7f));
 
-            CreateButton(panel.transform, "CheatGold", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+            CreateButton(cheatPanelObj.transform, "CheatGold", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(0, 18), new Vector2(120, 32), "+1000 Gold", OnCheatGold);
 
-            CreateButton(panel.transform, "CheatResources", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+            CreateButton(cheatPanelObj.transform, "CheatResources", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(0, -18), new Vector2(120, 32), "+100 Res", OnCheatResources);
 
-            CreateButton(panel.transform, "CheatShowCamps", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+            CreateButton(cheatPanelObj.transform, "CheatShowCamps", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(0, -54), new Vector2(120, 32), "Show Camps", OnCheatShowCamps);
 
-            CreateButton(panel.transform, "CheatUnlockTowers", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+            CreateButton(cheatPanelObj.transform, "CheatUnlockTowers", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(0, -90), new Vector2(120, 32), "All Towers", OnCheatUnlockTowers);
 
-            var panelRect = panel.GetComponent<RectTransform>();
-            panelRect.sizeDelta = new Vector2(140, 166);
+            CreateButton(cheatPanelObj.transform, "CheatReset", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0, -126), new Vector2(120, 32), "Reset All", OnCheatResetProgress);
+
+            CreateButton(cheatPanelObj.transform, "CheatForceEscape", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0, -162), new Vector2(120, 32), "Force Escape", OnCheatForceEscape);
+
+            var panelRect = cheatPanelObj.GetComponent<RectTransform>();
+            panelRect.sizeDelta = new Vector2(140, 236);
+
+            cheatPanelObj.SetActive(false);
+        }
+
+        private void OnCheatToggle()
+        {
+            if (cheatPanelObj != null)
+                cheatPanelObj.SetActive(!cheatPanelObj.activeSelf);
+        }
+
+        private void OnApplicationPause(bool pause)
+        {
+            if (pause) PlayerPrefs.Save();
+        }
+
+        private void OnApplicationQuit()
+        {
+            PlayerPrefs.Save();
         }
 
         private void OnCheatGold()
@@ -724,8 +900,29 @@ namespace TowerDefense.UI
             {
                 var handUI = FindFirstObjectByType<PieceHandUI>();
                 if (handUI != null)
-                    handUI.SetAvailableTowers(towerManager.AvailableTowers);
+                {
+                    handUI.SetAvailableTowers(towerManager.AllTowers);
+                    handUI.RefreshTowers();
+                }
             }
+        }
+
+        private void OnCheatResetProgress()
+        {
+            PlayerPrefs.DeleteAll();
+            PlayerPrefs.Save();
+            MainSceneController.LoadMainMenu();
+        }
+
+        private void OnCheatForceEscape()
+        {
+            if (!continuousStarted) return;
+            escapeAvailable = true;
+            if (escapeButton != null) escapeButton.interactable = true;
+            if (escapeButtonObj != null)
+                escapeButtonObj.GetComponent<Image>().color = new Color(0.8f, 0.65f, 0.1f);
+            if (escapeButtonText != null)
+                escapeButtonText.text = "Escape!";
         }
 
         private void OnCheatShowCamps()
@@ -760,10 +957,31 @@ namespace TowerDefense.UI
             }
         }
 
-        private void CreateEscapeConfirmOverlay(Transform parent)
+        private void CreateEscapeConfirmOverlay()
         {
+            // Create a separate high-sortingOrder canvas so overlay renders above PieceHandUI_Canvas
+            escapeOverlayCanvasObj = new GameObject("EscapeOverlayCanvas");
+            var overlayCanvas = escapeOverlayCanvasObj.AddComponent<Canvas>();
+            overlayCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            overlayCanvas.sortingOrder = 10;
+            var overlayScaler = escapeOverlayCanvasObj.AddComponent<CanvasScaler>();
+            overlayScaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            overlayScaler.matchWidthOrHeight = 1f;
+            overlayScaler.referenceResolution = new Vector2(1920f, 1080f);
+            escapeOverlayCanvasObj.AddComponent<GraphicRaycaster>();
+
+            // Safe area wrapper
+            var escapeSafeObj = new GameObject("SafeArea");
+            escapeSafeObj.transform.SetParent(escapeOverlayCanvasObj.transform, false);
+            var escapeSafeRect = escapeSafeObj.AddComponent<RectTransform>();
+            escapeSafeRect.anchorMin = Vector2.zero;
+            escapeSafeRect.anchorMax = Vector2.one;
+            escapeSafeRect.offsetMin = Vector2.zero;
+            escapeSafeRect.offsetMax = Vector2.zero;
+            escapeSafeObj.AddComponent<SafeArea>();
+
             escapeConfirmOverlay = new GameObject("EscapeConfirmOverlay");
-            escapeConfirmOverlay.transform.SetParent(parent);
+            escapeConfirmOverlay.transform.SetParent(escapeSafeObj.transform, false);
 
             var rect = escapeConfirmOverlay.AddComponent<RectTransform>();
             rect.anchorMin = Vector2.zero;
@@ -776,7 +994,7 @@ namespace TowerDefense.UI
 
             // Panel
             var panel = new GameObject("Panel");
-            panel.transform.SetParent(escapeConfirmOverlay.transform);
+            panel.transform.SetParent(escapeConfirmOverlay.transform, false);
             var panelRect = panel.AddComponent<RectTransform>();
             panelRect.anchorMin = new Vector2(0.5f, 0.5f);
             panelRect.anchorMax = new Vector2(0.5f, 0.5f);
@@ -786,7 +1004,7 @@ namespace TowerDefense.UI
 
             // Question text
             var textObj = new GameObject("Text");
-            textObj.transform.SetParent(panel.transform);
+            textObj.transform.SetParent(panel.transform, false);
             var textRect = textObj.AddComponent<RectTransform>();
             textRect.anchorMin = new Vector2(0, 0.5f);
             textRect.anchorMax = new Vector2(1, 1);
@@ -815,20 +1033,16 @@ namespace TowerDefense.UI
         {
             if (!escapeAvailable) return;
             escapeConfirmOverlay.SetActive(true);
-            escapeConfirmOverlay.transform.SetAsLastSibling();
-            Time.timeScale = 0f;
         }
 
         private void OnEscapeConfirmed()
         {
-            Time.timeScale = 1f;
             escapeConfirmOverlay.SetActive(false);
             GameManager.Instance?.ExitRun();
         }
 
         private void OnEscapeCancelled()
         {
-            Time.timeScale = 1f;
             escapeConfirmOverlay.SetActive(false);
         }
 
@@ -849,6 +1063,45 @@ namespace TowerDefense.UI
         private void OnSellClicked()
         {
             towerManager?.SellTower();
+        }
+
+        private void CreateUpgradeGlowParticles()
+        {
+            var psObj = new GameObject("UpgradeGlowPS");
+            upgradeGlowPS = psObj.AddComponent<ParticleSystem>();
+
+            var main = upgradeGlowPS.main;
+            main.duration = 1f;
+            main.loop = true;
+            main.startLifetime = 0.8f;
+            main.startSpeed = 2f;
+            main.startSize = 0.5f;
+            main.startColor = new Color(0.5f, 0.3f, 0.9f, 0.6f);
+            main.maxParticles = 30;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.gravityModifier = 0f;
+
+            var emission = upgradeGlowPS.emission;
+            emission.rateOverTime = 15f;
+
+            var shape = upgradeGlowPS.shape;
+            shape.shapeType = ParticleSystemShapeType.Circle;
+            shape.radius = 1.5f;
+
+            // Use default particle material (already handles transparency)
+            var psRenderer = psObj.GetComponent<ParticleSystemRenderer>();
+            psRenderer.renderMode = ParticleSystemRenderMode.Billboard;
+
+            upgradeGlowPS.Stop();
+            psObj.SetActive(false);
+        }
+
+        private void OnDestroy()
+        {
+            if (upgradeGlowPS != null)
+                Destroy(upgradeGlowPS.gameObject);
+            if (escapeOverlayCanvasObj != null)
+                Destroy(escapeOverlayCanvasObj);
         }
     }
 }

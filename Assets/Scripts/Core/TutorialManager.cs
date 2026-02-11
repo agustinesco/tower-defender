@@ -20,12 +20,13 @@ namespace TowerDefense.Core
             Done
         }
 
-        private const string PrefKey = "tutorial_complete";
+        private const string PrefPrefix = "tut_";
+        private const int StepCount = 7; // Everything before Done
 
         private static readonly string[] StepMessages = new string[]
         {
             "Select a path card on the left, then hold on a valid hex to build it. Tap the card again to rotate before placing. You can also place over existing tiles to replace them!",
-            "Ore deposits are scattered nearby (colored icons). Place a path over one to auto-build a mine and gather resources each wave!",
+            "Ore deposits are scattered nearby (colored icons). Place a path over one to auto-build a mine and gather resources over time!",
             "Enemies spawn at open path edges (goblin icons). More paths = more spawn points!",
             "Switch to the Towers tab and tap a tower card, then tap near a path to place it.",
             "Towers attack enemies automatically. Press 'Start Wave' when you're ready!",
@@ -44,22 +45,45 @@ namespace TowerDefense.Core
         private RectTransform arrowRect;
         private Text arrowText;
 
+        private GraphicRaycaster raycaster;
+
         private PieceDragHandler pieceDragHandler;
         private TowerManager towerManager;
         private WaveManager waveManager;
         private CameraController cameraController;
         private Vector3 savedCameraPos;
 
+        private static bool IsStepSeen(TutorialStep step)
+        {
+            return PlayerPrefs.GetInt(PrefPrefix + step, 0) == 1;
+        }
+
+        private static void MarkStepSeen(TutorialStep step)
+        {
+            PlayerPrefs.SetInt(PrefPrefix + step, 1);
+        }
+
+        private TutorialStep FindFirstUnseenStep()
+        {
+            for (int i = 0; i < StepCount; i++)
+            {
+                if (!IsStepSeen((TutorialStep)i))
+                    return (TutorialStep)i;
+            }
+            return TutorialStep.Done;
+        }
+
         private void Start()
         {
-            if (PlayerPrefs.GetInt(PrefKey, 0) == 1)
+            var firstUnseen = FindFirstUnseenStep();
+            if (firstUnseen == TutorialStep.Done)
             {
-                Debug.Log("TutorialManager: tutorial already completed, skipping.");
+                Debug.Log("TutorialManager: all steps seen, skipping.");
                 Destroy(gameObject);
                 return;
             }
 
-            Debug.Log("TutorialManager: starting first-run tutorial.");
+            Debug.Log($"TutorialManager: resuming from {firstUnseen}.");
 
             pieceDragHandler = FindFirstObjectByType<PieceDragHandler>();
             towerManager = FindFirstObjectByType<TowerManager>();
@@ -71,12 +95,26 @@ namespace TowerDefense.Core
 
             panel.SetActive(false);
             arrowObj.SetActive(false);
-            Invoke(nameof(ShowWelcome), 0.3f);
+            currentStep = firstUnseen;
+
+            // For event-driven steps, just wait silently for the trigger
+            if (StepNeedsEventTrigger(firstUnseen))
+                return;
+
+            Invoke(nameof(ShowCurrentStep), 0.3f);
         }
 
-        private void ShowWelcome()
+        private void ShowCurrentStep()
         {
-            ShowStep(TutorialStep.Welcome);
+            ShowStep(currentStep);
+        }
+
+        private bool StepNeedsEventTrigger(TutorialStep step)
+        {
+            // These steps should only appear after their triggering event
+            return step == TutorialStep.SpawnPoints
+                || step == TutorialStep.StartWave
+                || step == TutorialStep.Upgrades;
         }
 
         private void Subscribe()
@@ -115,7 +153,7 @@ namespace TowerDefense.Core
             scaler.referenceResolution = new Vector2(1920, 1080);
             scaler.matchWidthOrHeight = 1f;
 
-            canvasObj.AddComponent<GraphicRaycaster>();
+            raycaster = canvasObj.AddComponent<GraphicRaycaster>();
 
             // SafeArea child
             var safeObj = new GameObject("SafeArea");
@@ -214,13 +252,28 @@ namespace TowerDefense.Core
                 return;
             }
 
+            // Mark this step as seen immediately
+            MarkStepSeen(step);
+
             // Pan camera to deposit for Mining step
             if (step == TutorialStep.Mining)
                 PanToNearestDeposit();
 
             messageText.text = StepMessages[(int)step];
             panel.SetActive(true);
+            if (raycaster != null)
+                raycaster.enabled = true;
             UpdateArrow(step);
+        }
+
+        private TutorialStep NextUnseenStep(TutorialStep after)
+        {
+            for (int i = (int)after + 1; i < StepCount; i++)
+            {
+                if (!IsStepSeen((TutorialStep)i))
+                    return (TutorialStep)i;
+            }
+            return TutorialStep.Done;
         }
 
         private void PanToNearestDeposit()
@@ -286,11 +339,12 @@ namespace TowerDefense.Core
         {
             panel.SetActive(false);
             arrowObj.SetActive(false);
+            if (raycaster != null)
+                raycaster.enabled = false;
         }
 
-        private void OnOKPressed()
+        private void AdvanceAfterDismiss()
         {
-            // Pan camera back after Mining step
             if (currentStep == TutorialStep.Mining)
                 PanBackFromDeposit();
 
@@ -299,13 +353,13 @@ namespace TowerDefense.Core
             switch (currentStep)
             {
                 case TutorialStep.Welcome:
-                    ShowStep(TutorialStep.Mining);
+                    ShowStep(NextUnseenStep(TutorialStep.Welcome));
                     break;
                 case TutorialStep.Mining:
                     // Wait for OnPiecePlaced to advance
                     break;
                 case TutorialStep.SpawnPoints:
-                    ShowStep(TutorialStep.PlaceTower);
+                    ShowStep(NextUnseenStep(TutorialStep.SpawnPoints));
                     break;
                 case TutorialStep.PlaceTower:
                     // Wait for OnTowerPlaced to advance
@@ -314,7 +368,7 @@ namespace TowerDefense.Core
                     // Wait for OnWaveComplete to advance
                     break;
                 case TutorialStep.Upgrades:
-                    ShowStep(TutorialStep.Escape);
+                    ShowStep(NextUnseenStep(TutorialStep.Upgrades));
                     break;
                 case TutorialStep.Escape:
                     ShowStep(TutorialStep.Done);
@@ -322,28 +376,31 @@ namespace TowerDefense.Core
             }
         }
 
+        private void OnOKPressed()
+        {
+            AdvanceAfterDismiss();
+        }
+
         private void OnPiecePlaced(int handIndex, PlacementRotation rotation, HexCoord coord)
         {
             if (currentStep == TutorialStep.Mining)
-                ShowStep(TutorialStep.SpawnPoints);
+                ShowStep(NextUnseenStep(TutorialStep.Mining));
         }
 
         private void OnTowerPlaced(Tower tower)
         {
             if (currentStep == TutorialStep.PlaceTower)
-                ShowStep(TutorialStep.StartWave);
+                ShowStep(NextUnseenStep(TutorialStep.PlaceTower));
         }
 
         private void OnWaveComplete()
         {
             if (currentStep == TutorialStep.StartWave)
-                ShowStep(TutorialStep.Upgrades);
+                ShowStep(NextUnseenStep(TutorialStep.StartWave));
         }
 
         private void CompleteTutorial()
         {
-            PlayerPrefs.SetInt(PrefKey, 1);
-            PlayerPrefs.Save();
             HideAll();
             Destroy(gameObject);
         }
