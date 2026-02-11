@@ -223,7 +223,7 @@ namespace TowerDefense.Core
 
             // Add collider for click detection in free mode
             var collider = towerObj.AddComponent<SphereCollider>();
-            collider.radius = 2f;
+            collider.radius = 4f;
 
             RegisterTowerOnTile(tower, coord);
             placedTowers.Add(tower);

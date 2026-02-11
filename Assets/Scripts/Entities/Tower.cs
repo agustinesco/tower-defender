@@ -81,8 +81,8 @@ namespace TowerDefense.Entities
             // Base
             var baseObj = MaterialCache.CreatePrimitive(PrimitiveType.Cylinder);
             baseObj.transform.SetParent(transform);
-            baseObj.transform.localPosition = new Vector3(0f, 0.75f, 0f);
-            baseObj.transform.localScale = new Vector3(2.4f, 0.75f, 2.4f);
+            baseObj.transform.localPosition = new Vector3(0f, 1.5f, 0f);
+            baseObj.transform.localScale = new Vector3(4.8f, 1.5f, 4.8f);
 
             var baseRenderer = baseObj.GetComponent<Renderer>();
             if (baseRenderer != null)
@@ -94,8 +94,8 @@ namespace TowerDefense.Entities
             var headObj = MaterialCache.CreatePrimitive(PrimitiveType.Cube);
             headObj.name = "TurretHead";
             headObj.transform.SetParent(transform);
-            headObj.transform.localPosition = new Vector3(0f, 2.1f, 0f);
-            headObj.transform.localScale = new Vector3(1.2f, 1.2f, 1.8f);
+            headObj.transform.localPosition = new Vector3(0f, 4.2f, 0f);
+            headObj.transform.localScale = new Vector3(2.4f, 2.4f, 3.6f);
             turretHead = headObj.transform;
 
             var headRenderer = headObj.GetComponent<Renderer>();
@@ -109,7 +109,7 @@ namespace TowerDefense.Entities
             {
                 var iconObj = new GameObject("TowerIcon");
                 iconObj.transform.SetParent(transform);
-                iconObj.transform.localPosition = new Vector3(0f, 3.8f, 0f);
+                iconObj.transform.localPosition = new Vector3(0f, 7.0f, 0f);
                 var sr = iconObj.AddComponent<SpriteRenderer>();
                 sr.sprite = data.towerIcon;
                 sr.color = Color.white;

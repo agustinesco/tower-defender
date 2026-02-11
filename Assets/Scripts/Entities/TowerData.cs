@@ -41,6 +41,6 @@ namespace TowerDefense.Entities
         public bool prioritizeFlying = false;
 
         [Header("Placement")]
-        public float placementRadius = 5f;
+        public float placementRadius = 10f;
     }
 }

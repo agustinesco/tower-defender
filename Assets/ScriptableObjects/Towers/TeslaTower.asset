@@ -38,4 +38,4 @@ MonoBehaviour:
   burnDuration: 2
   canTargetFlying: 1
   prioritizeFlying: 1
-  placementRadius: 5
+  placementRadius: 10
