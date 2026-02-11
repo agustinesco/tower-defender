@@ -125,7 +125,7 @@ namespace TowerDefense.Grid
                 HexPieceType type;
                 if (edges.Count == 3) type = HexPieceType.Fork;
                 else if (edges.Count == 2 && edges[1] == HexCoord.OppositeEdge(edges[0])) type = HexPieceType.Straight;
-                else type = HexPieceType.Bend;
+                else type = HexPieceType.Simple;
 
                 var pieceData = new HexPieceData(newCoord, type, edges);
                 pieces[newCoord] = pieceData;

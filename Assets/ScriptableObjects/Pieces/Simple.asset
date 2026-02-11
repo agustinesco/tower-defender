@@ -10,11 +10,11 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8f0044f47f7e40288f6c01bd05aff490, type: 3}
-  m_Name: Bend
+  m_Name: Simple
   m_EditorClassIdentifier:
   pieceType: 2
-  displayName: Bend
-  rotationPattern: 1
+  displayName: Simple
+  rotationPattern: 7
   generationWeight: 0.3
   startsInHand: 0
   allowsTowerSlots: 1
@@ -25,5 +25,5 @@ MonoBehaviour:
   spawnerSpeedMultiplier: 1
   cardColor: {r: 0.25, g: 0.35, b: 0.55, a: 1}
   previewAngles:
+  - 0
   - 180
-  - 300

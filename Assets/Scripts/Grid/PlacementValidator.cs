@@ -202,6 +202,18 @@ namespace TowerDefense.Grid
                     variants.Add(new PlacementRotation(entryEdge,
                         new List<int> { 0, 1, 2, 3, 4, 5 }));
                     break;
+
+                case RotationPattern.Simple:
+                    // Straight first, then bends
+                    variants.Add(new PlacementRotation(entryEdge,
+                        new List<int> { entryEdge, opposite }));
+                    for (int e = 0; e < 6; e++)
+                    {
+                        if (e == entryEdge || e == opposite) continue;
+                        variants.Add(new PlacementRotation(entryEdge,
+                            new List<int> { entryEdge, e }));
+                    }
+                    break;
             }
 
             return variants;

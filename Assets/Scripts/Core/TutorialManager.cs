@@ -33,7 +33,7 @@ namespace TowerDefense.Core
             "Place a path on the ore deposit to automatically build a mine!",
             "Mine placed! It will gather resources over time while you play. At the end of each run, collected resources can be spent on permanent upgrades in the shop",
             "Enemies spawn from open path edges. Kill them to earn gold for more towers and paths!",
-            "You can rebuild over existing paths, but not over mines. Towers on replaced paths are removed and refunded",
+            "Enemies spawn from open path edges. Place towers near paths to defend! You can rebuild over existing paths, but not over mines",
             "Switch to the Towers tab",
             "Select a tower to place",
             "Tap near the path to place your tower",
@@ -104,6 +104,10 @@ namespace TowerDefense.Core
 
         private bool ShouldSkipStep(TutorialStep step)
         {
+            // SpawnExplanation merged into PathEditInfo
+            if (step == TutorialStep.SpawnExplanation)
+                return true;
+
             // Skip tower steps if no towers are unlocked
             if (step == TutorialStep.SwitchToTowers ||
                 step == TutorialStep.SelectTower ||
@@ -607,7 +611,7 @@ namespace TowerDefense.Core
             switch (currentStep)
             {
                 case TutorialStep.MineExplanation:
-                    AdvanceTo(TutorialStep.SpawnExplanation);
+                    AdvanceTo(TutorialStep.PathEditInfo);
                     break;
                 case TutorialStep.SpawnExplanation:
                     AdvanceTo(TutorialStep.PathEditInfo);

@@ -8,6 +8,7 @@ namespace TowerDefense.Grid
         DeadEnd,    // 1 variant: entry only
         Cross,      // 2 variants: entry + opposite + 2 more edges
         Star,       // 2 variants: entry + opposite + 3 more edges (one excluded)
-        Crossroads  // 1 variant: all 6 edges
+        Crossroads, // 1 variant: all 6 edges
+        Simple      // like Bend but straight (opposite) variant first
     }
 }
