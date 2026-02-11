@@ -73,8 +73,6 @@ namespace TowerDefense.UI
 
         // Continuous mode escape
         private bool continuousStarted;
-        private float escapeTimer;
-        private const float EscapeInterval = 300f; // 5 minutes
         private bool escapeAvailable;
 
         // Upgrade button glow
@@ -92,8 +90,6 @@ namespace TowerDefense.UI
 
         // Cached values for throttling UI text updates
         private int lastBuildSeconds = -1;
-        private int lastEscapeMin = -1;
-        private int lastEscapeSec = -1;
 
         private void Awake()
         {
@@ -191,8 +187,12 @@ namespace TowerDefense.UI
             if (PersistenceManager.Instance != null)
             {
                 PersistenceManager.Instance.OnResourcesChanged += UpdateResources;
+                PersistenceManager.Instance.OnResourcesChanged += UpdateEscapeProgress;
                 UpdateResources();
             }
+
+            if (GameManager.Instance != null)
+                GameManager.Instance.OnObjectivesMet += OnObjectivesMet;
 
             cachedCamera = Camera.main;
             CreateUpgradeGlowParticles();
@@ -426,7 +426,6 @@ namespace TowerDefense.UI
             {
                 waveManager.StartContinuousMode();
                 continuousStarted = true;
-                escapeTimer = 0f;
                 escapeAvailable = false;
                 if (startWaveButton != null)
                     startWaveButton.gameObject.SetActive(false);
@@ -437,6 +436,7 @@ namespace TowerDefense.UI
                     escapeButtonObj.SetActive(true);
                     escapeButton.interactable = false;
                 }
+                UpdateEscapeProgress();
             }
             else if (waveManager != null)
             {
@@ -555,38 +555,7 @@ namespace TowerDefense.UI
                 damageFlashImage.color = new Color(1f, 0f, 0f, alpha);
             }
 
-            // Continuous escape timer
-            if (continuousStarted && escapeButtonObj != null && escapeButtonObj.activeSelf)
-            {
-                escapeTimer += Time.deltaTime;
-                float remaining = EscapeInterval - (escapeTimer % EscapeInterval);
-
-                if (!escapeAvailable && escapeTimer >= EscapeInterval)
-                {
-                    escapeAvailable = true;
-                    escapeButton.interactable = true;
-                    escapeButtonObj.GetComponent<Image>().color = new Color(0.8f, 0.65f, 0.1f);
-                }
-
-                if (escapeAvailable)
-                {
-                    if (escapeButtonText != null)
-                        escapeButtonText.text = "Escape!";
-                }
-                else
-                {
-                    int min = Mathf.FloorToInt(remaining / 60f);
-                    int sec = Mathf.CeilToInt(remaining % 60f);
-                    if (sec == 60) { min++; sec = 0; }
-                    if (min != lastEscapeMin || sec != lastEscapeSec)
-                    {
-                        lastEscapeMin = min;
-                        lastEscapeSec = sec;
-                        if (escapeButtonText != null)
-                            escapeButtonText.text = $"Escape {min}:{sec:D2}";
-                    }
-                }
-            }
+            // Escape progress is updated via OnResourcesChanged / OnObjectivesMet events
         }
 
         private void UpdateResources()
@@ -672,15 +641,57 @@ namespace TowerDefense.UI
             MainSceneController.LoadMainMenu();
         }
 
-        private void OnCheatForceEscape()
+        private void UpdateEscapeProgress()
         {
-            if (!continuousStarted) return;
+            if (!continuousStarted || escapeAvailable) return;
+            if (escapeButtonText == null || GameManager.Instance == null) return;
+
+            var objectives = GameManager.Instance.RunObjectives;
+            if (objectives.Count == 0) return;
+
+            var pm = PersistenceManager.Instance;
+            if (pm == null) return;
+
+            // Build combined progress string
+            var parts = new System.Text.StringBuilder();
+            for (int i = 0; i < objectives.Count; i++)
+            {
+                var obj = objectives[i];
+                int current = pm.GetRunGathered(obj.resourceType);
+                int required = obj.requiredAmount;
+                string name = GetShortResourceName(obj.resourceType);
+                if (i > 0) parts.Append("  ");
+                parts.Append($"{name}: {current}/{required}");
+            }
+            escapeButtonText.text = parts.ToString();
+        }
+
+        private void OnObjectivesMet()
+        {
             escapeAvailable = true;
             if (escapeButton != null) escapeButton.interactable = true;
             if (escapeButtonObj != null)
                 escapeButtonObj.GetComponent<Image>().color = new Color(0.8f, 0.65f, 0.1f);
             if (escapeButtonText != null)
                 escapeButtonText.text = "Escape!";
+        }
+
+        private static string GetShortResourceName(ResourceType type)
+        {
+            switch (type)
+            {
+                case ResourceType.IronOre: return "Iron";
+                case ResourceType.Gems: return "Gems";
+                case ResourceType.Florpus: return "Florpus";
+                case ResourceType.Adamantite: return "Adam";
+                default: return type.ToString();
+            }
+        }
+
+        private void OnCheatForceEscape()
+        {
+            if (!continuousStarted) return;
+            OnObjectivesMet();
         }
 
         private void OnCheatShowCamps()
@@ -813,6 +824,12 @@ namespace TowerDefense.UI
         {
             if (upgradeGlowPS != null)
                 Destroy(upgradeGlowPS.gameObject);
+
+            if (GameManager.Instance != null)
+                GameManager.Instance.OnObjectivesMet -= OnObjectivesMet;
+
+            if (PersistenceManager.Instance != null)
+                PersistenceManager.Instance.OnResourcesChanged -= UpdateEscapeProgress;
         }
     }
 }

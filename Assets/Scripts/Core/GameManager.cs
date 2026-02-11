@@ -82,6 +82,12 @@ namespace TowerDefense.Core
         private const float ModContinuousDuration = 120f; // 2 minutes
 
         // Zone system — each entry is the max hex distance for that zone boundary
+        [Header("Run Objectives")]
+        [SerializeField] private List<RunObjective> runObjectives = new List<RunObjective>
+        {
+            new RunObjective { resourceType = ResourceType.IronOre, requiredAmount = 10 }
+        };
+
         [Header("Zone Boundaries (hex distances)")]
         [SerializeField] private int[] zoneBoundaries = { 3, 6, 9 };
         private HashSet<int> unlockedZones = new HashSet<int> { 1 };
@@ -105,6 +111,7 @@ namespace TowerDefense.Core
         private bool gameOver = false;
         private bool buildPhaseActive = false;
         private float buildTimer = 0f;
+        private bool objectivesMet = false;
 
         private float ContinuousMineInterval => mineConfig != null ? mineConfig.collectionInterval : 30f;
         private int MineYieldMultiplier => mineConfig != null ? mineConfig.yieldMultiplier : 1;
@@ -181,6 +188,22 @@ namespace TowerDefense.Core
         public event System.Action OnGameOver;
         public event System.Action OnBuildPhaseStarted;
         public event System.Action OnBuildPhaseEnded;
+        public event System.Action OnObjectivesMet;
+
+        public IReadOnlyList<RunObjective> RunObjectives => runObjectives;
+        public bool ObjectivesMet => objectivesMet;
+
+        public bool AreObjectivesMet()
+        {
+            if (PersistenceManager.Instance == null) return false;
+            for (int i = 0; i < runObjectives.Count; i++)
+            {
+                var obj = runObjectives[i];
+                if (PersistenceManager.Instance.GetRunGathered(obj.resourceType) < obj.requiredAmount)
+                    return false;
+            }
+            return runObjectives.Count > 0;
+        }
 
         private void Awake()
         {
@@ -368,7 +391,18 @@ namespace TowerDefense.Core
                 pieceHandUI.RefreshHand(pieceProvider.Pieces);
             }
 
+            if (PersistenceManager.Instance != null)
+                PersistenceManager.Instance.OnResourcesChanged += CheckObjectives;
+
             Invoke(nameof(FireInitialEvents), 0.1f);
+        }
+
+        private void CheckObjectives()
+        {
+            if (objectivesMet) return;
+            if (!AreObjectivesMet()) return;
+            objectivesMet = true;
+            OnObjectivesMet?.Invoke();
         }
 
         private void Update()
@@ -424,6 +458,9 @@ namespace TowerDefense.Core
 
             if (pieceProvider != null)
                 pieceProvider.OnHandChanged -= OnHandChanged;
+
+            if (PersistenceManager.Instance != null)
+                PersistenceManager.Instance.OnResourcesChanged -= CheckObjectives;
         }
 
         private void FireInitialEvents()
