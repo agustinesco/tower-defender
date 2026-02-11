@@ -37,6 +37,10 @@ namespace TowerDefense.UI
 
         private void Apply()
         {
+#if UNITY_EDITOR
+            // In the editor, keep the anchors baked in the prefab.
+            return;
+#endif
             var safeArea = Screen.safeArea;
             int screenW = Screen.width;
             int screenH = Screen.height;
