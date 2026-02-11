@@ -31,8 +31,8 @@ namespace TowerDefense.Core
         private static readonly string[] StepMessages = new string[]
         {
             "Select a path card",
-            "Hold on the ore deposit to build a path and mine!",
-            "Mine built! Resources gathered each run can be spent on upgrades",
+            "Place a path on the ore deposit to automatically build a mine!",
+            "Mine placed! It will gather resources over time while you play. At the end of each run, collected resources can be spent on permanent upgrades in the shop",
             "Enemies spawn from open path edges. Kill them to earn gold for more towers and paths!",
             "You can rebuild over existing paths, but not over mines. Towers on replaced paths are removed and refunded",
             "Switch to the Towers tab",
