@@ -1,4 +1,5 @@
 using UnityEngine;
+using TowerDefense.Core;
 using TowerDefense.Entities;
 
 namespace TowerDefense.Grid
@@ -32,17 +33,10 @@ namespace TowerDefense.Grid
 
         private void CreateVisualIndicator()
         {
-            visualIndicator = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            visualIndicator = MaterialCache.CreatePrimitive(PrimitiveType.Cylinder);
             visualIndicator.transform.SetParent(transform);
             visualIndicator.transform.localPosition = Vector3.zero;
             visualIndicator.transform.localScale = new Vector3(1f, 0.1f, 1f);
-
-            // Remove collider from primitive (slot already has its own)
-            var collider = visualIndicator.GetComponent<Collider>();
-            if (collider != null)
-            {
-                Object.Destroy(collider);
-            }
 
             // Set color
             var renderer = visualIndicator.GetComponent<Renderer>();

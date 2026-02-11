@@ -5,10 +5,11 @@ namespace TowerDefense.UI
 {
     public class ResourcePopup : MonoBehaviour
     {
-        private float duration = 2f;
+        private float duration = 2.5f;
         private float timer;
         private Vector3 startPos;
         private Vector3 endPos;
+        private Vector3 midPos;
         private TextMesh textMesh;
         private Color textColor;
 
@@ -16,7 +17,9 @@ namespace TowerDefense.UI
         {
             startPos = from;
             endPos = to;
+            midPos = Vector3.Lerp(startPos, endPos, 0.5f) + Vector3.up * 8f;
             transform.position = startPos;
+            transform.localScale = Vector3.one * 2f;
 
             var textObj = new GameObject("Text");
             textObj.transform.SetParent(transform);
@@ -25,7 +28,7 @@ namespace TowerDefense.UI
             textMesh = textObj.AddComponent<TextMesh>();
             textMesh.text = $"+{amount} {resourceType}";
             textMesh.fontSize = 48;
-            textMesh.characterSize = 0.15f;
+            textMesh.characterSize = 0.3f;
             textMesh.anchor = TextAnchor.MiddleCenter;
             textMesh.alignment = TextAlignment.Center;
             textMesh.fontStyle = FontStyle.Bold;
@@ -44,11 +47,26 @@ namespace TowerDefense.UI
             timer += Time.deltaTime;
             float t = Mathf.Clamp01(timer / duration);
 
-            // Lerp from mine to castle
-            transform.position = Vector3.Lerp(startPos, endPos, t);
+            // Scale burst: start at 2x, settle to 1x over first 0.4s
+            if (timer < 0.4f)
+            {
+                float scaleT = timer / 0.4f;
+                float scale = Mathf.Lerp(2f, 1f, scaleT);
+                transform.localScale = Vector3.one * scale;
+            }
+            else
+            {
+                transform.localScale = Vector3.one;
+            }
 
-            // Fade out in the last 30% of travel
-            float fadeStart = 0.7f;
+            // Quadratic bezier arc (parabolic path)
+            float oneMinusT = 1f - t;
+            transform.position = oneMinusT * oneMinusT * startPos
+                + 2f * oneMinusT * t * midPos
+                + t * t * endPos;
+
+            // Fade out in the last 40% of travel
+            float fadeStart = 0.6f;
             if (t > fadeStart)
             {
                 float alpha = 1f - (t - fadeStart) / (1f - fadeStart);

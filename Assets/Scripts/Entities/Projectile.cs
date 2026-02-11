@@ -129,14 +129,10 @@ namespace TowerDefense.Entities
             if (visual == null)
             {
                 // Create sphere visual
-                visual = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                visual = MaterialCache.CreatePrimitive(PrimitiveType.Sphere);
                 visual.transform.SetParent(transform);
                 visual.transform.localPosition = Vector3.zero;
                 visual.transform.localScale = new Vector3(0.3f, 0.3f, 0.3f);
-
-                // Remove collider from visual
-                var collider = visual.GetComponent<Collider>();
-                if (collider != null) Destroy(collider);
 
                 // Set initial material
                 var renderer = visual.GetComponent<Renderer>();

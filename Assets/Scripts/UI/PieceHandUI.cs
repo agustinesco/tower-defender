@@ -16,39 +16,44 @@ namespace TowerDefense.UI
     {
         private enum HandTab { Paths, Towers, Modifications }
 
-        private RectTransform panelRect;
+        [Header("Scene References")]
+        [SerializeField] private RectTransform cardContainer;
+        [SerializeField] private VerticalLayoutGroup cardContainerLayout;
+        [SerializeField] private GameObject cardPrefab;
+        [SerializeField] private Button pathsTabButton;
+        [SerializeField] private Button towersTabButton;
+        [SerializeField] private Button modsTabButton;
+        [SerializeField] private Image pathsTabImage;
+        [SerializeField] private Image towersTabImage;
+        [SerializeField] private Image modsTabImage;
+        [SerializeField] private GameObject towersTabObj;
+        [SerializeField] private GameObject modsTabObj;
+        [SerializeField] private GameObject tooltipObj;
+        [SerializeField] private Text tooltipText;
+
         private List<PieceCard> cards = new List<PieceCard>();
         private int selectedIndex = -1;
         private Dictionary<HexPieceType, HexPieceConfig> pieceConfigs;
         private PieceProvider pieceProvider;
 
         private HandTab activeTab = HandTab.Paths;
-        private GameObject pathsTabBtn;
-        private GameObject towersTabBtn;
-        private GameObject modsTabBtn;
-        private Image pathsTabImage;
-        private Image towersTabImage;
-        private Image modsTabImage;
 
         private bool freeTowerMode;
         private List<TowerData> availableTowers;
-        private Dictionary<int, float> originalCardY = new Dictionary<int, float>();
 
         private static readonly Color TabActiveColor = new Color(0.3f, 0.6f, 0.3f);
         private static readonly Color TabInactiveColor = new Color(0.25f, 0.25f, 0.25f);
 
-        private const float CardWidth = 90f;
-        private const float CardHeight = 110f;
-        private const float CardSpacing = 10f;
+        private const float BaseCardHeight = 105f;
+        private const float BaseCardSpacing = 12f;
         private const float PanelPadding = 15f;
-        private const float TabRowHeight = 35f;
-        private const float CardLiftAmount = 15f;
 
-        private GameObject tooltipObj;
-        private Text tooltipText;
+        private float cardHeight = BaseCardHeight;
+        private float cardSpacing = BaseCardSpacing;
+        private float fontScale = 1f;
+
         private static readonly Dictionary<ModificationType, string> ModDescriptions = new Dictionary<ModificationType, string>
         {
-            { ModificationType.Mine, "Builds a mining outpost that periodically collects resources from nearby ore nodes" },
             { ModificationType.Lure, "Places a one-time lure that spawns extra enemies next wave. Lured enemies give 2x gold" },
             { ModificationType.Haste, "Increases the fire rate of all towers on this tile by 30% for the next wave (or 2 minutes)" },
             { ModificationType.GoldenTouch, "Enemies killed on this tile drop 1.5x gold for the next wave (or 2 minutes)" }
@@ -63,15 +68,7 @@ namespace TowerDefense.UI
 
         private class PieceCard
         {
-            public GameObject CardObject;
-            public Image Background;
-            public GameObject BorderObj;
-            public Image BorderImage;
-            public Text TypeLabel;
-            public Text CostLabel;
-            public GameObject CooldownOverlay;
-            public Image CooldownImage;
-            public Text CooldownText;
+            public CardUI UI;
             public int HandIndex;
             public HexPieceType PieceType;
             public List<GameObject> PathPreviewLines;
@@ -79,6 +76,49 @@ namespace TowerDefense.UI
             public ModificationType ModType;
             public bool IsTowerCard;
             public TowerData TowerData;
+            public bool IsLocked;
+        }
+
+        private CanvasScaler parentCanvasScaler;
+
+        private void Awake()
+        {
+            parentCanvasScaler = GetComponentInParent<CanvasScaler>();
+            if (parentCanvasScaler != null)
+            {
+                parentCanvasScaler.referenceResolution = new Vector2(1920f, 1080f);
+                parentCanvasScaler.matchWidthOrHeight = 1f;
+            }
+
+            var parentCanvas = GetComponentInParent<Canvas>();
+            if (parentCanvas != null)
+                parentCanvas.sortingOrder = 5;
+        }
+
+        private void Start()
+        {
+            if (pathsTabButton != null)
+                pathsTabButton.onClick.AddListener(() => SwitchTab(HandTab.Paths));
+            if (towersTabButton != null)
+                towersTabButton.onClick.AddListener(() => SwitchTab(HandTab.Towers));
+            if (modsTabButton != null)
+                modsTabButton.onClick.AddListener(() => SwitchTab(HandTab.Modifications));
+        }
+
+        private float GetEffectiveCanvasHeight()
+        {
+            if (parentCanvasScaler == null) return 720f;
+            var refRes = parentCanvasScaler.referenceResolution;
+            float screenW = Screen.width;
+            float screenH = Screen.height;
+            if (screenW <= 0 || screenH <= 0) return refRes.y;
+
+            float match = parentCanvasScaler.matchWidthOrHeight;
+            float logW = Mathf.Log(screenW / refRes.x, 2f);
+            float logH = Mathf.Log(screenH / refRes.y, 2f);
+            float logScale = Mathf.Lerp(logW, logH, match);
+            float scale = Mathf.Pow(2f, logScale);
+            return screenH / scale;
         }
 
         public void SetPieceConfigs(Dictionary<HexPieceType, HexPieceConfig> configs)
@@ -116,102 +156,70 @@ namespace TowerDefense.UI
         {
             int pathCount = pieceProvider != null ? pieceProvider.Pieces.Count : 0;
             int towerCount = availableTowers != null ? availableTowers.Count : 0;
-            int modCount = 4;
+            int modCount = 3;
             return Mathf.Max(pathCount, Mathf.Max(towerCount, modCount));
         }
 
-        private void CreatePanel(int pieceCount)
+        private void ComputeCardSizing()
         {
-            if (panelRect != null)
+            int maxCards = GetMaxCardCount();
+            if (maxCards <= 0) return;
+
+            float canvasHeight = GetEffectiveCanvasHeight();
+            float availableForCards = canvasHeight - PanelPadding * 2f;
+            cardSpacing = BaseCardSpacing;
+            cardHeight = (availableForCards - (maxCards - 1) * cardSpacing) / maxCards;
+
+            if (cardHeight < 50f)
             {
-                Destroy(panelRect.gameObject);
-                tooltipObj = null;
+                cardSpacing = 4f;
+                cardHeight = (availableForCards - (maxCards - 1) * cardSpacing) / maxCards;
+                cardHeight = Mathf.Max(40f, cardHeight);
             }
 
-            originalCardY.Clear();
+            cardHeight = Mathf.Min(cardHeight, BaseCardHeight);
+            fontScale = cardHeight / BaseCardHeight;
 
-            GameObject panel = new GameObject("PieceHandPanel");
-            panel.transform.SetParent(transform);
-
-            panelRect = panel.AddComponent<RectTransform>();
-            panelRect.anchorMin = new Vector2(0.5f, 0f);
-            panelRect.anchorMax = new Vector2(0.5f, 0f);
-            panelRect.pivot = new Vector2(0.5f, 0f);
-
-            int maxCards = GetMaxCardCount();
-            float cardsWidth = maxCards * CardWidth + (maxCards - 1) * CardSpacing + PanelPadding * 2f;
-            float panelHeight = CardHeight + PanelPadding * 2f + TabRowHeight;
-            panelRect.sizeDelta = new Vector2(cardsWidth, panelHeight);
-            panelRect.anchoredPosition = Vector2.zero;
-
-            var bg = panel.AddComponent<Image>();
-            bg.color = new Color(0f, 0f, 0f, 0.6f);
-
-            // Create tab row at the top
-            CreateTabRow(panel.transform, cardsWidth);
+            if (cardContainerLayout != null)
+                cardContainerLayout.spacing = cardSpacing;
         }
 
-        private void CreateTabRow(Transform parent, float panelWidth)
+        private bool HasUnlockedTowers()
         {
-            pathsTabBtn = null;
-            towersTabBtn = null;
-            modsTabBtn = null;
-
-            int tabCount = freeTowerMode ? 3 : 2;
-            float tabWidth = (panelWidth - (tabCount + 1) * 2f) / tabCount;
-            float tabY = (CardHeight + PanelPadding * 2f + TabRowHeight) / 2f - TabRowHeight / 2f;
-
-            float startX = -(panelWidth / 2f) + 2f + tabWidth / 2f;
-
-            int tabIndex = 0;
-            pathsTabBtn = CreateTabButton(parent, "PathsTab", "Paths", startX + tabIndex * (tabWidth + 2f), tabY, tabWidth, HandTab.Paths);
-            pathsTabImage = pathsTabBtn.GetComponent<Image>();
-            tabIndex++;
-
-            if (freeTowerMode)
+            if (availableTowers == null) return false;
+            for (int i = 0; i < availableTowers.Count; i++)
             {
-                towersTabBtn = CreateTabButton(parent, "TowersTab", "Towers", startX + tabIndex * (tabWidth + 2f), tabY, tabWidth, HandTab.Towers);
-                towersTabImage = towersTabBtn.GetComponent<Image>();
-                tabIndex++;
+                if (LabManager.Instance == null || LabManager.Instance.IsTowerUnlocked(availableTowers[i].towerName))
+                    return true;
             }
+            return false;
+        }
 
-            modsTabBtn = CreateTabButton(parent, "ModsTab", "Mods", startX + tabIndex * (tabWidth + 2f), tabY, tabWidth, HandTab.Modifications);
-            modsTabImage = modsTabBtn.GetComponent<Image>();
+        private bool HasUnlockedMods()
+        {
+            if (LabManager.Instance == null) return true;
+            if (LabManager.Instance.IsModUnlocked("Lure")) return true;
+            if (LabManager.Instance.IsModUnlocked("Haste")) return true;
+            if (LabManager.Instance.IsModUnlocked("GoldenTouch")) return true;
+            return false;
+        }
+
+        private void UpdateTabVisibility()
+        {
+            bool showTowers = freeTowerMode && HasUnlockedTowers();
+            bool showMods = HasUnlockedMods();
+
+            if (towersTabObj != null)
+                towersTabObj.SetActive(showTowers);
+            if (modsTabObj != null)
+                modsTabObj.SetActive(showMods);
+
+            if (activeTab == HandTab.Towers && !showTowers)
+                activeTab = HandTab.Paths;
+            if (activeTab == HandTab.Modifications && !showMods)
+                activeTab = HandTab.Paths;
 
             UpdateTabColors();
-        }
-
-        private GameObject CreateTabButton(Transform parent, string name, string label, float xPos, float yPos, float width, HandTab tab)
-        {
-            var btn = new GameObject(name);
-            btn.transform.SetParent(parent);
-            var rect = btn.AddComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0.5f, 0.5f);
-            rect.anchorMax = new Vector2(0.5f, 0.5f);
-            rect.anchoredPosition = new Vector2(xPos, yPos);
-            rect.sizeDelta = new Vector2(width, TabRowHeight - 2f);
-
-            var image = btn.AddComponent<Image>();
-            var button = btn.AddComponent<Button>();
-            button.targetGraphic = image;
-            HandTab capturedTab = tab;
-            button.onClick.AddListener(() => SwitchTab(capturedTab));
-
-            var textObj = new GameObject("Text");
-            textObj.transform.SetParent(btn.transform);
-            var textRect = textObj.AddComponent<RectTransform>();
-            textRect.anchorMin = Vector2.zero;
-            textRect.anchorMax = Vector2.one;
-            textRect.offsetMin = Vector2.zero;
-            textRect.offsetMax = Vector2.zero;
-            var text = textObj.AddComponent<Text>();
-            text.text = label;
-            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            text.fontSize = 14;
-            text.color = Color.white;
-            text.alignment = TextAnchor.MiddleCenter;
-
-            return btn;
         }
 
         private void UpdateTabColors()
@@ -228,7 +236,6 @@ namespace TowerDefense.UI
         {
             if (activeTab == tab) return;
 
-            // Deselect any current selection and clear highlights
             if (activeTab == HandTab.Paths && selectedIndex >= 0)
             {
                 selectedIndex = -1;
@@ -252,13 +259,7 @@ namespace TowerDefense.UI
 
             if (tab == HandTab.Paths)
             {
-                foreach (var card in cards)
-                {
-                    if (card.CardObject != null)
-                        Destroy(card.CardObject);
-                }
-                cards.Clear();
-
+                ClearCards();
                 if (pieceProvider != null)
                     RefreshHand(pieceProvider.Pieces);
             }
@@ -272,28 +273,29 @@ namespace TowerDefense.UI
             }
         }
 
+        private void ClearCards()
+        {
+            for (int i = cards.Count - 1; i >= 0; i--)
+            {
+                if (cards[i].UI != null)
+                    Destroy(cards[i].UI.gameObject);
+            }
+            cards.Clear();
+        }
+
         public void RefreshHand(IReadOnlyList<HexPieceConfig> pieces)
         {
             if (activeTab != HandTab.Paths) return;
 
             if (cards.Count != pieces.Count)
             {
-                foreach (var card in cards)
-                {
-                    if (card.CardObject != null)
-                        Destroy(card.CardObject);
-                }
-                cards.Clear();
-
-                CreatePanel(pieces.Count);
-
-                if (panelRect == null) return;
-
-                float startX = -(pieces.Count - 1) * (CardWidth + CardSpacing) / 2f;
+                ClearCards();
+                ComputeCardSizing();
+                UpdateTabVisibility();
 
                 for (int i = 0; i < pieces.Count; i++)
                 {
-                    CreateCard(i, pieces[i], startX + i * (CardWidth + CardSpacing));
+                    InstantiatePathCard(i, pieces[i]);
                 }
             }
 
@@ -304,307 +306,221 @@ namespace TowerDefense.UI
             }
 
             UpdateBorders();
+            LayoutRebuilder.ForceRebuildLayoutImmediate(cardContainer);
         }
 
-        private void RefreshTowers()
+        private void InstantiatePathCard(int index, HexPieceConfig config)
         {
-            foreach (var card in cards)
+            var go = Instantiate(cardPrefab, cardContainer);
+            var ui = go.GetComponent<CardUI>();
+            ui.SetPreferredHeight(cardHeight);
+            ui.Background.color = config.cardColor;
+            ui.NameLabel.text = config.displayName;
+            ui.NameLabel.fontSize = Mathf.RoundToInt(14 * fontScale);
+            ui.CostLabel.text = $"{config.placementCost}g";
+            ui.CostLabel.fontSize = Mathf.RoundToInt(12 * fontScale);
+            ui.Icon.gameObject.SetActive(false);
+
+            int capturedIndex = index;
+            HexPieceType capturedType = config.pieceType;
+            ui.Button.onClick.AddListener(() => OnCardClicked(capturedIndex, capturedType));
+
+            CreatePathPreview(ui.PathPreviewContainer, config);
+
+            // Cooldown text font size
+            if (ui.CooldownText != null)
+                ui.CooldownText.fontSize = Mathf.RoundToInt(24 * fontScale);
+
+            var card = new PieceCard
             {
-                if (card.CardObject != null)
-                    Destroy(card.CardObject);
-            }
-            cards.Clear();
+                UI = ui,
+                HandIndex = index,
+                PieceType = config.pieceType,
+                PathPreviewLines = new List<GameObject>(),
+                IsModificationCard = false
+            };
+            cards.Add(card);
+        }
+
+        public void RefreshTowers()
+        {
+            if (activeTab != HandTab.Towers) return;
+
+            ClearCards();
             selectedIndex = -1;
 
             if (availableTowers == null || availableTowers.Count == 0) return;
 
-            int towerCount = availableTowers.Count;
-            CreatePanel(towerCount);
-
-            if (panelRect == null) return;
-
-            float startX = -(towerCount - 1) * (CardWidth + CardSpacing) / 2f;
-
-            for (int i = 0; i < towerCount; i++)
+            var unlockedTowers = new List<TowerData>();
+            for (int i = 0; i < availableTowers.Count; i++)
             {
-                CreateTowerCard(i, availableTowers[i], startX + i * (CardWidth + CardSpacing));
+                if (LabManager.Instance == null || LabManager.Instance.IsTowerUnlocked(availableTowers[i].towerName))
+                    unlockedTowers.Add(availableTowers[i]);
             }
+
+            if (unlockedTowers.Count == 0) return;
+
+            ComputeCardSizing();
+
+            for (int i = 0; i < unlockedTowers.Count; i++)
+            {
+                InstantiateTowerCard(i, unlockedTowers[i]);
+            }
+
+            LayoutRebuilder.ForceRebuildLayoutImmediate(cardContainer);
         }
 
-        private void CreateTowerCard(int index, TowerData towerData, float xPos)
+        private void InstantiateTowerCard(int index, TowerData towerData)
         {
+            var go = Instantiate(cardPrefab, cardContainer);
+            var ui = go.GetComponent<CardUI>();
+            ui.SetPreferredHeight(cardHeight);
+            ui.Background.color = towerData.towerColor;
+            ui.NameLabel.text = towerData.towerName;
+            ui.NameLabel.fontSize = Mathf.RoundToInt(14 * fontScale);
+            ui.CostLabel.text = $"{towerData.cost}g";
+            ui.CostLabel.fontSize = Mathf.RoundToInt(12 * fontScale);
+
+            // Icon
+            if (towerData.towerIcon != null)
+            {
+                ui.Icon.sprite = towerData.towerIcon;
+                ui.Icon.color = Color.white;
+                ui.Icon.preserveAspect = true;
+                ui.Icon.gameObject.SetActive(true);
+            }
+            else
+            {
+                ui.Icon.color = towerData.towerColor * 0.7f;
+                ui.Icon.gameObject.SetActive(true);
+            }
+
+            // Hide path preview container (not used for towers)
+            if (ui.PathPreviewContainer != null)
+                ui.PathPreviewContainer.gameObject.SetActive(false);
+
+            // Hide cooldown overlay (towers don't have cooldowns)
+            ui.SetCooldownActive(false);
+
+            int capturedIndex = index;
+            TowerData capturedData = towerData;
+            ui.Button.onClick.AddListener(() => OnTowerCardClicked(capturedIndex, capturedData));
+
             var card = new PieceCard
             {
+                UI = ui,
                 HandIndex = index,
                 PathPreviewLines = new List<GameObject>(),
                 IsModificationCard = false,
                 IsTowerCard = true,
-                TowerData = towerData
+                TowerData = towerData,
+                IsLocked = false
             };
-
-            card.CardObject = new GameObject($"TowerCard_{towerData.towerName}");
-            card.CardObject.transform.SetParent(panelRect);
-
-            float cardY = -TabRowHeight / 2f;
-            var rect = card.CardObject.AddComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0.5f, 0.5f);
-            rect.anchorMax = new Vector2(0.5f, 0.5f);
-            rect.anchoredPosition = new Vector2(xPos, cardY);
-            rect.sizeDelta = new Vector2(CardWidth, CardHeight);
-            originalCardY[index] = cardY;
-
-            card.Background = card.CardObject.AddComponent<Image>();
-            card.Background.color = towerData.towerColor;
-
-            // Selection border
-            card.BorderObj = new GameObject("Border");
-            card.BorderObj.transform.SetParent(card.CardObject.transform);
-            var borderRect = card.BorderObj.AddComponent<RectTransform>();
-            borderRect.anchorMin = Vector2.zero;
-            borderRect.anchorMax = Vector2.one;
-            borderRect.offsetMin = new Vector2(-3f, -3f);
-            borderRect.offsetMax = new Vector2(3f, 3f);
-            card.BorderImage = card.BorderObj.AddComponent<Image>();
-            card.BorderImage.color = new Color(1f, 0.9f, 0.3f);
-            card.BorderImage.raycastTarget = false;
-            card.BorderObj.SetActive(false);
-            card.BorderObj.transform.SetAsFirstSibling();
-
-            int capturedIndex = index;
-            TowerData capturedData = towerData;
-            var trigger = card.CardObject.AddComponent<EventTrigger>();
-            var pointerDown = new EventTrigger.Entry { eventID = EventTriggerType.PointerDown };
-            pointerDown.callback.AddListener((_) => OnTowerCardDragStart(capturedIndex, capturedData));
-            trigger.triggers.Add(pointerDown);
-
-            // Tower icon (colored square)
-            GameObject iconObj = new GameObject("Icon");
-            iconObj.transform.SetParent(card.CardObject.transform);
-            var iconRect = iconObj.AddComponent<RectTransform>();
-            iconRect.anchorMin = new Vector2(0.2f, 0.4f);
-            iconRect.anchorMax = new Vector2(0.8f, 0.85f);
-            iconRect.offsetMin = Vector2.zero;
-            iconRect.offsetMax = Vector2.zero;
-            var iconImage = iconObj.AddComponent<Image>();
-            if (towerData.towerIcon != null)
-            {
-                iconImage.sprite = towerData.towerIcon;
-                iconImage.color = Color.white;
-                iconImage.preserveAspect = true;
-            }
-            else
-            {
-                iconImage.color = towerData.towerColor * 0.7f;
-            }
-            iconImage.raycastTarget = false;
-
-            // Name label
-            GameObject labelObj = new GameObject("TypeLabel");
-            labelObj.transform.SetParent(card.CardObject.transform);
-            var labelRect = labelObj.AddComponent<RectTransform>();
-            labelRect.anchorMin = new Vector2(0f, 0.15f);
-            labelRect.anchorMax = new Vector2(1f, 0.35f);
-            labelRect.offsetMin = Vector2.zero;
-            labelRect.offsetMax = Vector2.zero;
-
-            card.TypeLabel = labelObj.AddComponent<Text>();
-            card.TypeLabel.text = towerData.towerName;
-            card.TypeLabel.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            card.TypeLabel.fontSize = 14;
-            card.TypeLabel.color = Color.white;
-            card.TypeLabel.alignment = TextAnchor.MiddleCenter;
-
-            // Cost label
-            GameObject costObj = new GameObject("CostLabel");
-            costObj.transform.SetParent(card.CardObject.transform);
-            var costRect = costObj.AddComponent<RectTransform>();
-            costRect.anchorMin = new Vector2(0f, 0f);
-            costRect.anchorMax = new Vector2(1f, 0.15f);
-            costRect.offsetMin = Vector2.zero;
-            costRect.offsetMax = Vector2.zero;
-
-            card.CostLabel = costObj.AddComponent<Text>();
-            card.CostLabel.text = $"{towerData.cost}g";
-            card.CostLabel.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            card.CostLabel.fontSize = 12;
-            card.CostLabel.color = new Color(1f, 0.85f, 0.3f);
-            card.CostLabel.alignment = TextAnchor.MiddleCenter;
-
             cards.Add(card);
         }
 
-        private void OnTowerCardDragStart(int index, TowerData towerData)
+        private void OnTowerCardClicked(int index, TowerData towerData)
         {
-            selectedIndex = index;
-            UpdateBorders();
-            HideTooltip();
-            OnTowerCardSelected?.Invoke(towerData);
-        }
-
-        private void ShowTowerTooltip(TowerData data)
-        {
-            if (panelRect == null) return;
-
-            if (tooltipObj == null)
+            if (selectedIndex == index)
             {
-                tooltipObj = new GameObject("TowerTooltip");
-                tooltipObj.transform.SetParent(panelRect);
-
-                var rect = tooltipObj.AddComponent<RectTransform>();
-                rect.anchorMin = new Vector2(1f, 0.5f);
-                rect.anchorMax = new Vector2(1f, 0.5f);
-                rect.pivot = new Vector2(0f, 0.5f);
-                rect.anchoredPosition = new Vector2(10f, 0f);
-                rect.sizeDelta = new Vector2(280f, 70f);
-
-                var bg = tooltipObj.AddComponent<Image>();
-                bg.color = new Color(0f, 0f, 0f, 0.8f);
-
-                var textObj = new GameObject("Text");
-                textObj.transform.SetParent(tooltipObj.transform);
-                var textRect = textObj.AddComponent<RectTransform>();
-                textRect.anchorMin = Vector2.zero;
-                textRect.anchorMax = Vector2.one;
-                textRect.offsetMin = new Vector2(8f, 4f);
-                textRect.offsetMax = new Vector2(-8f, -4f);
-
-                tooltipText = textObj.AddComponent<Text>();
-                tooltipText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-                tooltipText.fontSize = 14;
-                tooltipText.color = Color.white;
-                tooltipText.alignment = TextAnchor.MiddleLeft;
+                selectedIndex = -1;
+                UpdateBorders();
+                HideTooltip();
+                OnTowerCardDeselected?.Invoke();
             }
-
-            string desc = $"{data.towerName} | DMG: {data.damage} | Rate: {data.fireRate}/s | Range: {data.range}";
-            if (data.isShotgun) desc += " | Shotgun";
-            if (data.isTesla) desc += " | Chain Lightning";
-            if (data.isFlame) desc += " | Fire";
-            if (data.appliesSlow) desc += " | Slow Aura";
-            tooltipText.text = desc;
-
-            tooltipObj.SetActive(true);
+            else
+            {
+                selectedIndex = index;
+                UpdateBorders();
+                HideTooltip();
+                OnTowerCardSelected?.Invoke(towerData);
+            }
         }
 
         private void RefreshModifications()
         {
-            foreach (var card in cards)
-            {
-                if (card.CardObject != null)
-                    Destroy(card.CardObject);
-            }
-            cards.Clear();
+            ClearCards();
             selectedIndex = -1;
 
-            int modCount = 4;
-            CreatePanel(modCount);
-
-            if (panelRect == null) return;
-
             var gm = GameManager.Instance;
-            int mineCost = gm != null ? gm.GetMineCost() : 0;
             int lureCost = gm != null ? gm.GetLureCost() : 0;
             int hasteCost = gm != null ? gm.GetHasteCost() : 0;
             int goldenTouchCost = gm != null ? gm.GetGoldenTouchCost() : 0;
 
-            float startX = -(modCount - 1) * (CardWidth + CardSpacing) / 2f;
+            var modEntries = new List<(ModificationType type, string label, int cost, Color color)>();
+            if (LabManager.Instance == null || LabManager.Instance.IsModUnlocked("Lure"))
+                modEntries.Add((ModificationType.Lure, "Lure", lureCost, new Color(0.8f, 0.7f, 0.2f)));
+            if (LabManager.Instance == null || LabManager.Instance.IsModUnlocked("Haste"))
+                modEntries.Add((ModificationType.Haste, "Haste", hasteCost, new Color(0.9f, 0.4f, 0.1f)));
+            if (LabManager.Instance == null || LabManager.Instance.IsModUnlocked("GoldenTouch"))
+                modEntries.Add((ModificationType.GoldenTouch, "Golden", goldenTouchCost, new Color(0.9f, 0.75f, 0.1f)));
 
-            CreateModificationCard(0, ModificationType.Mine, "Mine", mineCost,
-                new Color(0.6f, 0.45f, 0.2f), startX);
+            if (modEntries.Count == 0) return;
 
-            CreateModificationCard(1, ModificationType.Lure, "Lure", lureCost,
-                new Color(0.8f, 0.7f, 0.2f), startX + (CardWidth + CardSpacing));
+            ComputeCardSizing();
 
-            CreateModificationCard(2, ModificationType.Haste, "Haste", hasteCost,
-                new Color(0.9f, 0.4f, 0.1f), startX + 2 * (CardWidth + CardSpacing));
+            for (int i = 0; i < modEntries.Count; i++)
+            {
+                var (type, label, cost, color) = modEntries[i];
+                InstantiateModCard(i, type, label, cost, color);
+            }
 
-            CreateModificationCard(3, ModificationType.GoldenTouch, "Golden", goldenTouchCost,
-                new Color(0.9f, 0.75f, 0.1f), startX + 3 * (CardWidth + CardSpacing));
+            LayoutRebuilder.ForceRebuildLayoutImmediate(cardContainer);
         }
 
-        private void CreateModificationCard(int index, ModificationType modType, string label, int cost, Color color, float xPos)
+        private void InstantiateModCard(int index, ModificationType modType, string label, int cost, Color color)
         {
+            var go = Instantiate(cardPrefab, cardContainer);
+            var ui = go.GetComponent<CardUI>();
+            ui.SetPreferredHeight(cardHeight);
+            ui.Background.color = color;
+            ui.NameLabel.text = label;
+            ui.NameLabel.fontSize = Mathf.RoundToInt(14 * fontScale);
+            ui.CostLabel.text = $"{cost}g";
+            ui.CostLabel.fontSize = Mathf.RoundToInt(12 * fontScale);
+
+            // Icon from Resources
+            string spriteName = modType switch
+            {
+                ModificationType.Mine => "gold-mine",
+                ModificationType.Lure => "fishing-lure",
+                ModificationType.Haste => "speedometer",
+                ModificationType.GoldenTouch => "gold-bar",
+                _ => null
+            };
+            var sprite = spriteName != null ? Resources.Load<Sprite>($"ModIcons/{spriteName}") : null;
+            if (sprite != null)
+            {
+                ui.Icon.sprite = sprite;
+                ui.Icon.color = Color.white;
+                ui.Icon.preserveAspect = true;
+                ui.Icon.gameObject.SetActive(true);
+            }
+            else
+            {
+                ui.Icon.color = new Color(color.r * 0.7f, color.g * 0.7f, color.b * 0.7f);
+                ui.Icon.gameObject.SetActive(true);
+            }
+
+            // Hide path preview container
+            if (ui.PathPreviewContainer != null)
+                ui.PathPreviewContainer.gameObject.SetActive(false);
+
+            // Hide cooldown overlay
+            ui.SetCooldownActive(false);
+
+            int capturedIndex = index;
+            ModificationType capturedType = modType;
+            ui.Button.onClick.AddListener(() => OnModificationCardClicked(capturedIndex, capturedType));
+
             var card = new PieceCard
             {
+                UI = ui,
                 HandIndex = index,
                 PathPreviewLines = new List<GameObject>(),
                 IsModificationCard = true,
                 ModType = modType
             };
-
-            card.CardObject = new GameObject($"ModCard_{modType}");
-            card.CardObject.transform.SetParent(panelRect);
-
-            float cardY = -TabRowHeight / 2f;
-            var rect = card.CardObject.AddComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0.5f, 0.5f);
-            rect.anchorMax = new Vector2(0.5f, 0.5f);
-            rect.anchoredPosition = new Vector2(xPos, cardY);
-            rect.sizeDelta = new Vector2(CardWidth, CardHeight);
-            originalCardY[index] = cardY;
-
-            card.Background = card.CardObject.AddComponent<Image>();
-            card.Background.color = color;
-
-            card.BorderObj = new GameObject("Border");
-            card.BorderObj.transform.SetParent(card.CardObject.transform);
-            var borderRect = card.BorderObj.AddComponent<RectTransform>();
-            borderRect.anchorMin = Vector2.zero;
-            borderRect.anchorMax = Vector2.one;
-            borderRect.offsetMin = new Vector2(-3f, -3f);
-            borderRect.offsetMax = new Vector2(3f, 3f);
-            card.BorderImage = card.BorderObj.AddComponent<Image>();
-            card.BorderImage.color = new Color(1f, 0.9f, 0.3f);
-            card.BorderImage.raycastTarget = false;
-            card.BorderObj.SetActive(false);
-            card.BorderObj.transform.SetAsFirstSibling();
-
-            var button = card.CardObject.AddComponent<Button>();
-            button.targetGraphic = card.Background;
-            int capturedIndex = index;
-            ModificationType capturedType = modType;
-            button.onClick.AddListener(() => OnModificationCardClicked(capturedIndex, capturedType));
-
-            GameObject iconObj = new GameObject("Icon");
-            iconObj.transform.SetParent(card.CardObject.transform);
-            var iconRect = iconObj.AddComponent<RectTransform>();
-            iconRect.anchorMin = new Vector2(0.2f, 0.4f);
-            iconRect.anchorMax = new Vector2(0.8f, 0.85f);
-            iconRect.offsetMin = Vector2.zero;
-            iconRect.offsetMax = Vector2.zero;
-            var iconImage = iconObj.AddComponent<Image>();
-            iconImage.color = new Color(color.r * 0.7f, color.g * 0.7f, color.b * 0.7f);
-            iconImage.raycastTarget = false;
-
-            GameObject labelObj = new GameObject("TypeLabel");
-            labelObj.transform.SetParent(card.CardObject.transform);
-            var labelRect = labelObj.AddComponent<RectTransform>();
-            labelRect.anchorMin = new Vector2(0f, 0.15f);
-            labelRect.anchorMax = new Vector2(1f, 0.35f);
-            labelRect.offsetMin = Vector2.zero;
-            labelRect.offsetMax = Vector2.zero;
-
-            card.TypeLabel = labelObj.AddComponent<Text>();
-            card.TypeLabel.text = label;
-            card.TypeLabel.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            card.TypeLabel.fontSize = 14;
-            card.TypeLabel.color = Color.white;
-            card.TypeLabel.alignment = TextAnchor.MiddleCenter;
-
-            GameObject costObj = new GameObject("CostLabel");
-            costObj.transform.SetParent(card.CardObject.transform);
-            var costRect = costObj.AddComponent<RectTransform>();
-            costRect.anchorMin = new Vector2(0f, 0f);
-            costRect.anchorMax = new Vector2(1f, 0.15f);
-            costRect.offsetMin = Vector2.zero;
-            costRect.offsetMax = Vector2.zero;
-
-            card.CostLabel = costObj.AddComponent<Text>();
-            card.CostLabel.text = $"{cost}g";
-            card.CostLabel.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            card.CostLabel.fontSize = 12;
-            card.CostLabel.color = new Color(1f, 0.85f, 0.3f);
-            card.CostLabel.alignment = TextAnchor.MiddleCenter;
-
             cards.Add(card);
         }
 
@@ -633,137 +549,24 @@ namespace TowerDefense.UI
             for (int i = 0; i < cards.Count; i++)
             {
                 var card = cards[i];
-                if (card.CooldownOverlay == null) continue;
+                if (card.UI == null || card.UI.CooldownOverlay == null) continue;
 
                 float fraction = pieceProvider.GetCooldownFraction(i);
                 bool onCooldown = fraction > 0f;
 
-                card.CooldownOverlay.SetActive(onCooldown);
+                card.UI.SetCooldownActive(onCooldown);
 
                 if (onCooldown)
                 {
-                    var overlayRect = card.CooldownImage.rectTransform;
-                    overlayRect.anchorMin = new Vector2(0f, 1f - fraction);
-                    overlayRect.anchorMax = Vector2.one;
-
+                    card.UI.SetCooldownFill(fraction);
                     float remaining = pieceProvider.GetCooldownRemaining(i);
-                    card.CooldownText.text = Mathf.CeilToInt(remaining).ToString();
-                    card.CooldownText.gameObject.SetActive(true);
+                    card.UI.SetCooldownText(Mathf.CeilToInt(remaining).ToString());
                 }
                 else
                 {
-                    card.CooldownText.gameObject.SetActive(false);
+                    card.UI.SetCooldownText(null);
                 }
             }
-        }
-
-        private void CreateCard(int index, HexPieceConfig config, float xPos)
-        {
-            var card = new PieceCard
-            {
-                HandIndex = index,
-                PieceType = config.pieceType,
-                PathPreviewLines = new List<GameObject>(),
-                IsModificationCard = false
-            };
-
-            card.CardObject = new GameObject($"Card_{index}_{config.pieceType}");
-            card.CardObject.transform.SetParent(panelRect);
-
-            float cardY = -TabRowHeight / 2f;
-            var rect = card.CardObject.AddComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0.5f, 0.5f);
-            rect.anchorMax = new Vector2(0.5f, 0.5f);
-            rect.anchoredPosition = new Vector2(xPos, cardY);
-            rect.sizeDelta = new Vector2(CardWidth, CardHeight);
-            originalCardY[index] = cardY;
-
-            card.Background = card.CardObject.AddComponent<Image>();
-            card.Background.color = config.cardColor;
-
-            card.BorderObj = new GameObject("Border");
-            card.BorderObj.transform.SetParent(card.CardObject.transform);
-            var borderRect = card.BorderObj.AddComponent<RectTransform>();
-            borderRect.anchorMin = Vector2.zero;
-            borderRect.anchorMax = Vector2.one;
-            borderRect.offsetMin = new Vector2(-3f, -3f);
-            borderRect.offsetMax = new Vector2(3f, 3f);
-            card.BorderImage = card.BorderObj.AddComponent<Image>();
-            card.BorderImage.color = new Color(1f, 0.9f, 0.3f);
-            card.BorderImage.raycastTarget = false;
-            card.BorderObj.SetActive(index == selectedIndex);
-            card.BorderObj.transform.SetAsFirstSibling();
-
-            var button = card.CardObject.AddComponent<Button>();
-            button.targetGraphic = card.Background;
-            int capturedIndex = index;
-            HexPieceType capturedType = config.pieceType;
-            button.onClick.AddListener(() => OnCardClicked(capturedIndex, capturedType));
-
-            CreatePathPreview(card, config);
-
-            GameObject labelObj = new GameObject("TypeLabel");
-            labelObj.transform.SetParent(card.CardObject.transform);
-            var labelRect = labelObj.AddComponent<RectTransform>();
-            labelRect.anchorMin = new Vector2(0f, 0.15f);
-            labelRect.anchorMax = new Vector2(1f, 0.35f);
-            labelRect.offsetMin = Vector2.zero;
-            labelRect.offsetMax = Vector2.zero;
-
-            card.TypeLabel = labelObj.AddComponent<Text>();
-            card.TypeLabel.text = config.displayName;
-            card.TypeLabel.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            card.TypeLabel.fontSize = 14;
-            card.TypeLabel.color = Color.white;
-            card.TypeLabel.alignment = TextAnchor.MiddleCenter;
-
-            GameObject costObj = new GameObject("CostLabel");
-            costObj.transform.SetParent(card.CardObject.transform);
-            var costRect = costObj.AddComponent<RectTransform>();
-            costRect.anchorMin = new Vector2(0f, 0f);
-            costRect.anchorMax = new Vector2(1f, 0.15f);
-            costRect.offsetMin = Vector2.zero;
-            costRect.offsetMax = Vector2.zero;
-
-            card.CostLabel = costObj.AddComponent<Text>();
-            card.CostLabel.text = $"{config.placementCost}g";
-            card.CostLabel.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            card.CostLabel.fontSize = 12;
-            card.CostLabel.color = new Color(1f, 0.85f, 0.3f);
-            card.CostLabel.alignment = TextAnchor.MiddleCenter;
-
-            // Cooldown overlay
-            card.CooldownOverlay = new GameObject("CooldownOverlay");
-            card.CooldownOverlay.transform.SetParent(card.CardObject.transform);
-            var overlayRect = card.CooldownOverlay.AddComponent<RectTransform>();
-            overlayRect.anchorMin = Vector2.zero;
-            overlayRect.anchorMax = Vector2.one;
-            overlayRect.offsetMin = Vector2.zero;
-            overlayRect.offsetMax = Vector2.zero;
-
-            card.CooldownImage = card.CooldownOverlay.AddComponent<Image>();
-            card.CooldownImage.color = new Color(0f, 0f, 0f, 0.65f);
-            card.CooldownImage.raycastTarget = false;
-            card.CooldownOverlay.SetActive(false);
-
-            GameObject timerObj = new GameObject("CooldownText");
-            timerObj.transform.SetParent(card.CardObject.transform);
-            var timerRect = timerObj.AddComponent<RectTransform>();
-            timerRect.anchorMin = new Vector2(0f, 0.3f);
-            timerRect.anchorMax = new Vector2(1f, 0.8f);
-            timerRect.offsetMin = Vector2.zero;
-            timerRect.offsetMax = Vector2.zero;
-
-            card.CooldownText = timerObj.AddComponent<Text>();
-            card.CooldownText.text = "";
-            card.CooldownText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            card.CooldownText.fontSize = 24;
-            card.CooldownText.fontStyle = FontStyle.Bold;
-            card.CooldownText.color = Color.white;
-            card.CooldownText.alignment = TextAnchor.MiddleCenter;
-            timerObj.SetActive(false);
-
-            cards.Add(card);
         }
 
         private void OnCardClicked(int index, HexPieceType type)
@@ -787,20 +590,13 @@ namespace TowerDefense.UI
 
         private void UpdateBorders()
         {
-            foreach (var card in cards)
+            for (int i = 0; i < cards.Count; i++)
             {
-                bool isSelected = card.HandIndex == selectedIndex;
-                if (card.BorderObj != null)
-                    card.BorderObj.SetActive(isSelected);
+                var card = cards[i];
+                if (card.UI == null) continue;
 
-                // Lift selected card
-                var rect = card.CardObject != null ? card.CardObject.GetComponent<RectTransform>() : null;
-                if (rect != null && originalCardY.TryGetValue(card.HandIndex, out float baseY))
-                {
-                    var pos = rect.anchoredPosition;
-                    pos.y = isSelected ? baseY + CardLiftAmount : baseY;
-                    rect.anchoredPosition = pos;
-                }
+                bool isSelected = card.HandIndex == selectedIndex;
+                card.UI.SetSelected(isSelected);
             }
         }
 
@@ -813,40 +609,24 @@ namespace TowerDefense.UI
 
         private void ShowTooltip(ModificationType type)
         {
-            if (panelRect == null) return;
-
-            if (tooltipObj == null)
-            {
-                tooltipObj = new GameObject("ModTooltip");
-                tooltipObj.transform.SetParent(panelRect);
-
-                var rect = tooltipObj.AddComponent<RectTransform>();
-                rect.anchorMin = new Vector2(1f, 0.5f);
-                rect.anchorMax = new Vector2(1f, 0.5f);
-                rect.pivot = new Vector2(0f, 0.5f);
-                rect.anchoredPosition = new Vector2(10f, 0f);
-                rect.sizeDelta = new Vector2(280f, 70f);
-
-                var bg = tooltipObj.AddComponent<Image>();
-                bg.color = new Color(0f, 0f, 0f, 0.8f);
-
-                var textObj = new GameObject("Text");
-                textObj.transform.SetParent(tooltipObj.transform);
-                var textRect = textObj.AddComponent<RectTransform>();
-                textRect.anchorMin = Vector2.zero;
-                textRect.anchorMax = Vector2.one;
-                textRect.offsetMin = new Vector2(8f, 4f);
-                textRect.offsetMax = new Vector2(-8f, -4f);
-
-                tooltipText = textObj.AddComponent<Text>();
-                tooltipText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-                tooltipText.fontSize = 14;
-                tooltipText.color = Color.white;
-                tooltipText.alignment = TextAnchor.MiddleLeft;
-            }
+            if (tooltipObj == null) return;
 
             if (ModDescriptions.TryGetValue(type, out var desc))
                 tooltipText.text = desc;
+
+            tooltipObj.SetActive(true);
+        }
+
+        private void ShowTowerTooltip(TowerData data)
+        {
+            if (tooltipObj == null) return;
+
+            string desc = $"{data.towerName} | DMG: {data.damage} | Rate: {data.fireRate}/s | Range: {data.range}";
+            if (data.isShotgun) desc += " | Shotgun";
+            if (data.isTesla) desc += " | Chain Lightning";
+            if (data.isFlame) desc += " | Fire";
+            if (data.appliesSlow) desc += " | Slow Aura";
+            tooltipText.text = desc;
 
             tooltipObj.SetActive(true);
         }
@@ -857,22 +637,16 @@ namespace TowerDefense.UI
                 tooltipObj.SetActive(false);
         }
 
-        private void CreatePathPreview(PieceCard card, HexPieceConfig config)
+        private void CreatePathPreview(RectTransform container, HexPieceConfig config)
         {
-            GameObject previewContainer = new GameObject("PathPreview");
-            previewContainer.transform.SetParent(card.CardObject.transform);
-            var containerRect = previewContainer.AddComponent<RectTransform>();
-            containerRect.anchorMin = new Vector2(0.1f, 0.35f);
-            containerRect.anchorMax = new Vector2(0.9f, 0.9f);
-            containerRect.offsetMin = Vector2.zero;
-            containerRect.offsetMax = Vector2.zero;
+            if (container == null) return;
 
             List<float> angles = config.previewAngles;
 
             foreach (float angle in angles)
             {
                 GameObject arm = new GameObject("Arm");
-                arm.transform.SetParent(previewContainer.transform);
+                arm.transform.SetParent(container);
                 var armRect = arm.AddComponent<RectTransform>();
                 armRect.anchorMin = new Vector2(0.5f, 0.5f);
                 armRect.anchorMax = new Vector2(0.5f, 0.5f);
@@ -880,11 +654,10 @@ namespace TowerDefense.UI
                 armRect.sizeDelta = new Vector2(6f, 22f);
                 armRect.pivot = new Vector2(0.5f, 0f);
                 armRect.localRotation = Quaternion.Euler(0f, 0f, angle);
+                armRect.localScale = Vector3.one;
 
                 var armImage = arm.AddComponent<Image>();
                 armImage.color = new Color(0.35f, 0.25f, 0.15f);
-
-                card.PathPreviewLines.Add(arm);
             }
         }
     }

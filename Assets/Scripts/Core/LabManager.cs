@@ -145,6 +145,39 @@ namespace TowerDefense.Core
                     costResource = ResourceType.Adamantite,
                     baseCost = 25,
                     costPerLevel = 0
+                },
+                new LabUpgrade
+                {
+                    upgradeName = "Lure",
+                    description = "Unlock the Lure modification",
+                    upgradeType = LabUpgradeType.ModUnlock,
+                    valuePerLevel = 1f,
+                    maxLevel = 1,
+                    costResource = ResourceType.IronOre,
+                    baseCost = 10,
+                    costPerLevel = 0
+                },
+                new LabUpgrade
+                {
+                    upgradeName = "Haste",
+                    description = "Unlock the Haste modification",
+                    upgradeType = LabUpgradeType.ModUnlock,
+                    valuePerLevel = 1f,
+                    maxLevel = 1,
+                    costResource = ResourceType.Gems,
+                    baseCost = 15,
+                    costPerLevel = 0
+                },
+                new LabUpgrade
+                {
+                    upgradeName = "GoldenTouch",
+                    description = "Unlock the Golden Touch modification",
+                    upgradeType = LabUpgradeType.ModUnlock,
+                    valuePerLevel = 1f,
+                    maxLevel = 1,
+                    costResource = ResourceType.Florpus,
+                    baseCost = 20,
+                    costPerLevel = 0
                 }
             };
         }
@@ -204,6 +237,33 @@ namespace TowerDefense.Core
             }
             // No unlock entry means the tower is available by default
             return true;
+        }
+
+        public bool IsModUnlocked(string modName)
+        {
+            foreach (var upgrade in upgrades)
+            {
+                if (upgrade.upgradeType == LabUpgradeType.ModUnlock &&
+                    upgrade.upgradeName == modName)
+                {
+                    return GetLevel(upgrade) >= 1;
+                }
+            }
+            // No unlock entry means the mod is available by default
+            return true;
+        }
+
+        public string GetTowerUnlockUpgradeName(string towerName)
+        {
+            foreach (var upgrade in upgrades)
+            {
+                if (upgrade.upgradeType == LabUpgradeType.TowerUnlock &&
+                    upgrade.upgradeName == towerName)
+                {
+                    return upgrade.upgradeName;
+                }
+            }
+            return null;
         }
 
         // --- Bonus accessors ---

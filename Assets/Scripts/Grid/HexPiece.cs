@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
+using TowerDefense.Core;
 using TowerDefense.Data;
 
 namespace TowerDefense.Grid
@@ -98,27 +99,21 @@ namespace TowerDefense.Grid
 
         private void CreateCastleVisual()
         {
-            GameObject castle = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            GameObject castle = MaterialCache.CreatePrimitive(PrimitiveType.Cube);
             castle.name = "CastleModel";
             castle.transform.SetParent(transform);
             castle.transform.localPosition = new Vector3(0f, 2f, 0f);
             castle.transform.localScale = new Vector3(4f, 4f, 4f);
-
-            var collider = castle.GetComponent<Collider>();
-            if (collider != null) Destroy(collider);
         }
 
         private void CreateGoblinCampVisual()
         {
             // Tent body
-            GameObject tent = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            GameObject tent = MaterialCache.CreatePrimitive(PrimitiveType.Capsule);
             tent.name = "GoblinTent";
             tent.transform.SetParent(transform);
             tent.transform.localPosition = new Vector3(0f, 1.2f, 0f);
             tent.transform.localScale = new Vector3(5f, 2.4f, 5f);
-
-            var tentCollider = tent.GetComponent<Collider>();
-            if (tentCollider != null) Destroy(tentCollider);
 
             var tentRenderer = tent.GetComponent<Renderer>();
             if (tentRenderer != null)
@@ -127,14 +122,11 @@ namespace TowerDefense.Grid
             }
 
             // Flag pole
-            GameObject pole = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            GameObject pole = MaterialCache.CreatePrimitive(PrimitiveType.Cylinder);
             pole.name = "FlagPole";
             pole.transform.SetParent(transform);
             pole.transform.localPosition = new Vector3(2.4f, 3.6f, 0f);
             pole.transform.localScale = new Vector3(0.3f, 2.4f, 0.3f);
-
-            var poleCollider = pole.GetComponent<Collider>();
-            if (poleCollider != null) Destroy(poleCollider);
 
             var poleRenderer = pole.GetComponent<Renderer>();
             if (poleRenderer != null)
@@ -143,14 +135,11 @@ namespace TowerDefense.Grid
             }
 
             // Flag
-            GameObject flag = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            GameObject flag = MaterialCache.CreatePrimitive(PrimitiveType.Cube);
             flag.name = "Flag";
             flag.transform.SetParent(transform);
             flag.transform.localPosition = new Vector3(2.4f, 5.6f, 0.8f);
             flag.transform.localScale = new Vector3(0.1f, 1.2f, 1.6f);
-
-            var flagCollider = flag.GetComponent<Collider>();
-            if (flagCollider != null) Destroy(flagCollider);
 
             var flagRenderer = flag.GetComponent<Renderer>();
             if (flagRenderer != null)

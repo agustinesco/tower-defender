@@ -158,14 +158,11 @@ namespace TowerDefense.Entities
 
         private void CreateGroundVisual()
         {
-            var visual = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            var visual = MaterialCache.CreatePrimitive(PrimitiveType.Capsule);
             visual.name = "Body";
             visual.transform.SetParent(transform);
             visual.transform.localPosition = new Vector3(0f, 0.5f, 0f);
             visual.transform.localScale = new Vector3(0.6f, 0.5f, 0.6f);
-
-            var collider = visual.GetComponent<Collider>();
-            if (collider != null) Destroy(collider);
 
             var renderer = visual.GetComponent<Renderer>();
             if (renderer != null)
@@ -181,43 +178,36 @@ namespace TowerDefense.Entities
         private void CreateFlyingVisual()
         {
             // Body - flattened sphere
-            var body = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            var body = MaterialCache.CreatePrimitive(PrimitiveType.Sphere);
             body.name = "Body";
             body.transform.SetParent(transform);
             body.transform.localPosition = new Vector3(0f, flyHeight, 0f);
             body.transform.localScale = new Vector3(0.7f, 0.35f, 0.7f);
-
-            var bodyCol = body.GetComponent<Collider>();
-            if (bodyCol != null) Destroy(bodyCol);
 
             var bodyRenderer = body.GetComponent<Renderer>();
             if (bodyRenderer != null)
                 bodyRenderer.material = Core.MaterialCache.CreateUnlit(new Color(0.9f, 0.6f, 0.1f));
 
             // Left wing
-            var leftWing = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            var leftWing = MaterialCache.CreatePrimitive(PrimitiveType.Cube);
             leftWing.name = "LeftWing";
             leftWing.transform.SetParent(transform);
             leftWing.transform.localPosition = new Vector3(-0.5f, flyHeight + 0.1f, 0f);
             leftWing.transform.localScale = new Vector3(0.6f, 0.05f, 0.4f);
             leftWing.transform.localRotation = Quaternion.Euler(0f, 0f, 15f);
 
-            var lwCol = leftWing.GetComponent<Collider>();
-            if (lwCol != null) Destroy(lwCol);
             var lwR = leftWing.GetComponent<Renderer>();
             if (lwR != null)
                 lwR.material = Core.MaterialCache.CreateUnlit(new Color(0.8f, 0.5f, 0.05f));
 
             // Right wing
-            var rightWing = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            var rightWing = MaterialCache.CreatePrimitive(PrimitiveType.Cube);
             rightWing.name = "RightWing";
             rightWing.transform.SetParent(transform);
             rightWing.transform.localPosition = new Vector3(0.5f, flyHeight + 0.1f, 0f);
             rightWing.transform.localScale = new Vector3(0.6f, 0.05f, 0.4f);
             rightWing.transform.localRotation = Quaternion.Euler(0f, 0f, -15f);
 
-            var rwCol = rightWing.GetComponent<Collider>();
-            if (rwCol != null) Destroy(rwCol);
             var rwR = rightWing.GetComponent<Renderer>();
             if (rwR != null)
                 rwR.material = Core.MaterialCache.CreateUnlit(new Color(0.8f, 0.5f, 0.05f));
@@ -230,27 +220,22 @@ namespace TowerDefense.Entities
         private void CreateCartVisual()
         {
             // Body - large box (wagon)
-            var body = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            var body = MaterialCache.CreatePrimitive(PrimitiveType.Cube);
             body.name = "Body";
             body.transform.SetParent(transform);
             body.transform.localPosition = new Vector3(0f, 0.7f, 0f);
             body.transform.localScale = new Vector3(1.2f, 0.8f, 1.8f);
-
-            var bodyCol = body.GetComponent<Collider>();
-            if (bodyCol != null) Destroy(bodyCol);
 
             var bodyRenderer = body.GetComponent<Renderer>();
             if (bodyRenderer != null)
                 bodyRenderer.material = Core.MaterialCache.CreateUnlit(new Color(0.55f, 0.35f, 0.15f));
 
             // Roof
-            var roof = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            var roof = MaterialCache.CreatePrimitive(PrimitiveType.Cube);
             roof.name = "Roof";
             roof.transform.SetParent(transform);
             roof.transform.localPosition = new Vector3(0f, 1.3f, 0f);
             roof.transform.localScale = new Vector3(1.3f, 0.15f, 2f);
-            var roofCol = roof.GetComponent<Collider>();
-            if (roofCol != null) Destroy(roofCol);
             var roofR = roof.GetComponent<Renderer>();
             if (roofR != null)
                 roofR.material = Core.MaterialCache.CreateUnlit(new Color(0.4f, 0.25f, 0.1f));
@@ -274,14 +259,12 @@ namespace TowerDefense.Entities
 
         private void CreateWheel(Vector3 localPos)
         {
-            var wheel = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            var wheel = MaterialCache.CreatePrimitive(PrimitiveType.Cylinder);
             wheel.name = "Wheel";
             wheel.transform.SetParent(transform);
             wheel.transform.localPosition = localPos;
             wheel.transform.localScale = new Vector3(0.35f, 0.08f, 0.35f);
             wheel.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
-            var col = wheel.GetComponent<Collider>();
-            if (col != null) Destroy(col);
             var r = wheel.GetComponent<Renderer>();
             if (r != null)
                 r.material = Core.MaterialCache.CreateUnlit(new Color(0.3f, 0.2f, 0.1f));
@@ -298,14 +281,11 @@ namespace TowerDefense.Entities
             healthBarContainer.localRotation = Quaternion.Euler(90f, 0f, 0f);
 
             // Background (dark)
-            healthBarBackground = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            healthBarBackground = MaterialCache.CreatePrimitive(PrimitiveType.Cube);
             healthBarBackground.name = "HealthBarBG";
             healthBarBackground.transform.SetParent(healthBarContainer);
             healthBarBackground.transform.localPosition = Vector3.zero;
             healthBarBackground.transform.localScale = new Vector3(1f, 0.15f, 0.25f);
-
-            var bgCollider = healthBarBackground.GetComponent<Collider>();
-            if (bgCollider != null) Destroy(bgCollider);
 
             var bgRenderer = healthBarBackground.GetComponent<Renderer>();
             if (bgRenderer != null)
@@ -314,14 +294,11 @@ namespace TowerDefense.Entities
             }
 
             // Fill (green/red)
-            healthBarFill = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            healthBarFill = MaterialCache.CreatePrimitive(PrimitiveType.Cube);
             healthBarFill.name = "HealthBarFill";
             healthBarFill.transform.SetParent(healthBarContainer);
             healthBarFill.transform.localPosition = new Vector3(0f, 0f, -0.05f);
             healthBarFill.transform.localScale = new Vector3(0.95f, 0.12f, 0.22f);
-
-            var fillCollider = healthBarFill.GetComponent<Collider>();
-            if (fillCollider != null) Destroy(fillCollider);
 
             healthBarFillRenderer = healthBarFill.GetComponent<Renderer>();
             if (healthBarFillRenderer != null)

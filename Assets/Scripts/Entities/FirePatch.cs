@@ -55,12 +55,9 @@ namespace TowerDefense.Entities
         {
             if (visual == null)
             {
-                visual = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                visual = MaterialCache.CreatePrimitive(PrimitiveType.Cylinder);
                 visual.transform.SetParent(transform);
                 visual.transform.localPosition = Vector3.zero;
-
-                var collider = visual.GetComponent<Collider>();
-                if (collider != null) Destroy(collider);
 
                 visualRenderer = visual.GetComponent<Renderer>();
                 if (visualRenderer != null)

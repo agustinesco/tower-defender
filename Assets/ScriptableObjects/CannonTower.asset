@@ -16,7 +16,7 @@ MonoBehaviour:
   cost: 100
   damage: 15
   range: 12
-  fireRate: 1.5
+  fireRate: 0.75
   isAreaDamage: 1
   areaRadius: 3
   appliesSlow: 0

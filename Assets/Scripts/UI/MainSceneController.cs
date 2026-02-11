@@ -9,15 +9,33 @@ namespace TowerDefense.UI
 {
     public class MainSceneController : MonoBehaviour
     {
-        private Canvas canvas;
-        private GameObject mapPanel;
-        private GameObject labPanel;
-        private Text resourceText;
-        private List<GameObject> labUpgradeRows = new List<GameObject>();
+        [Header("Map Panel")]
+        [SerializeField] private GameObject mapPanel;
+        [SerializeField] private Text resourceText;
+        [SerializeField] private Button startButton;
+        [SerializeField] private Button labButton;
+
+        [Header("Lab Panel")]
+        [SerializeField] private GameObject labPanel;
+        [SerializeField] private Text labResourceLabel;
+        [SerializeField] private Transform labGridContent;
+        [SerializeField] private Button labBackButton;
+        [SerializeField] private Image[] labTabImages;
+        [SerializeField] private Text[] labTabTexts;
+        [SerializeField] private Button[] labTabButtons;
+
+        private int activeLabTab;
+        private List<GameObject> labUpgradeCards = new List<GameObject>();
+
+        private static readonly Color[] LabTabActiveColors = {
+            new Color(0.25f, 0.3f, 0.55f),
+            new Color(0.55f, 0.25f, 0.25f),
+            new Color(0.25f, 0.45f, 0.3f)
+        };
+        private static readonly Color LabTabInactiveColor = new Color(0.18f, 0.18f, 0.22f);
 
         private void Awake()
         {
-            // Ensure persistent managers exist
             if (PersistenceManager.Instance == null)
             {
                 var persistObj = new GameObject("PersistenceManager");
@@ -33,128 +51,24 @@ namespace TowerDefense.UI
         private void Start()
         {
             Time.timeScale = 1f;
-            CreateCanvas();
-            CreateMapPanel();
-            CreateLabPanel();
+
+            if (startButton != null) startButton.onClick.AddListener(OnContinuousClicked);
+            if (labButton != null) labButton.onClick.AddListener(OnLabClicked);
+            if (labBackButton != null) labBackButton.onClick.AddListener(OnLabBackClicked);
+
+            if (labTabButtons != null)
+            {
+                for (int i = 0; i < labTabButtons.Length; i++)
+                {
+                    int tabIndex = i;
+                    labTabButtons[i].onClick.AddListener(() => OnLabTabClicked(tabIndex));
+                }
+            }
+
             ShowMap();
         }
 
-        // --- Canvas ---
-
-        private void CreateCanvas()
-        {
-            GameObject canvasObj = new GameObject("MainMenuCanvas");
-            canvas = canvasObj.AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-
-            var scaler = canvasObj.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920, 1080);
-            scaler.matchWidthOrHeight = 0.5f;
-
-            canvasObj.AddComponent<GraphicRaycaster>();
-        }
-
-        // --- Map Panel ---
-
-        private void CreateMapPanel()
-        {
-            mapPanel = new GameObject("MapPanel");
-            mapPanel.transform.SetParent(canvas.transform);
-
-            var rect = mapPanel.AddComponent<RectTransform>();
-            rect.anchorMin = Vector2.zero;
-            rect.anchorMax = Vector2.one;
-            rect.offsetMin = Vector2.zero;
-            rect.offsetMax = Vector2.zero;
-
-            var bg = mapPanel.AddComponent<Image>();
-            bg.color = new Color(0.08f, 0.08f, 0.12f, 1f);
-
-            // Title
-            CreateLabel(mapPanel.transform, "Title", new Vector2(0.5f, 0.88f),
-                "Tower Defense", 52, Color.white, new Vector2(500, 70));
-
-            // Resource display
-            resourceText = CreateLabel(mapPanel.transform, "Resources", new Vector2(0.5f, 0.78f),
-                "", 20, new Color(0.8f, 0.8f, 0.6f), new Vector2(700, 40));
-
-            // Battlefield area panel
-            CreateAreaPanel(mapPanel.transform, "BattlefieldArea",
-                new Vector2(0.5f, 0.52f), new Vector2(400, 200),
-                "Battlefield", "Enter the battlefield and defend your castle",
-                new Color(0.15f, 0.30f, 0.15f, 1f), new Color(0.1f, 0.22f, 0.1f, 1f),
-                OnEmbarkClicked);
-
-            // Continuous mode area panel
-            CreateAreaPanel(mapPanel.transform, "ContinuousArea",
-                new Vector2(0.5f, 0.25f), new Vector2(400, 200),
-                "Continuous", "Endless waves of increasing difficulty",
-                new Color(0.30f, 0.15f, 0.15f, 1f), new Color(0.22f, 0.1f, 0.1f, 1f),
-                OnContinuousClicked);
-
-            // Lab area panel
-            CreateAreaPanel(mapPanel.transform, "LabArea",
-                new Vector2(0.5f, 0.02f), new Vector2(400, 120),
-                "Lab", "Research upgrades and unlock new towers",
-                new Color(0.15f, 0.15f, 0.30f, 1f), new Color(0.1f, 0.1f, 0.22f, 1f),
-                OnLabClicked);
-        }
-
-        private void CreateAreaPanel(Transform parent, string name, Vector2 anchor, Vector2 size,
-            string title, string description, Color bgColor, Color borderColor,
-            UnityEngine.Events.UnityAction onClick)
-        {
-            GameObject panel = new GameObject(name);
-            panel.transform.SetParent(parent);
-
-            var rect = panel.AddComponent<RectTransform>();
-            rect.anchorMin = anchor;
-            rect.anchorMax = anchor;
-            rect.anchoredPosition = Vector2.zero;
-            rect.sizeDelta = size;
-
-            var bg = panel.AddComponent<Image>();
-            bg.color = bgColor;
-
-            var btn = panel.AddComponent<Button>();
-            btn.targetGraphic = bg;
-
-            var colors = btn.colors;
-            colors.highlightedColor = bgColor * 1.3f;
-            colors.pressedColor = bgColor * 0.8f;
-            btn.colors = colors;
-
-            btn.onClick.AddListener(onClick);
-
-            // Border
-            var borderObj = new GameObject("Border");
-            borderObj.transform.SetParent(panel.transform);
-            var borderRect = borderObj.AddComponent<RectTransform>();
-            borderRect.anchorMin = Vector2.zero;
-            borderRect.anchorMax = Vector2.one;
-            borderRect.offsetMin = Vector2.zero;
-            borderRect.offsetMax = Vector2.zero;
-            var borderImage = borderObj.AddComponent<Image>();
-            borderImage.color = borderColor;
-            borderImage.raycastTarget = false;
-
-            // Move border behind content
-            var outline = panel.AddComponent<Outline>();
-            outline.effectColor = borderColor;
-            outline.effectDistance = new Vector2(3, 3);
-
-            // Remove the border image object since we're using Outline instead
-            Destroy(borderObj);
-
-            // Title text
-            CreateLabel(panel.transform, "Title", new Vector2(0.5f, 0.7f),
-                title, 32, Color.white, new Vector2(350, 50));
-
-            // Description text
-            var descText = CreateLabel(panel.transform, "Desc", new Vector2(0.5f, 0.35f),
-                description, 18, new Color(0.7f, 0.7f, 0.7f), new Vector2(350, 50));
-        }
+        // --- Navigation ---
 
         private void UpdateResources()
         {
@@ -173,14 +87,8 @@ namespace TowerDefense.UI
         private void ShowMap()
         {
             UpdateResources();
-            mapPanel.SetActive(true);
-            labPanel.SetActive(false);
-        }
-
-        private void OnEmbarkClicked()
-        {
-            GameModeSelection.SelectedMode = GameMode.Waves;
-            SceneManager.LoadScene(1);
+            if (mapPanel != null) mapPanel.SetActive(true);
+            if (labPanel != null) labPanel.SetActive(false);
         }
 
         private void OnContinuousClicked()
@@ -191,113 +99,154 @@ namespace TowerDefense.UI
 
         private void OnLabClicked()
         {
-            mapPanel.SetActive(false);
+            if (mapPanel != null) mapPanel.SetActive(false);
             ShowLab();
         }
 
-        // --- Lab Panel ---
-
-        private void CreateLabPanel()
-        {
-            labPanel = new GameObject("LabPanel");
-            labPanel.transform.SetParent(canvas.transform);
-
-            var rect = labPanel.AddComponent<RectTransform>();
-            rect.anchorMin = Vector2.zero;
-            rect.anchorMax = Vector2.one;
-            rect.offsetMin = Vector2.zero;
-            rect.offsetMax = Vector2.zero;
-
-            var bg = labPanel.AddComponent<Image>();
-            bg.color = new Color(0.06f, 0.06f, 0.1f, 1f);
-
-            // Title
-            CreateLabel(labPanel.transform, "LabTitle", new Vector2(0.5f, 0.9f),
-                "Lab - Permanent Upgrades", 36, Color.white, new Vector2(500, 60));
-
-            // Back button
-            CreateMenuButton(labPanel.transform, "BackBtn", new Vector2(0.5f, 0.08f),
-                new Vector2(180, 50), "Back", new Color(0.5f, 0.3f, 0.3f), OnLabBackClicked);
-
-            labPanel.SetActive(false);
-        }
+        // --- Lab ---
 
         private void ShowLab()
         {
+            activeLabTab = 0;
+            UpdateLabResources();
+            UpdateLabTabStyles();
             RefreshLabUpgrades();
-            labPanel.SetActive(true);
+            if (labPanel != null) labPanel.SetActive(true);
+        }
+
+        private void OnLabTabClicked(int tab)
+        {
+            if (tab == activeLabTab) return;
+            activeLabTab = tab;
+            UpdateLabTabStyles();
+            RefreshLabUpgrades();
+        }
+
+        private void UpdateLabTabStyles()
+        {
+            if (labTabImages == null) return;
+            for (int i = 0; i < labTabImages.Length; i++)
+            {
+                bool active = i == activeLabTab;
+                labTabImages[i].color = active ? LabTabActiveColors[i] : LabTabInactiveColor;
+                if (labTabTexts != null && i < labTabTexts.Length)
+                    labTabTexts[i].color = active ? Color.white : new Color(0.6f, 0.6f, 0.6f);
+            }
+        }
+
+        private bool UpgradeMatchesTab(LabUpgrade upgrade, int tab)
+        {
+            switch (tab)
+            {
+                case 0: return upgrade.upgradeType != LabUpgradeType.TowerUnlock && upgrade.upgradeType != LabUpgradeType.ModUnlock;
+                case 1: return upgrade.upgradeType == LabUpgradeType.TowerUnlock;
+                case 2: return upgrade.upgradeType == LabUpgradeType.ModUnlock;
+                default: return false;
+            }
+        }
+
+        private void UpdateLabResources()
+        {
+            if (labResourceLabel == null || PersistenceManager.Instance == null) return;
+
+            var pm = PersistenceManager.Instance;
+            labResourceLabel.text = string.Format(
+                "Iron: {0}    Gems: {1}    Florpus: {2}    Adamantite: {3}",
+                pm.GetBanked(ResourceType.IronOre),
+                pm.GetBanked(ResourceType.Gems),
+                pm.GetBanked(ResourceType.Florpus),
+                pm.GetBanked(ResourceType.Adamantite)
+            );
         }
 
         private void RefreshLabUpgrades()
         {
-            foreach (var row in labUpgradeRows)
+            foreach (var card in labUpgradeCards)
             {
-                if (row != null) Destroy(row);
+                if (card != null) Destroy(card);
             }
-            labUpgradeRows.Clear();
+            labUpgradeCards.Clear();
 
-            if (LabManager.Instance == null) return;
+            if (LabManager.Instance == null || labGridContent == null) return;
 
             var upgrades = LabManager.Instance.Upgrades;
-            float rowHeight = 70f;
-            float startY = 100f;
-            float totalHeight = upgrades.Count * rowHeight;
-            float topY = totalHeight / 2f;
-
             for (int i = 0; i < upgrades.Count; i++)
             {
                 var upgrade = upgrades[i];
-                float yPos = topY - i * rowHeight;
-                var row = CreateLabUpgradeRow(upgrade, yPos);
-                labUpgradeRows.Add(row);
+                if (!UpgradeMatchesTab(upgrade, activeLabTab)) continue;
+                labUpgradeCards.Add(CreateLabUpgradeCard(upgrade));
             }
         }
 
-        private GameObject CreateLabUpgradeRow(LabUpgrade upgrade, float yPos)
+        private GameObject CreateLabUpgradeCard(LabUpgrade upgrade)
         {
             int level = LabManager.Instance.GetLevel(upgrade);
             bool maxed = level >= upgrade.maxLevel;
             bool canBuy = LabManager.Instance.CanPurchase(upgrade);
 
-            GameObject row = new GameObject($"LabRow_{upgrade.upgradeName}");
-            row.transform.SetParent(labPanel.transform);
+            var card = new GameObject($"Card_{upgrade.upgradeName}");
+            card.transform.SetParent(labGridContent);
+            card.AddComponent<RectTransform>();
 
-            var rowRect = row.AddComponent<RectTransform>();
-            rowRect.anchorMin = new Vector2(0.5f, 0.5f);
-            rowRect.anchorMax = new Vector2(0.5f, 0.5f);
-            rowRect.anchoredPosition = new Vector2(0, yPos);
-            rowRect.sizeDelta = new Vector2(700, 60);
+            var cardBg = card.AddComponent<Image>();
+            cardBg.color = maxed ? new Color(0.12f, 0.18f, 0.12f, 0.9f) : new Color(0.14f, 0.14f, 0.2f, 0.9f);
 
-            var rowBg = row.AddComponent<Image>();
-            rowBg.color = new Color(0.15f, 0.15f, 0.2f, 0.8f);
+            // Left accent bar
+            var accentObj = new GameObject("Accent");
+            accentObj.transform.SetParent(card.transform);
+            var accentRect = accentObj.AddComponent<RectTransform>();
+            accentRect.anchorMin = new Vector2(0, 0);
+            accentRect.anchorMax = new Vector2(0, 1);
+            accentRect.pivot = new Vector2(0, 0.5f);
+            accentRect.anchoredPosition = Vector2.zero;
+            accentRect.sizeDelta = new Vector2(6, 0);
+            var accentImg = accentObj.AddComponent<Image>();
+            accentImg.color = GetResourceColor(upgrade.costResource);
+            accentImg.raycastTarget = false;
 
-            // Name + description
+            // Name
             var nameObj = new GameObject("Name");
-            nameObj.transform.SetParent(row.transform);
+            nameObj.transform.SetParent(card.transform);
             var nameRect = nameObj.AddComponent<RectTransform>();
-            nameRect.anchorMin = new Vector2(0, 0);
-            nameRect.anchorMax = new Vector2(0.4f, 1);
-            nameRect.offsetMin = new Vector2(15, 5);
-            nameRect.offsetMax = new Vector2(0, -5);
-
+            nameRect.anchorMin = new Vector2(0, 0.65f);
+            nameRect.anchorMax = new Vector2(1, 0.95f);
+            nameRect.offsetMin = new Vector2(16, 0);
+            nameRect.offsetMax = new Vector2(-8, 0);
             var nameText = nameObj.AddComponent<Text>();
-            nameText.text = $"{upgrade.upgradeName}\n<size=12>{upgrade.description}</size>";
+            nameText.text = upgrade.upgradeName;
             nameText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            nameText.fontSize = 18;
+            nameText.fontSize = 20;
+            nameText.fontStyle = FontStyle.Bold;
             nameText.color = Color.white;
             nameText.alignment = TextAnchor.MiddleLeft;
+            nameText.raycastTarget = false;
 
-            // Level display
+            // Description
+            var descObj = new GameObject("Desc");
+            descObj.transform.SetParent(card.transform);
+            var descRect = descObj.AddComponent<RectTransform>();
+            descRect.anchorMin = new Vector2(0, 0.38f);
+            descRect.anchorMax = new Vector2(1, 0.65f);
+            descRect.offsetMin = new Vector2(16, 0);
+            descRect.offsetMax = new Vector2(-8, 0);
+            var descText = descObj.AddComponent<Text>();
+            descText.text = upgrade.description;
+            descText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            descText.fontSize = 14;
+            descText.color = new Color(0.7f, 0.7f, 0.7f);
+            descText.alignment = TextAnchor.UpperLeft;
+            descText.raycastTarget = false;
+
+            // Level / status
+            bool isUnlock = upgrade.upgradeType == LabUpgradeType.TowerUnlock || upgrade.upgradeType == LabUpgradeType.ModUnlock;
             var levelObj = new GameObject("Level");
-            levelObj.transform.SetParent(row.transform);
+            levelObj.transform.SetParent(card.transform);
             var levelRect = levelObj.AddComponent<RectTransform>();
-            levelRect.anchorMin = new Vector2(0.4f, 0);
-            levelRect.anchorMax = new Vector2(0.6f, 1);
-            levelRect.offsetMin = Vector2.zero;
+            levelRect.anchorMin = new Vector2(0, 0.02f);
+            levelRect.anchorMax = new Vector2(0.45f, 0.35f);
+            levelRect.offsetMin = new Vector2(16, 0);
             levelRect.offsetMax = Vector2.zero;
-
             var levelText = levelObj.AddComponent<Text>();
-            bool isUnlock = upgrade.upgradeType == LabUpgradeType.TowerUnlock;
             if (isUnlock)
             {
                 levelText.text = maxed ? "UNLOCKED" : "LOCKED";
@@ -309,30 +258,27 @@ namespace TowerDefense.UI
                 levelText.color = maxed ? new Color(0.4f, 0.8f, 0.4f) : Color.white;
             }
             levelText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            levelText.fontSize = 20;
-            levelText.alignment = TextAnchor.MiddleCenter;
+            levelText.fontSize = 16;
+            levelText.alignment = TextAnchor.MiddleLeft;
+            levelText.raycastTarget = false;
 
-            // Cost / Buy button
+            // Buy button or MAX label
             if (!maxed)
             {
                 int cost = upgrade.GetCost(level);
-
-                GameObject buyBtn = new GameObject("BuyBtn");
-                buyBtn.transform.SetParent(row.transform);
-
+                var buyBtn = new GameObject("BuyBtn");
+                buyBtn.transform.SetParent(card.transform);
                 var buyRect = buyBtn.AddComponent<RectTransform>();
-                buyRect.anchorMin = new Vector2(0.65f, 0.1f);
-                buyRect.anchorMax = new Vector2(0.95f, 0.9f);
+                buyRect.anchorMin = new Vector2(0.45f, 0.05f);
+                buyRect.anchorMax = new Vector2(0.95f, 0.35f);
                 buyRect.offsetMin = Vector2.zero;
                 buyRect.offsetMax = Vector2.zero;
 
                 var buyImage = buyBtn.AddComponent<Image>();
                 buyImage.color = canBuy ? new Color(0.2f, 0.5f, 0.2f) : new Color(0.3f, 0.3f, 0.3f);
-
                 var btn = buyBtn.AddComponent<Button>();
                 btn.targetGraphic = buyImage;
                 btn.interactable = canBuy;
-
                 var capturedUpgrade = upgrade;
                 btn.onClick.AddListener(() => OnBuyUpgrade(capturedUpgrade));
 
@@ -343,33 +289,44 @@ namespace TowerDefense.UI
                 buyTextRect.anchorMax = Vector2.one;
                 buyTextRect.offsetMin = Vector2.zero;
                 buyTextRect.offsetMax = Vector2.zero;
-
                 var buyText = buyTextObj.AddComponent<Text>();
-                buyText.text = $"Buy ({cost} {GetResourceShortName(upgrade.costResource)})";
+                buyText.text = $"Buy {cost} {GetResourceShortName(upgrade.costResource)}";
                 buyText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-                buyText.fontSize = 16;
+                buyText.fontSize = 14;
                 buyText.color = canBuy ? Color.white : new Color(0.6f, 0.6f, 0.6f);
                 buyText.alignment = TextAnchor.MiddleCenter;
             }
             else
             {
                 var maxObj = new GameObject("Maxed");
-                maxObj.transform.SetParent(row.transform);
+                maxObj.transform.SetParent(card.transform);
                 var maxRect = maxObj.AddComponent<RectTransform>();
-                maxRect.anchorMin = new Vector2(0.65f, 0);
-                maxRect.anchorMax = new Vector2(0.95f, 1);
+                maxRect.anchorMin = new Vector2(0.5f, 0.02f);
+                maxRect.anchorMax = new Vector2(0.95f, 0.35f);
                 maxRect.offsetMin = Vector2.zero;
                 maxRect.offsetMax = Vector2.zero;
-
                 var maxText = maxObj.AddComponent<Text>();
                 maxText.text = "MAX";
                 maxText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-                maxText.fontSize = 22;
+                maxText.fontSize = 20;
                 maxText.color = new Color(1f, 0.85f, 0.2f);
                 maxText.alignment = TextAnchor.MiddleCenter;
+                maxText.raycastTarget = false;
             }
 
-            return row;
+            return card;
+        }
+
+        private Color GetResourceColor(ResourceType type)
+        {
+            switch (type)
+            {
+                case ResourceType.IronOre: return new Color(0.6f, 0.6f, 0.7f);
+                case ResourceType.Gems: return new Color(0.3f, 0.6f, 0.9f);
+                case ResourceType.Florpus: return new Color(0.7f, 0.3f, 0.8f);
+                case ResourceType.Adamantite: return new Color(0.9f, 0.7f, 0.2f);
+                default: return Color.gray;
+            }
         }
 
         private string GetResourceShortName(ResourceType type)
@@ -389,6 +346,7 @@ namespace TowerDefense.UI
             if (LabManager.Instance != null)
             {
                 LabManager.Instance.Purchase(upgrade);
+                UpdateLabResources();
                 RefreshLabUpgrades();
                 UpdateResources();
             }
@@ -396,72 +354,11 @@ namespace TowerDefense.UI
 
         private void OnLabBackClicked()
         {
-            labPanel.SetActive(false);
+            if (labPanel != null) labPanel.SetActive(false);
             ShowMap();
         }
 
-        // --- Helpers ---
-
-        private Text CreateLabel(Transform parent, string name, Vector2 anchor, string content,
-            int fontSize, Color color, Vector2 size)
-        {
-            var obj = new GameObject(name);
-            obj.transform.SetParent(parent);
-
-            var rect = obj.AddComponent<RectTransform>();
-            rect.anchorMin = anchor;
-            rect.anchorMax = anchor;
-            rect.anchoredPosition = Vector2.zero;
-            rect.sizeDelta = size;
-
-            var text = obj.AddComponent<Text>();
-            text.text = content;
-            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            text.fontSize = fontSize;
-            text.color = color;
-            text.alignment = TextAnchor.MiddleCenter;
-
-            return text;
-        }
-
-        private Button CreateMenuButton(Transform parent, string name, Vector2 anchor, Vector2 size,
-            string label, Color color, UnityEngine.Events.UnityAction onClick)
-        {
-            var btnObj = new GameObject(name);
-            btnObj.transform.SetParent(parent);
-
-            var rect = btnObj.AddComponent<RectTransform>();
-            rect.anchorMin = anchor;
-            rect.anchorMax = anchor;
-            rect.anchoredPosition = Vector2.zero;
-            rect.sizeDelta = size;
-
-            var image = btnObj.AddComponent<Image>();
-            image.color = color;
-
-            var btn = btnObj.AddComponent<Button>();
-            btn.targetGraphic = image;
-            btn.onClick.AddListener(onClick);
-
-            var textObj = new GameObject("Text");
-            textObj.transform.SetParent(btnObj.transform);
-            var textRect = textObj.AddComponent<RectTransform>();
-            textRect.anchorMin = Vector2.zero;
-            textRect.anchorMax = Vector2.one;
-            textRect.offsetMin = Vector2.zero;
-            textRect.offsetMax = Vector2.zero;
-
-            var text = textObj.AddComponent<Text>();
-            text.text = label;
-            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            text.fontSize = 24;
-            text.color = Color.white;
-            text.alignment = TextAnchor.MiddleCenter;
-
-            return btn;
-        }
-
-        // --- Static helper for scene transitions ---
+        // --- Static helper ---
 
         public static void LoadMainMenu()
         {

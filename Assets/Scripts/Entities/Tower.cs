@@ -79,13 +79,10 @@ namespace TowerDefense.Entities
         private void CreateVisual()
         {
             // Base
-            var baseObj = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            var baseObj = MaterialCache.CreatePrimitive(PrimitiveType.Cylinder);
             baseObj.transform.SetParent(transform);
             baseObj.transform.localPosition = new Vector3(0f, 0.75f, 0f);
             baseObj.transform.localScale = new Vector3(2.4f, 0.75f, 2.4f);
-
-            var baseCollider = baseObj.GetComponent<Collider>();
-            if (baseCollider != null) Destroy(baseCollider);
 
             var baseRenderer = baseObj.GetComponent<Renderer>();
             if (baseRenderer != null)
@@ -94,15 +91,12 @@ namespace TowerDefense.Entities
             }
 
             // Turret head
-            var headObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            var headObj = MaterialCache.CreatePrimitive(PrimitiveType.Cube);
             headObj.name = "TurretHead";
             headObj.transform.SetParent(transform);
             headObj.transform.localPosition = new Vector3(0f, 2.1f, 0f);
             headObj.transform.localScale = new Vector3(1.2f, 1.2f, 1.8f);
             turretHead = headObj.transform;
-
-            var headCollider = headObj.GetComponent<Collider>();
-            if (headCollider != null) Destroy(headCollider);
 
             var headRenderer = headObj.GetComponent<Renderer>();
             if (headRenderer != null)
@@ -128,14 +122,11 @@ namespace TowerDefense.Entities
 
         private void CreateRangeIndicator()
         {
-            rangeIndicator = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            rangeIndicator = MaterialCache.CreatePrimitive(PrimitiveType.Cylinder);
             rangeIndicator.transform.SetParent(transform);
             rangeIndicator.transform.localPosition = Vector3.zero;
 
             rangeIndicator.transform.localScale = new Vector3(EffectiveRange * 2f, 0.01f, EffectiveRange * 2f);
-
-            var collider = rangeIndicator.GetComponent<Collider>();
-            if (collider != null) Destroy(collider);
 
             var renderer = rangeIndicator.GetComponent<Renderer>();
             if (renderer != null)
@@ -156,15 +147,12 @@ namespace TowerDefense.Entities
 
         private void CreateAuraIndicator()
         {
-            auraIndicator = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            auraIndicator = MaterialCache.CreatePrimitive(PrimitiveType.Cylinder);
             auraIndicator.name = "SlowAura";
             auraIndicator.transform.SetParent(transform);
             auraIndicator.transform.localPosition = Vector3.zero;
 
             auraIndicator.transform.localScale = new Vector3(EffectiveRange * 2f, 0.02f, EffectiveRange * 2f);
-
-            var collider = auraIndicator.GetComponent<Collider>();
-            if (collider != null) Destroy(collider);
 
             var renderer = auraIndicator.GetComponent<Renderer>();
             if (renderer != null)

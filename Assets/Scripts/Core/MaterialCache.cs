@@ -30,7 +30,11 @@ namespace TowerDefense.Core
             get
             {
                 if (_unlitColor == null)
+                {
                     _unlitColor = Shader.Find("Unlit/Color");
+                    if (_unlitColor == null)
+                        _unlitColor = Shader.Find("Sprites/Default");
+                }
                 return _unlitColor;
             }
         }
@@ -57,19 +61,25 @@ namespace TowerDefense.Core
 
         public static Material CreateUnlit(Color color)
         {
-            var mat = new Material(UnlitColor);
+            var shader = UnlitColor;
+            if (shader == null) return null;
+            var mat = new Material(shader);
             mat.color = color;
             return mat;
         }
 
         public static Material CreateSpriteDefault()
         {
-            return new Material(SpritesDefault);
+            var shader = SpritesDefault;
+            if (shader == null) return null;
+            return new Material(shader);
         }
 
         public static Material CreateTransparent(Color color)
         {
-            var mat = new Material(Standard);
+            var shader = Standard;
+            if (shader == null) return null;
+            var mat = new Material(shader);
             mat.SetFloat("_Mode", 3);
             mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
             mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
@@ -86,6 +96,42 @@ namespace TowerDefense.Core
         {
             color.a = alpha;
             return CreateTransparent(color);
+        }
+
+        // Cached primitive meshes loaded via Resources.GetBuiltinResource.
+        // Avoids GameObject.CreatePrimitive which fails on Android when
+        // CapsuleCollider/other collider classes are stripped from the build.
+        private static Mesh _cylinderMesh;
+        private static Mesh _cubeMesh;
+        private static Mesh _sphereMesh;
+        private static Mesh _capsuleMesh;
+
+        public static Mesh GetPrimitiveMesh(PrimitiveType type)
+        {
+            switch (type)
+            {
+                case PrimitiveType.Cube:
+                    if (_cubeMesh == null) _cubeMesh = Resources.GetBuiltinResource<Mesh>("Cube.fbx");
+                    return _cubeMesh;
+                case PrimitiveType.Sphere:
+                    if (_sphereMesh == null) _sphereMesh = Resources.GetBuiltinResource<Mesh>("New-Sphere.fbx");
+                    return _sphereMesh;
+                case PrimitiveType.Capsule:
+                    if (_capsuleMesh == null) _capsuleMesh = Resources.GetBuiltinResource<Mesh>("New-Capsule.fbx");
+                    return _capsuleMesh;
+                default: // Cylinder and others
+                    if (_cylinderMesh == null) _cylinderMesh = Resources.GetBuiltinResource<Mesh>("New-Cylinder.fbx");
+                    return _cylinderMesh;
+            }
+        }
+
+        /// Creates a primitive mesh GameObject without colliders.
+        public static GameObject CreatePrimitive(PrimitiveType type)
+        {
+            var obj = new GameObject(type.ToString());
+            obj.AddComponent<MeshFilter>().sharedMesh = GetPrimitiveMesh(type);
+            obj.AddComponent<MeshRenderer>();
+            return obj;
         }
     }
 }
