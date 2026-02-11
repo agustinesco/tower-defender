@@ -25,7 +25,6 @@ namespace TowerDefense.Core
 
         public static TutorialManager Instance { get; private set; }
 
-        private const string PrefPrefix = "tut_";
         private const int StepCount = 10; // Everything before Done
 
         private static readonly string[] StepMessages = new string[]
@@ -81,12 +80,13 @@ namespace TowerDefense.Core
 
         private static bool IsStepSeen(TutorialStep step)
         {
-            return PlayerPrefs.GetInt(PrefPrefix + step, 0) == 1;
+            return JsonSaveSystem.IsTutorialStepSeen(step.ToString());
         }
 
         private static void MarkStepSeen(TutorialStep step)
         {
-            PlayerPrefs.SetInt(PrefPrefix + step, 1);
+            JsonSaveSystem.MarkTutorialStepSeen(step.ToString());
+            JsonSaveSystem.Save();
         }
 
         private TutorialStep FindFirstUnseenStep()

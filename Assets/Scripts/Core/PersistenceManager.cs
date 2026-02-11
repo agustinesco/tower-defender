@@ -22,6 +22,7 @@ namespace TowerDefense.Core
             }
             Instance = this;
             DontDestroyOnLoad(gameObject);
+            JsonSaveSystem.MigrateFromPlayerPrefs();
             Load();
         }
 
@@ -97,21 +98,15 @@ namespace TowerDefense.Core
         private void Save()
         {
             foreach (ResourceType type in System.Enum.GetValues(typeof(ResourceType)))
-            {
-                string key = $"resource_{type}";
-                PlayerPrefs.SetInt(key, GetBanked(type));
-            }
-            PlayerPrefs.Save();
+                JsonSaveSystem.SetBankedResource(type, GetBanked(type));
+            JsonSaveSystem.Save();
         }
 
         private void Load()
         {
             bankedResources.Clear();
             foreach (ResourceType type in System.Enum.GetValues(typeof(ResourceType)))
-            {
-                string key = $"resource_{type}";
-                bankedResources[type] = PlayerPrefs.GetInt(key, 0);
-            }
+                bankedResources[type] = JsonSaveSystem.GetBankedResource(type);
         }
     }
 }

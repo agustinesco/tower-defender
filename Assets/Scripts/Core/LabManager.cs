@@ -338,10 +338,8 @@ namespace TowerDefense.Core
         private void Save()
         {
             foreach (var kvp in purchasedLevels)
-            {
-                PlayerPrefs.SetInt($"lab_{kvp.Key}", kvp.Value);
-            }
-            PlayerPrefs.Save();
+                JsonSaveSystem.SetLabLevel(kvp.Key, kvp.Value);
+            JsonSaveSystem.Save();
         }
 
         private void Load()
@@ -349,11 +347,9 @@ namespace TowerDefense.Core
             purchasedLevels.Clear();
             foreach (var upgrade in upgrades)
             {
-                string key = $"lab_{upgrade.upgradeName}";
-                if (PlayerPrefs.HasKey(key))
-                {
-                    purchasedLevels[upgrade.upgradeName] = PlayerPrefs.GetInt(key);
-                }
+                int level = JsonSaveSystem.GetLabLevel(upgrade.upgradeName);
+                if (level > 0)
+                    purchasedLevels[upgrade.upgradeName] = level;
             }
         }
     }

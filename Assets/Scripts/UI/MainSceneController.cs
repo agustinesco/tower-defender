@@ -14,6 +14,7 @@ namespace TowerDefense.UI
         [SerializeField] private Text resourceText;
         [SerializeField] private Button startButton;
         [SerializeField] private Button labButton;
+        [SerializeField] private Button resetButton;
 
         [Header("Lab Panel")]
         [SerializeField] private GameObject labPanel;
@@ -37,6 +38,9 @@ namespace TowerDefense.UI
         };
         private static readonly Color LabTabInactiveColor = new Color(0.18f, 0.18f, 0.22f);
 
+        // Reset confirmation
+        private GameObject resetConfirmOverlay;
+
         // Tutorial state
         private bool labTutorialActive;
         private int labTutorialStep; // 0 = map, 1 = lab
@@ -48,7 +52,6 @@ namespace TowerDefense.UI
         private RectTransform tutTargetRect;
         private Vector2 tutArrowBounceDir;
         private RectTransform safeAreaRect;
-        private const string LabTutorialPref = "tut_lab_upgrade";
 
         private void Awake()
         {
@@ -71,6 +74,7 @@ namespace TowerDefense.UI
             if (startButton != null) startButton.onClick.AddListener(OnContinuousClicked);
             if (labButton != null) labButton.onClick.AddListener(OnLabClicked);
             if (labBackButton != null) labBackButton.onClick.AddListener(OnLabBackClicked);
+            if (resetButton != null) resetButton.onClick.AddListener(OnResetClicked);
 
             if (labTabButtons != null)
             {
@@ -95,7 +99,7 @@ namespace TowerDefense.UI
 
         private void CheckLabTutorial()
         {
-            if (PlayerPrefs.GetInt(LabTutorialPref, 0) == 1) return;
+            if (JsonSaveSystem.Data.labTutorialComplete) return;
             if (!HasAffordableUpgrade()) return;
 
             // Cache SafeArea rect from mapPanel's parent
@@ -213,8 +217,8 @@ namespace TowerDefense.UI
 
         private void CompleteLabTutorial()
         {
-            PlayerPrefs.SetInt(LabTutorialPref, 1);
-            PlayerPrefs.Save();
+            JsonSaveSystem.Data.labTutorialComplete = true;
+            JsonSaveSystem.Save();
             if (tutPanelObj != null) Destroy(tutPanelObj);
             if (tutArrowObj != null) Destroy(tutArrowObj);
             labTutorialActive = false;
@@ -542,6 +546,131 @@ namespace TowerDefense.UI
             if (labTutorialActive) return;
             if (labPanel != null) labPanel.SetActive(false);
             ShowMap();
+        }
+
+        // --- Reset progress ---
+
+        private void OnResetClicked()
+        {
+            if (labTutorialActive) return;
+            if (resetConfirmOverlay != null) return;
+            ShowResetConfirmation();
+        }
+
+        private void ShowResetConfirmation()
+        {
+            var parent = mapPanel != null ? mapPanel.transform.parent : transform;
+
+            resetConfirmOverlay = new GameObject("ResetConfirm");
+            resetConfirmOverlay.transform.SetParent(parent, false);
+            var overlayRect = resetConfirmOverlay.AddComponent<RectTransform>();
+            overlayRect.anchorMin = Vector2.zero;
+            overlayRect.anchorMax = Vector2.one;
+            overlayRect.offsetMin = Vector2.zero;
+            overlayRect.offsetMax = Vector2.zero;
+
+            // Dim background
+            var dimImg = resetConfirmOverlay.AddComponent<Image>();
+            dimImg.color = new Color(0f, 0f, 0f, 0.7f);
+
+            // Dialog box
+            var dialog = new GameObject("Dialog");
+            dialog.transform.SetParent(resetConfirmOverlay.transform, false);
+            var dialogRect = dialog.AddComponent<RectTransform>();
+            dialogRect.anchorMin = new Vector2(0.5f, 0.5f);
+            dialogRect.anchorMax = new Vector2(0.5f, 0.5f);
+            dialogRect.sizeDelta = new Vector2(500f, 200f);
+            var dialogBg = dialog.AddComponent<Image>();
+            dialogBg.color = new Color(0.12f, 0.12f, 0.18f, 0.95f);
+
+            // Warning text
+            var textObj = new GameObject("Text");
+            textObj.transform.SetParent(dialog.transform, false);
+            var textRect = textObj.AddComponent<RectTransform>();
+            textRect.anchorMin = new Vector2(0.05f, 0.5f);
+            textRect.anchorMax = new Vector2(0.95f, 0.9f);
+            textRect.offsetMin = Vector2.zero;
+            textRect.offsetMax = Vector2.zero;
+            var text = textObj.AddComponent<Text>();
+            text.text = "Reset all progress?\nThis cannot be undone.";
+            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            text.fontSize = 22;
+            text.fontStyle = FontStyle.Bold;
+            text.color = Color.white;
+            text.alignment = TextAnchor.MiddleCenter;
+            text.raycastTarget = false;
+
+            // Confirm button
+            var confirmObj = new GameObject("Confirm");
+            confirmObj.transform.SetParent(dialog.transform, false);
+            var confirmRect = confirmObj.AddComponent<RectTransform>();
+            confirmRect.anchorMin = new Vector2(0.55f, 0.08f);
+            confirmRect.anchorMax = new Vector2(0.95f, 0.4f);
+            confirmRect.offsetMin = Vector2.zero;
+            confirmRect.offsetMax = Vector2.zero;
+            var confirmImg = confirmObj.AddComponent<Image>();
+            confirmImg.color = new Color(0.7f, 0.2f, 0.2f);
+            var confirmBtn = confirmObj.AddComponent<Button>();
+            confirmBtn.targetGraphic = confirmImg;
+            confirmBtn.onClick.AddListener(OnResetConfirmed);
+
+            var confirmTextObj = new GameObject("Text");
+            confirmTextObj.transform.SetParent(confirmObj.transform, false);
+            var ctRect = confirmTextObj.AddComponent<RectTransform>();
+            ctRect.anchorMin = Vector2.zero;
+            ctRect.anchorMax = Vector2.one;
+            ctRect.offsetMin = Vector2.zero;
+            ctRect.offsetMax = Vector2.zero;
+            var ctText = confirmTextObj.AddComponent<Text>();
+            ctText.text = "Reset";
+            ctText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            ctText.fontSize = 20;
+            ctText.fontStyle = FontStyle.Bold;
+            ctText.color = Color.white;
+            ctText.alignment = TextAnchor.MiddleCenter;
+
+            // Cancel button
+            var cancelObj = new GameObject("Cancel");
+            cancelObj.transform.SetParent(dialog.transform, false);
+            var cancelRect = cancelObj.AddComponent<RectTransform>();
+            cancelRect.anchorMin = new Vector2(0.05f, 0.08f);
+            cancelRect.anchorMax = new Vector2(0.45f, 0.4f);
+            cancelRect.offsetMin = Vector2.zero;
+            cancelRect.offsetMax = Vector2.zero;
+            var cancelImg = cancelObj.AddComponent<Image>();
+            cancelImg.color = new Color(0.3f, 0.3f, 0.35f);
+            var cancelBtn = cancelObj.AddComponent<Button>();
+            cancelBtn.targetGraphic = cancelImg;
+            cancelBtn.onClick.AddListener(OnResetCancelled);
+
+            var cancelTextObj = new GameObject("Text");
+            cancelTextObj.transform.SetParent(cancelObj.transform, false);
+            var clRect = cancelTextObj.AddComponent<RectTransform>();
+            clRect.anchorMin = Vector2.zero;
+            clRect.anchorMax = Vector2.one;
+            clRect.offsetMin = Vector2.zero;
+            clRect.offsetMax = Vector2.zero;
+            var clText = cancelTextObj.AddComponent<Text>();
+            clText.text = "Cancel";
+            clText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            clText.fontSize = 20;
+            clText.color = Color.white;
+            clText.alignment = TextAnchor.MiddleCenter;
+        }
+
+        private void OnResetConfirmed()
+        {
+            JsonSaveSystem.DeleteAll();
+            SceneManager.LoadScene(0);
+        }
+
+        private void OnResetCancelled()
+        {
+            if (resetConfirmOverlay != null)
+            {
+                Destroy(resetConfirmOverlay);
+                resetConfirmOverlay = null;
+            }
         }
 
         // --- Static helper ---

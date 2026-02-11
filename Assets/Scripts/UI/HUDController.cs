@@ -595,12 +595,12 @@ namespace TowerDefense.UI
 
         private void OnApplicationPause(bool pause)
         {
-            if (pause) PlayerPrefs.Save();
+            if (pause) JsonSaveSystem.SaveIfDirty();
         }
 
         private void OnApplicationQuit()
         {
-            PlayerPrefs.Save();
+            JsonSaveSystem.SaveIfDirty();
         }
 
         private void OnCheatGold()
@@ -636,8 +636,7 @@ namespace TowerDefense.UI
 
         private void OnCheatResetProgress()
         {
-            PlayerPrefs.DeleteAll();
-            PlayerPrefs.Save();
+            JsonSaveSystem.DeleteAll();
             MainSceneController.LoadMainMenu();
         }
 
