@@ -147,12 +147,16 @@ namespace TowerDefense.Grid
                     break;
 
                 case RotationPattern.Fork:
-                    // 4 variants: entry + opposite + any 1 of the remaining 4 edges
-                    for (int e = 0; e < 6; e++)
+                    // 10 variants: entry + any 2 of the remaining 5 edges
+                    for (int a = 0; a < 6; a++)
                     {
-                        if (e == entryEdge || e == opposite) continue;
-                        variants.Add(new PlacementRotation(entryEdge,
-                            new List<int> { entryEdge, opposite, e }));
+                        if (a == entryEdge) continue;
+                        for (int b = a + 1; b < 6; b++)
+                        {
+                            if (b == entryEdge) continue;
+                            variants.Add(new PlacementRotation(entryEdge,
+                                new List<int> { entryEdge, a, b }));
+                        }
                     }
                     break;
 
