@@ -435,7 +435,7 @@ namespace TowerDefense.Core
             if (IsContinuousMode)
                 UpdateModificationTimers(Time.deltaTime);
 
-            if (IsContinuousMode && mineTimers.Count > 0)
+            if (IsContinuousMode && mineTimers.Count > 0 && waveManager != null && waveManager.WaveInProgress)
             {
                 float dt = Time.deltaTime;
                 float interval = ContinuousMineInterval;
@@ -591,17 +591,6 @@ namespace TowerDefense.Core
             }
 
             RemoveOrePatchMarker(coord);
-
-            if (IsContinuousMode)
-            {
-                mineTimers[coord] = 0f;
-                Vector3 worldPos = HexGrid.HexToWorld(coord);
-                var indicatorObj = new GameObject("MineTimer");
-                indicatorObj.transform.position = worldPos + Vector3.up * 10f;
-                var indicator = indicatorObj.AddComponent<UI.MineTimerIndicator>();
-                indicator.Initialize(ContinuousMineInterval);
-                mineTimerIndicators[coord] = indicator;
-            }
 
             var patch = orePatches[coord];
             Debug.Log($"Auto-mine built at {coord}: {patch.ResourceType} (yield: {patch.BaseYield}/wave)");
@@ -926,6 +915,24 @@ namespace TowerDefense.Core
             {
                 SetSpawnIndicatorsVisible(false);
             }
+
+            if (IsContinuousMode)
+                StartMineTimers();
+        }
+
+        private void StartMineTimers()
+        {
+            foreach (var coord in activeMiningOutposts)
+            {
+                if (mineTimers.ContainsKey(coord)) continue;
+                mineTimers[coord] = 0f;
+                Vector3 worldPos = HexGrid.HexToWorld(coord);
+                var indicatorObj = new GameObject("MineTimer");
+                indicatorObj.transform.position = worldPos + Vector3.up * 10f;
+                var indicator = indicatorObj.AddComponent<UI.MineTimerIndicator>();
+                indicator.Initialize(ContinuousMineInterval);
+                mineTimerIndicators[coord] = indicator;
+            }
         }
 
         private void OnWaveComplete()
@@ -1063,18 +1070,6 @@ namespace TowerDefense.Core
 
             // Remove the ore patch marker
             RemoveOrePatchMarker(coord);
-
-            // In continuous mode, add a timer indicator above the mine
-            if (IsContinuousMode)
-            {
-                mineTimers[coord] = 0f;
-                Vector3 worldPos = HexGrid.HexToWorld(coord);
-                var indicatorObj = new GameObject("MineTimer");
-                indicatorObj.transform.position = worldPos + Vector3.up * 10f;
-                var indicator = indicatorObj.AddComponent<UI.MineTimerIndicator>();
-                indicator.Initialize(ContinuousMineInterval);
-                mineTimerIndicators[coord] = indicator;
-            }
 
             var patch = orePatches[coord];
             Debug.Log($"Mine built at {coord}: {patch.ResourceType} (yield: {patch.BaseYield}/wave)");
