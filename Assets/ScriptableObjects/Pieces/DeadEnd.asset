@@ -15,7 +15,7 @@ MonoBehaviour:
   pieceType: 4
   displayName: Dead End
   rotationPattern: 3
-  generationWeight: 0.1
+  generationWeight: 0
   startsInHand: 0
   allowsTowerSlots: 1
   isWaveSpawnPoint: 1

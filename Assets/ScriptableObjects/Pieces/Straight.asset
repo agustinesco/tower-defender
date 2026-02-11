@@ -17,7 +17,7 @@ MonoBehaviour:
   rotationPattern: 0
   placementCost: 50
   placementCooldown: 15
-  generationWeight: 0.45
+  generationWeight: 0
   startsInHand: 1
   allowsTowerSlots: 1
   isWaveSpawnPoint: 0
