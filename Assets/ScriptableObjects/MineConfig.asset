@@ -12,5 +12,5 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5a3ce38a3e7d5469c86248f27ec12bd5, type: 3}
   m_Name: MineConfig
   m_EditorClassIdentifier: Assembly-CSharp::TowerDefense.Data.MineConfig
-  yieldMultiplier: 5
-  collectionInterval: 30
+  yieldMultiplier: 3
+  collectionInterval: 15

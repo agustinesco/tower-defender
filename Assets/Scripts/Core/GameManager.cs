@@ -115,7 +115,8 @@ namespace TowerDefense.Core
 
         private float ContinuousMineInterval => mineConfig != null ? mineConfig.collectionInterval : 30f;
         private int MineYieldMultiplier => mineConfig != null ? mineConfig.yieldMultiplier : 1;
-        private float continuousMineTimer = 0f;
+        private Dictionary<HexCoord, float> mineTimers = new Dictionary<HexCoord, float>();
+        private readonly List<HexCoord> _readyMines = new List<HexCoord>();
 
         public int Lives => currentLives;
         public int MaxLives => maxLives;
@@ -424,20 +425,26 @@ namespace TowerDefense.Core
             if (IsContinuousMode)
                 UpdateModificationTimers(Time.deltaTime);
 
-            if (IsContinuousMode && activeMiningOutposts.Count > 0)
+            if (IsContinuousMode && mineTimers.Count > 0)
             {
-                continuousMineTimer += Time.deltaTime;
-                if (continuousMineTimer >= ContinuousMineInterval)
+                float dt = Time.deltaTime;
+                float interval = ContinuousMineInterval;
+                _readyMines.Clear();
+                foreach (var kvp in mineTimers)
                 {
-                    continuousMineTimer = 0f;
-                    CollectMiningResources();
-
-                    // Reset all timer indicators
-                    foreach (var kvp in mineTimerIndicators)
-                    {
-                        if (kvp.Value != null)
-                            kvp.Value.SetTimer(0f);
-                    }
+                    float t = kvp.Value + dt;
+                    if (t >= interval)
+                        _readyMines.Add(kvp.Key);
+                    else
+                        mineTimers[kvp.Key] = t;
+                }
+                for (int i = 0; i < _readyMines.Count; i++)
+                {
+                    var coord = _readyMines[i];
+                    mineTimers[coord] = 0f;
+                    CollectFromMine(coord);
+                    if (mineTimerIndicators.TryGetValue(coord, out var indicator) && indicator != null)
+                        indicator.SetTimer(0f);
                 }
             }
         }
@@ -574,12 +581,12 @@ namespace TowerDefense.Core
 
             if (IsContinuousMode)
             {
+                mineTimers[coord] = 0f;
                 Vector3 worldPos = HexGrid.HexToWorld(coord);
                 var indicatorObj = new GameObject("MineTimer");
                 indicatorObj.transform.position = worldPos + Vector3.up * 10f;
                 var indicator = indicatorObj.AddComponent<UI.MineTimerIndicator>();
                 indicator.Initialize(ContinuousMineInterval);
-                indicator.SetTimer(continuousMineTimer);
                 mineTimerIndicators[coord] = indicator;
             }
 
@@ -1047,12 +1054,12 @@ namespace TowerDefense.Core
             // In continuous mode, add a timer indicator above the mine
             if (IsContinuousMode)
             {
+                mineTimers[coord] = 0f;
                 Vector3 worldPos = HexGrid.HexToWorld(coord);
                 var indicatorObj = new GameObject("MineTimer");
                 indicatorObj.transform.position = worldPos + Vector3.up * 10f;
                 var indicator = indicatorObj.AddComponent<UI.MineTimerIndicator>();
                 indicator.Initialize(ContinuousMineInterval);
-                indicator.SetTimer(continuousMineTimer);
                 mineTimerIndicators[coord] = indicator;
             }
 
@@ -1397,21 +1404,23 @@ namespace TowerDefense.Core
             if (PersistenceManager.Instance == null) return;
 
             foreach (var coord in activeMiningOutposts)
-            {
-                if (orePatches.TryGetValue(coord, out var patch))
-                {
-                    int yield = patch.BaseYield * MineYieldMultiplier;
-                    PersistenceManager.Instance.AddRunResource(patch.ResourceType, yield);
+                CollectFromMine(coord);
+        }
 
-                    // Spawn fly-to-castle resource popup
-                    Vector3 mineWorldPos = HexGrid.HexToWorld(coord) + Vector3.up * 2f;
-                    Vector3 castleWorldPos = HexGrid.HexToWorld(new HexCoord(0, 0)) + Vector3.up * 2f;
-                    var popup = new GameObject("ResourcePopup").AddComponent<UI.ResourcePopup>();
-                    popup.Initialize(yield, patch.ResourceType, mineWorldPos, castleWorldPos);
+        private void CollectFromMine(HexCoord coord)
+        {
+            if (PersistenceManager.Instance == null) return;
+            if (!orePatches.TryGetValue(coord, out var patch)) return;
 
-                    Debug.Log($"Mined {yield} {patch.ResourceType} from outpost at {coord}");
-                }
-            }
+            int yield = patch.BaseYield * MineYieldMultiplier;
+            PersistenceManager.Instance.AddRunResource(patch.ResourceType, yield);
+
+            Vector3 mineWorldPos = HexGrid.HexToWorld(coord) + Vector3.up * 2f;
+            Vector3 castleWorldPos = HexGrid.HexToWorld(new HexCoord(0, 0)) + Vector3.up * 2f;
+            var popup = new GameObject("ResourcePopup").AddComponent<UI.ResourcePopup>();
+            popup.Initialize(yield, patch.ResourceType, mineWorldPos, castleWorldPos);
+
+            Debug.Log($"Mined {yield} {patch.ResourceType} from outpost at {coord}");
         }
 
         private void CreateOrePatchMarkers()
