@@ -3592,6 +3592,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   waveData: {fileID: 11400000, guid: 648c1be705e584f2c958455e08a5c442, type: 2}
+  difficultyConfig: {fileID: 11400000, guid: 04552c9e61ecb4153b95ae3839ac2dcb, type: 2}
   timeBetweenSpawns: 0.5
   baseEnemiesPerWave: 5
 --- !u!114 &1886648389
@@ -3639,7 +3640,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: a6b33cf53d310477fbf4d0023d464c07, type: 2}
   - {fileID: 11400000, guid: 889865e5ab621499cb8a8389e382208d, type: 2}
   - {fileID: 11400000, guid: 940488880f7df4b04ae526d89d402fb2, type: 2}
-  zoneBoundaries: 0a0000001400000028000000
+  zoneBoundaries: 050000000f00000019000000
 --- !u!4 &1886648390
 Transform:
   m_ObjectHideFlags: 0
