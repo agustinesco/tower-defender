@@ -3,6 +3,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using System.Collections.Generic;
+using DG.Tweening;
 using TowerDefense.Core;
 using TowerDefense.Data;
 
@@ -33,6 +34,9 @@ namespace TowerDefense.UI
         [SerializeField] private Button questBackButton;
         [SerializeField] private Button questAreaButton;
 
+        [Header("Notifications")]
+        [SerializeField] private GameObject questNotifyObj;
+
         [Header("Tutorial")]
         [SerializeField] private Sprite tutorialArrowSprite;
 
@@ -49,6 +53,10 @@ namespace TowerDefense.UI
 
         // Reset confirmation
         private GameObject resetConfirmOverlay;
+
+        // Quest button notification
+        private RectTransform questNotifyRect;
+        private float questNotifyStartY;
 
         // Tutorial state
         private bool labTutorialActive;
@@ -370,6 +378,80 @@ namespace TowerDefense.UI
             if (mapPanel != null) mapPanel.SetActive(true);
             if (labPanel != null) labPanel.SetActive(false);
             if (questPanel != null) questPanel.SetActive(false);
+            CheckQuestButtonHighlight();
+        }
+
+        private void CheckQuestButtonHighlight()
+        {
+            if (questNotifyObj == null) return;
+
+            var qm = QuestManager.Instance;
+            if (qm == null)
+            {
+                questNotifyObj.SetActive(false);
+                return;
+            }
+
+            // Show when active quest is completed or no quest is active,
+            // and there are unlocked uncompleted quests to pick
+            bool needsNewQuest = !qm.HasActiveQuest || qm.IsQuestCompleted(qm.ActiveQuestId);
+            if (!needsNewQuest)
+            {
+                HideQuestNotification();
+                return;
+            }
+
+            bool hasAvailable = false;
+            var quests = qm.AllQuests;
+            for (int i = 0; i < quests.Count; i++)
+            {
+                if (qm.IsQuestCompleted(quests[i].questId)) continue;
+                if (qm.IsQuestUnlocked(quests[i].questId))
+                {
+                    hasAvailable = true;
+                    break;
+                }
+            }
+
+            if (hasAvailable)
+                ShowQuestNotification();
+            else
+                HideQuestNotification();
+        }
+
+        private void ShowQuestNotification()
+        {
+            if (questNotifyObj == null || questNotifyObj.activeSelf) return;
+
+            if (questNotifyRect == null)
+                questNotifyRect = questNotifyObj.GetComponent<RectTransform>();
+
+            questNotifyObj.SetActive(true);
+            questNotifyStartY = questNotifyRect.anchoredPosition.y;
+            questNotifyRect.localScale = Vector3.zero;
+            DOTween.Kill(questNotifyRect);
+
+            // Pop in
+            questNotifyRect.DOScale(Vector3.one, 0.3f).SetEase(Ease.OutBack).SetUpdate(true);
+
+            // Repeating jump + bounce
+            var seq = DOTween.Sequence().SetUpdate(true).SetDelay(0.4f).SetLoops(-1, LoopType.Restart);
+            seq.Append(questNotifyRect.DOAnchorPosY(questNotifyStartY + 20f, 0.25f).SetEase(Ease.OutQuad));
+            seq.Append(questNotifyRect.DOAnchorPosY(questNotifyStartY, 0.2f).SetEase(Ease.OutBounce));
+            seq.AppendInterval(0.8f);
+            seq.SetTarget(questNotifyRect);
+        }
+
+        private void HideQuestNotification()
+        {
+            if (questNotifyObj == null || !questNotifyObj.activeSelf) return;
+
+            if (questNotifyRect == null)
+                questNotifyRect = questNotifyObj.GetComponent<RectTransform>();
+
+            DOTween.Kill(questNotifyRect);
+            questNotifyRect.anchoredPosition = new Vector2(questNotifyRect.anchoredPosition.x, questNotifyStartY);
+            questNotifyObj.SetActive(false);
         }
 
         private void OnContinuousClicked()
@@ -791,6 +873,7 @@ namespace TowerDefense.UI
 
         private void OnQuestAreaClicked()
         {
+            HideQuestNotification();
             if (mapPanel != null) mapPanel.SetActive(false);
             ShowQuestPanel();
 
