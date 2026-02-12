@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -9,8 +10,7 @@ namespace TowerDefense.UI
         [SerializeField] private GameObject borderObj;
         [SerializeField] private Image borderImage;
         [SerializeField] private Image icon;
-        [SerializeField] private Text nameLabel;
-        [SerializeField] private Text costLabel;
+        [SerializeField] private TextMeshProUGUI costLabel;
         [SerializeField] private GameObject cooldownOverlay;
         [SerializeField] private Image cooldownImage;
         [SerializeField] private Text cooldownText;
@@ -22,8 +22,7 @@ namespace TowerDefense.UI
         public GameObject BorderObj => borderObj;
         public Image BorderImage => borderImage;
         public Image Icon => icon;
-        public Text NameLabel => nameLabel;
-        public Text CostLabel => costLabel;
+        public TextMeshProUGUI CostLabel => costLabel;
         public GameObject CooldownOverlay => cooldownOverlay;
         public Image CooldownImage => cooldownImage;
         public Text CooldownText => cooldownText;
@@ -57,12 +56,6 @@ namespace TowerDefense.UI
                 cooldownText.text = text;
             if (cooldownText != null)
                 cooldownText.gameObject.SetActive(!string.IsNullOrEmpty(text));
-        }
-
-        public void SetPreferredHeight(float height)
-        {
-            if (layoutElement != null)
-                layoutElement.preferredHeight = height;
         }
     }
 }

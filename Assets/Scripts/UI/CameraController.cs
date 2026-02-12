@@ -35,6 +35,10 @@ namespace TowerDefense.UI
         private float shakeMagnitude;
         private Vector3 shakeOffset;
 
+        // Viewport safe area tracking
+        private int lastScreenW;
+        private int lastScreenH;
+
         [HideInInspector] public PieceDragHandler pieceDragHandler;
 
         private void Awake()
@@ -60,18 +64,7 @@ namespace TowerDefense.UI
                 transform.position = new Vector3(0f, 50f, 0f);
                 targetPosition = transform.position;
 
-                // Inset viewport based on device safe area (handles notches/cutouts)
-                var sa = Screen.safeArea;
-                int sw = Screen.width;
-                int sh = Screen.height;
-                if (sw > 0 && sh > 0)
-                {
-                    float left = sa.x / sw;
-                    float bottom = sa.y / sh;
-                    float width = sa.width / sw;
-                    float height = sa.height / sh;
-                    cam.rect = new Rect(left, bottom, width, height);
-                }
+                UpdateViewportSafeArea();
 
                 // Background camera fills margins with black
                 var bgCamObj = new GameObject("BackgroundCamera");
@@ -86,8 +79,29 @@ namespace TowerDefense.UI
 
         private void Update()
         {
+            int sw = Screen.width;
+            int sh = Screen.height;
+            if (sw != lastScreenW || sh != lastScreenH)
+                UpdateViewportSafeArea();
+
             HandleTouchInput();
             HandleMouseInput(); // For editor testing
+        }
+
+        private void UpdateViewportSafeArea()
+        {
+            if (cam == null) return;
+            var sa = Screen.safeArea;
+            int sw = Screen.width;
+            int sh = Screen.height;
+            if (sw <= 0 || sh <= 0) return;
+
+            lastScreenW = sw;
+            lastScreenH = sh;
+
+            float left = sa.x / sw;
+            float width = sa.width / sw;
+            cam.rect = new Rect(left, 0f, width, 1f);
         }
 
         private void HandleTouchInput()

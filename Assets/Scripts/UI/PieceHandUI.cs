@@ -44,11 +44,9 @@ namespace TowerDefense.UI
         private static readonly Color TabActiveColor = new Color(0.3f, 0.6f, 0.3f);
         private static readonly Color TabInactiveColor = new Color(0.25f, 0.25f, 0.25f);
 
-        private const float BaseCardHeight = 105f;
         private const float BaseCardSpacing = 12f;
         private const float PanelPadding = 15f;
 
-        private float cardHeight = BaseCardHeight;
         private float cardSpacing = BaseCardSpacing;
         private float fontScale = 1f;
 
@@ -157,20 +155,7 @@ namespace TowerDefense.UI
             int maxCards = GetMaxCardCount();
             if (maxCards <= 0) return;
 
-            float canvasHeight = GetEffectiveCanvasHeight();
-            float availableForCards = canvasHeight - PanelPadding * 2f;
             cardSpacing = BaseCardSpacing;
-            cardHeight = (availableForCards - (maxCards - 1) * cardSpacing) / maxCards;
-
-            if (cardHeight < 50f)
-            {
-                cardSpacing = 4f;
-                cardHeight = (availableForCards - (maxCards - 1) * cardSpacing) / maxCards;
-                cardHeight = Mathf.Max(40f, cardHeight);
-            }
-
-            cardHeight = Mathf.Min(cardHeight, BaseCardHeight);
-            fontScale = cardHeight / BaseCardHeight;
 
             if (cardContainerLayout != null)
                 cardContainerLayout.spacing = cardSpacing;
@@ -312,12 +297,8 @@ namespace TowerDefense.UI
         {
             var go = Instantiate(cardPrefab, cardContainer);
             var ui = go.GetComponent<CardUI>();
-            ui.SetPreferredHeight(cardHeight);
             ui.Background.color = config.cardColor;
-            ui.NameLabel.text = config.displayName;
-            ui.NameLabel.fontSize = Mathf.RoundToInt(14 * fontScale);
-            ui.CostLabel.text = $"{config.placementCost}g";
-            ui.CostLabel.fontSize = Mathf.RoundToInt(12 * fontScale);
+            ui.CostLabel.text = $"{config.placementCost}";
             ui.Icon.gameObject.SetActive(false);
 
             int capturedIndex = index;
@@ -373,12 +354,8 @@ namespace TowerDefense.UI
         {
             var go = Instantiate(cardPrefab, cardContainer);
             var ui = go.GetComponent<CardUI>();
-            ui.SetPreferredHeight(cardHeight);
             ui.Background.color = towerData.towerColor;
-            ui.NameLabel.text = towerData.towerName;
-            ui.NameLabel.fontSize = Mathf.RoundToInt(14 * fontScale);
-            ui.CostLabel.text = $"{towerData.cost}g";
-            ui.CostLabel.fontSize = Mathf.RoundToInt(12 * fontScale);
+            ui.CostLabel.text = $"{towerData.cost}";
 
             // Icon
             if (towerData.towerIcon != null)
@@ -476,12 +453,8 @@ namespace TowerDefense.UI
         {
             var go = Instantiate(cardPrefab, cardContainer);
             var ui = go.GetComponent<CardUI>();
-            ui.SetPreferredHeight(cardHeight);
             ui.Background.color = color;
-            ui.NameLabel.text = label;
-            ui.NameLabel.fontSize = Mathf.RoundToInt(14 * fontScale);
-            ui.CostLabel.text = $"{cost}g";
-            ui.CostLabel.fontSize = Mathf.RoundToInt(12 * fontScale);
+            ui.CostLabel.text = $"{cost}";
 
             // Icon from Resources
             string spriteName = modType switch
