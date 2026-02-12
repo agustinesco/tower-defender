@@ -34,9 +34,9 @@ The gameplay scene shared by both wave and continuous modes.
 
 ### Continuous Mode (Primary)
 
-Enemies spawn endlessly from random spawn points with scaling difficulty. There are no discrete waves or build phases. The player can open the upgrade shop at any time via the Upgrades button without pausing the game. Mines collect resources on a 30-second timer instead of per-wave.
+Enemies spawn endlessly from random spawn points with scaling difficulty. There are no discrete waves or build phases. The player can open the upgrade shop at any time via the Upgrades button without pausing the game. Mines collect resources at a constant rate.
 
-The player can escape the run after 5 minutes via the Escape button (or cheat shortcut), banking all gathered resources.
+The player can escape the run after it finishes the objective in the run (or cheat shortcut), banking all gathered resources. The player can also decide to stay in the run to gather more resources
 
 Continuous spawn details:
 - Spawn interval: starts at 2s, decays to 0.3s minimum over ~4 minutes
@@ -52,7 +52,7 @@ Traditional tower defense with discrete waves. Between waves the player gets a b
 ## Currencies
 
 ### Run-Specific
-- **Gold**: Earned by killing enemies. Lost when the run ends. Used to place pieces, build towers, build mines, and place lures.
+- **Gold**: Earned by killing enemies. Lost when the run ends. Used to place pieces, build towers, build mods.
 
 ### Persistent Resources
 - **Iron Ore** (silver/gray)
@@ -66,7 +66,7 @@ Persistent resources are gathered during runs from mining outposts. If the playe
 
 ### Starting a Run
 
-The player starts with a castle at the center and 2 auto-generated path tiles. Six hidden goblin camp spawners are placed nearby (distance 2-5). Ore patches are generated based on zone distance.
+The player starts with a castle at the center and 2 auto-generated path tiles. Ore patches are generated based on zone distance.
 
 Starting stats (before lab bonuses):
 - Lives: 10
@@ -74,7 +74,7 @@ Starting stats (before lab bonuses):
 
 ### Piece Placement
 
-The player has a hand of piece cards, each with a cooldown after use. Pieces are dragged onto valid hex positions adjacent to existing tiles. Placing a piece on an occupied tile replaces it (refunding any towers). Pieces cannot be placed if doing so would disconnect existing paths.
+The player has a hand of piece cards. Pieces are dragged onto valid hex positions adjacent to existing tiles. Placing a piece on an occupied tile replaces it (refunding any towers). Pieces cannot be placed if doing so would disconnect existing paths.
 
 ### Continuous Flow
 
@@ -82,7 +82,7 @@ The player has a hand of piece cards, each with a cooldown after use. Pieces are
 2. Enemies spawn continuously from random spawn points
 3. Mines collect resources every 30 seconds (with visual countdown timer)
 4. Player opens the upgrade shop at any time via the Upgrades button
-5. After 5 minutes, escape becomes available to bank resources and exit
+5. After completing the objective, escape becomes available to bank resources and exit
 
 ### Wave Flow (Wave Mode)
 
@@ -112,22 +112,19 @@ Pieces connect via edges (0-5). Edge directions are at 60 * edge + 30 degrees. N
 | Piece | Edges | Cost | Cooldown | Tower Slots | Notes |
 |-------|-------|------|----------|-------------|-------|
 | Castle | 1 | - | - | No | Center of the map, enemy target |
-| Straight | 2 (opposite) | 50g | 15s | Yes | Starts in hand |
 | Bend | 2 (adjacent) | 50g | 15s | Yes | |
 | Fork | 3 | 75g | 20s | Yes | T-junction |
-| Dead End | 1 | 50g | 15s | Yes | Becomes a wave spawn point |
 | Cross | 4 | 100g | 25s | Yes | |
 | Star | 5 | 150g | 35s | Yes | |
 | Crossroads | 6 | 200g | 45s | Yes | All edges connected |
 | Goblin Camp | 2 | 50g | 15s | No | Enemy spawner (burst spawn) |
 
-Goblin camps are hidden spawners revealed when the player connects a path edge to their position. They burst-spawn weaker enemies (0.7x health, 0.85x speed) each wave.
 
 ## Spawn Points
 
 Any piece with an open edge (connected edge leading to empty hex) becomes a wave spawn point. Enemies spawn at the edge midpoint of the open edge, not the hex center. Dead End pieces are always spawn points.
 
-Pulsing red/orange indicators mark spawn points. They are visible during the build phase and between waves, and hidden when a wave starts. In continuous mode they stay visible at all times.
+Pulsing goblin heads indicators mark spawn points. They are visible during the build phase and between waves, and hidden when a wave starts. In continuous mode they stay visible at all times.
 
 ## Towers
 
@@ -135,7 +132,7 @@ Towers are placed on tower slots attached to path pieces (max 2 slots per piece)
 
 | Tower | Cost | Damage | Range | Fire Rate | Special |
 |-------|------|--------|-------|-----------|---------|
-| Arrow | 50g | 5 | 8 | 1.0s | Targets flying, prioritizes flying |
+| Arrow | 100g | 5 | 8 | 1.0s | Targets flying, prioritizes flying |
 | Cannon | 100g | 15 | 12 | 1.5s | AoE damage (radius 3) |
 | Flame | 90g | - | 8 | 0.5s | Spawns fire patches (5 DPS, 4s duration, 2s burn) |
 | Shotgun | 75g | 8 | 8 | 1.2s | 5 projectiles, 60-degree spread |
@@ -196,10 +193,9 @@ Visual zone rings (colored circles on the ground) mark zone boundaries: yellow, 
 Generated at map start. Zone 1 gets Iron Ore and Gems (6 nodes). Zone 2+ gets Florpus and Adamantite (4 nodes). Patches are marked with floating resource sprites and hex outline rings.
 
 ### Mining Outposts
-- Cost: 100g
 - Built on ore patches via the tower panel
 - In wave mode: collect resources after each wave
-- In continuous mode: collect resources every 30 seconds, with a visible clock indicator (progress ring + countdown) above each mine
+- In continuous mode: collect resources at a constant rate, with a visible clock indicator (progress ring + countdown) above each mine
 - Resource popup animation flies from mine to castle on collection
 - Tiles with mines cannot be replaced
 
