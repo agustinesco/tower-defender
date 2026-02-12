@@ -3621,8 +3621,9 @@ MonoBehaviour:
   gemsSprite: {fileID: 21300000, guid: c098fcb616532409db7b7bc251a38ff3, type: 3}
   florpusSprite: {fileID: 21300000, guid: 36100443f21b948ff8390571536f040f, type: 3}
   adamantiteSprite: {fileID: 21300000, guid: 4c37d87bf55d64ed7ba7118f69cb57ad, type: 3}
+  minecartSprite: {fileID: 21300000, guid: 9f5a79e68d607451593d31b9caaf95e5, type: 3}
+  mineEntranceSprite: {fileID: 21300000, guid: 35bbb4641878b4d81b141d12c8e86d20, type: 3}
   hexPiecePrefab: {fileID: 0}
-  mineOutpostPrefab: {fileID: 2242801131017349800, guid: 41eec2429de4547da9bb7456ebcf2b83, type: 3}
   mineConfig: {fileID: 11400000, guid: b747eadb95a7c4bd8ab2b4c31a65c75b, type: 2}
   enemyConfigs:
   - {fileID: 11400000, guid: be41d00e40e7b4f45a2d9052268aabd7, type: 2}

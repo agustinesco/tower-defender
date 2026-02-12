@@ -34,10 +34,11 @@ namespace TowerDefense.Core
         [SerializeField] private Sprite gemsSprite;
         [SerializeField] private Sprite florpusSprite;
         [SerializeField] private Sprite adamantiteSprite;
+        [SerializeField] private Sprite minecartSprite;
+        [SerializeField] private Sprite mineEntranceSprite;
 
         [Header("Prefabs")]
         [SerializeField] private GameObject hexPiecePrefab;
-        [SerializeField] private GameObject mineOutpostPrefab;
 
         [Header("Mine Config")]
         [SerializeField] private MineConfig mineConfig;
@@ -593,7 +594,7 @@ namespace TowerDefense.Core
 
             if (hexPieces.TryGetValue(coord, out var hex))
             {
-                var visual = CreateMineVisual(hex.transform);
+                var visual = CreateMineVisual(hex.transform, hex.Data);
                 mineVisuals[coord] = visual;
             }
 
@@ -1073,7 +1074,7 @@ namespace TowerDefense.Core
             // Create mine visual on the hex
             if (hexPieces.TryGetValue(coord, out var hex))
             {
-                var visual = CreateMineVisual(hex.transform);
+                var visual = CreateMineVisual(hex.transform, hex.Data);
                 mineVisuals[coord] = visual;
             }
 
@@ -1085,12 +1086,58 @@ namespace TowerDefense.Core
             return true;
         }
 
-        private GameObject CreateMineVisual(Transform parent)
+        private GameObject CreateMineVisual(Transform parent, HexPieceData pieceData)
         {
-            GameObject mine = Instantiate(mineOutpostPrefab, parent);
-            mine.transform.localPosition = new Vector3(0f, 5f, 0f);
-            mine.transform.localScale = Vector3.one;
-            return mine;
+            var container = new GameObject("MineDecor");
+            container.transform.SetParent(parent);
+            container.transform.localPosition = Vector3.zero;
+            container.transform.localScale = Vector3.one;
+
+            // Tint the hex base to a light grey to indicate a mine tile
+            var hexBase = parent.Find("HexBase");
+            if (hexBase != null)
+            {
+                var rend = hexBase.GetComponent<MeshRenderer>();
+                if (rend != null)
+                    rend.material = MaterialCache.CreateUnlit(new Color(0.85f, 0.85f, 0.88f));
+            }
+
+            // Pick the first connected edge to place sprites along
+            if (pieceData.ConnectedEdges == null || pieceData.ConnectedEdges.Count == 0)
+                return container;
+
+            int edge = pieceData.ConnectedEdges[0];
+            Vector3 dir = HexMeshGenerator.GetEdgeDirection(edge);
+            Vector3 perp = new Vector3(-dir.z, 0f, dir.x);
+
+            // Place sprites in the outer area of the piece, near the hex boundary
+            Vector3 midpoint = dir * HexGrid.InnerRadius * 0.35f;
+            float sideOffset = 12f;
+            float spriteY = 1.0f;
+
+            // MineEntrance on one side
+            if (mineEntranceSprite != null)
+            {
+                var entranceObj = new GameObject("MineEntrance");
+                entranceObj.transform.SetParent(container.transform);
+                entranceObj.transform.localPosition = midpoint + perp * sideOffset + Vector3.up * spriteY;
+                var sr = entranceObj.AddComponent<SpriteRenderer>();
+                sr.sprite = mineEntranceSprite;
+                entranceObj.AddComponent<UI.BillboardSprite>();
+            }
+
+            // Minecart on the other side
+            if (minecartSprite != null)
+            {
+                var cartObj = new GameObject("Minecart");
+                cartObj.transform.SetParent(container.transform);
+                cartObj.transform.localPosition = midpoint - perp * sideOffset + Vector3.up * spriteY;
+                var sr = cartObj.AddComponent<SpriteRenderer>();
+                sr.sprite = minecartSprite;
+                cartObj.AddComponent<UI.BillboardSprite>();
+            }
+
+            return container;
         }
 
         public bool HasLure(HexCoord coord)
