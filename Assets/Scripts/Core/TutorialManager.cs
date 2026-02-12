@@ -113,6 +113,10 @@ namespace TowerDefense.Core
             if (step == TutorialStep.SpawnExplanation)
                 return true;
 
+            // Complete step removed
+            if (step == TutorialStep.Complete)
+                return true;
+
             // Skip tower steps if no towers are unlocked
             if (step == TutorialStep.SwitchToTowers ||
                 step == TutorialStep.SelectTower ||
