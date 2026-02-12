@@ -732,6 +732,81 @@ MonoBehaviour:
   m_hasFontAssetChanged: 0
   m_baseMaterial: {fileID: 0}
   m_maskOffset: {x: 0, y: 0, z: 0, w: 0}
+--- !u!114 &176630055 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 846450546080470331, guid: 4dcb8c81b795a411292bc01600af8a46, type: 3}
+  m_PrefabInstance: {fileID: 3317881344860297263}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4e29b1a8efbd4b44bb3f3716e73f07ff, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Button
+--- !u!114 &176630056 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 5882998258385234887, guid: 4dcb8c81b795a411292bc01600af8a46, type: 3}
+  m_PrefabInstance: {fileID: 3317881344860297263}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
+--- !u!114 &176630057 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 2407773579110298426, guid: 4dcb8c81b795a411292bc01600af8a46, type: 3}
+  m_PrefabInstance: {fileID: 3317881344860297263}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4e29b1a8efbd4b44bb3f3716e73f07ff, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Button
+--- !u!1 &176630058 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 1627476461222733143, guid: 4dcb8c81b795a411292bc01600af8a46, type: 3}
+  m_PrefabInstance: {fileID: 3317881344860297263}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &176630059 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 1453823191322973311, guid: 4dcb8c81b795a411292bc01600af8a46, type: 3}
+  m_PrefabInstance: {fileID: 3317881344860297263}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 176630058}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4e29b1a8efbd4b44bb3f3716e73f07ff, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Button
+--- !u!1 &176630060 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 9195248922769923805, guid: 4dcb8c81b795a411292bc01600af8a46, type: 3}
+  m_PrefabInstance: {fileID: 3317881344860297263}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &176630061 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 1093712910103864462, guid: 4dcb8c81b795a411292bc01600af8a46, type: 3}
+  m_PrefabInstance: {fileID: 3317881344860297263}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4e29b1a8efbd4b44bb3f3716e73f07ff, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Button
+--- !u!1 &176630062 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 1137777941220364454, guid: 4dcb8c81b795a411292bc01600af8a46, type: 3}
+  m_PrefabInstance: {fileID: 3317881344860297263}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &176630063 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 8661688597096833830, guid: 4dcb8c81b795a411292bc01600af8a46, type: 3}
+  m_PrefabInstance: {fileID: 3317881344860297263}
+  m_PrefabAsset: {fileID: 0}
 --- !u!114 &283815940
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2929,34 +3004,34 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   canvas: {fileID: 170016340}
   canvasScaler: {fileID: 170016339}
-  livesBarFill: {fileID: 0}
+  livesBarFill: {fileID: 1656448828}
   livesBarText: {fileID: 1927464559}
   currencyText: {fileID: 1192765134}
-  goldIcons: {fileID: 0}
+  goldIcons: {fileID: 1656448827}
   ironOreText: {fileID: 671241532}
-  ironOreIcon: {fileID: 0}
-  ironOreRow: {fileID: 0}
+  ironOreIcon: {fileID: 1656448825}
+  ironOreRow: {fileID: 1656448826}
   gemsText: {fileID: 568325650}
-  gemsIcon: {fileID: 0}
-  gemsRow: {fileID: 0}
+  gemsIcon: {fileID: 1656448823}
+  gemsRow: {fileID: 1656448824}
   florpusText: {fileID: 288661365}
-  florpusIcon: {fileID: 0}
-  florpusRow: {fileID: 0}
+  florpusIcon: {fileID: 1656448821}
+  florpusRow: {fileID: 1656448822}
   adamantiteText: {fileID: 531499889}
-  adamantiteIcon: {fileID: 0}
-  adamantiteRow: {fileID: 0}
-  startWaveButton: {fileID: 0}
-  exitRunButtonObj: {fileID: 0}
-  upgradesButton: {fileID: 0}
-  upgradesButtonImage: {fileID: 0}
-  cheatToggleButton: {fileID: 0}
-  towerPanel: {fileID: 0}
-  towerInfoPanel: {fileID: 0}
-  cheatPanelObj: {fileID: 0}
+  adamantiteIcon: {fileID: 1656448819}
+  adamantiteRow: {fileID: 1656448820}
+  startWaveButton: {fileID: 176630057}
+  exitRunButtonObj: {fileID: 176630058}
+  upgradesButton: {fileID: 176630055}
+  upgradesButtonImage: {fileID: 176630056}
+  cheatToggleButton: {fileID: 176630061}
+  towerPanel: {fileID: 176630063}
+  towerInfoPanel: {fileID: 176630062}
+  cheatPanelObj: {fileID: 176630060}
   buildTimerText: {fileID: 1942963046}
-  buildTimerObj: {fileID: 0}
-  escapeButton: {fileID: 0}
-  escapeButtonObj: {fileID: 0}
+  buildTimerObj: {fileID: 3317881344860297269}
+  escapeButton: {fileID: 176630059}
+  escapeButtonObj: {fileID: 176630058}
   escapeButtonText: {fileID: 1960828360}
   escapeConfirmOverlay: {fileID: 900810809}
   escapeOverlayCanvasObj: {fileID: 39901150}
@@ -3099,6 +3174,92 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0, y: 0}
+--- !u!114 &1656448819 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 1484504500945057325, guid: 4dcb8c81b795a411292bc01600af8a46, type: 3}
+  m_PrefabInstance: {fileID: 3317881344860297263}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
+--- !u!1 &1656448820 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 3940961830995831139, guid: 4dcb8c81b795a411292bc01600af8a46, type: 3}
+  m_PrefabInstance: {fileID: 3317881344860297263}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1656448821 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 7239755181517158927, guid: 4dcb8c81b795a411292bc01600af8a46, type: 3}
+  m_PrefabInstance: {fileID: 3317881344860297263}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
+--- !u!1 &1656448822 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 5769817812697049225, guid: 4dcb8c81b795a411292bc01600af8a46, type: 3}
+  m_PrefabInstance: {fileID: 3317881344860297263}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1656448823 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 8606938461282726496, guid: 4dcb8c81b795a411292bc01600af8a46, type: 3}
+  m_PrefabInstance: {fileID: 3317881344860297263}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
+--- !u!1 &1656448824 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 5559015941789764083, guid: 4dcb8c81b795a411292bc01600af8a46, type: 3}
+  m_PrefabInstance: {fileID: 3317881344860297263}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1656448825 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 7012899987230528814, guid: 4dcb8c81b795a411292bc01600af8a46, type: 3}
+  m_PrefabInstance: {fileID: 3317881344860297263}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
+--- !u!1 &1656448826 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 8184994718832249131, guid: 4dcb8c81b795a411292bc01600af8a46, type: 3}
+  m_PrefabInstance: {fileID: 3317881344860297263}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1656448827 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 7405347539880249176, guid: 4dcb8c81b795a411292bc01600af8a46, type: 3}
+  m_PrefabInstance: {fileID: 3317881344860297263}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
+--- !u!114 &1656448828 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 6080262004041046065, guid: 4dcb8c81b795a411292bc01600af8a46, type: 3}
+  m_PrefabInstance: {fileID: 3317881344860297263}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
 --- !u!1 &1693512698
 GameObject:
   m_ObjectHideFlags: 0
