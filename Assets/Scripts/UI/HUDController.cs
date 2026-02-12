@@ -439,7 +439,7 @@ namespace TowerDefense.UI
                 if (escapeButtonObj != null)
                 {
                     escapeButtonObj.SetActive(true);
-                    escapeButton.interactable = false;
+                    escapeButton.interactable = true;
                 }
                 UpdateEscapeProgress();
             }
@@ -826,7 +826,6 @@ namespace TowerDefense.UI
 
         private void OnEscapeClicked()
         {
-            if (!escapeAvailable) return;
             if (questEscapeTutActive)
             {
                 CompleteQuestEscapeTutorial();
