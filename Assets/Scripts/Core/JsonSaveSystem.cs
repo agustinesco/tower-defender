@@ -18,6 +18,7 @@ namespace TowerDefense.Core
 
         public List<string> tutorialStepsSeen = new List<string>();
         public bool labTutorialComplete;
+        public bool questTutorialComplete;
         public bool questEscapeTutComplete;
 
         // Quest data
@@ -196,6 +197,7 @@ namespace TowerDefense.Core
         {
             Data.tutorialStepsSeen.Clear();
             Data.labTutorialComplete = false;
+            Data.questTutorialComplete = false;
             Data.questEscapeTutComplete = false;
             dirty = true;
         }

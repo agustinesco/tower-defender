@@ -40,6 +40,14 @@ namespace TowerDefense.Core
             activeQuestId = JsonSaveSystem.GetActiveQuestId();
         }
 
+        public void ReloadFromSave()
+        {
+            activeQuestId = JsonSaveSystem.GetActiveQuestId();
+            killCount = 0;
+            tilesPlaced = 0;
+            objectivesMet = false;
+        }
+
         public QuestDefinition GetActiveQuest()
         {
             if (!HasActiveQuest) return null;

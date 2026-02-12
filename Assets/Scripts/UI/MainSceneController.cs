@@ -52,6 +52,8 @@ namespace TowerDefense.UI
         // Tutorial state
         private bool labTutorialActive;
         private int labTutorialStep; // 0 = map, 1 = lab
+        private bool questTutorialActive;
+        private int questTutorialStep; // 0 = quest board, 1 = accept, 2 = back, 3 = play
         private GameObject tutPanelObj;
         private RectTransform tutPanelRect;
         private Text tutMessageText;
@@ -101,12 +103,14 @@ namespace TowerDefense.UI
             }
 
             ShowMap();
-            CheckLabTutorial();
+            CheckQuestTutorial();
+            if (!questTutorialActive)
+                CheckLabTutorial();
         }
 
         private void Update()
         {
-            if (labTutorialActive && tutTargetRect != null)
+            if ((labTutorialActive || questTutorialActive) && tutTargetRect != null)
                 UpdateTutArrowPosition();
         }
 
@@ -126,6 +130,93 @@ namespace TowerDefense.UI
             labTutorialStep = 0;
             CreateTutorialUI();
             ShowLabTutorialStep();
+        }
+
+        // --- Quest Tutorial ---
+
+        private void CheckQuestTutorial()
+        {
+            if (JsonSaveSystem.Data.questTutorialComplete) return;
+
+            if (mapPanel != null)
+                safeAreaRect = mapPanel.transform.parent as RectTransform;
+            if (safeAreaRect == null) return;
+
+            questTutorialActive = true;
+            questTutorialStep = 0;
+            CreateTutorialUI();
+            ShowQuestTutorialStep();
+        }
+
+        private void ShowQuestTutorialStep()
+        {
+            switch (questTutorialStep)
+            {
+                case 0:
+                    tutMessageText.text = "Pick a quest to begin your expedition!";
+                    if (questAreaButton != null)
+                    {
+                        PositionPanelNearTarget((RectTransform)questAreaButton.transform, new Vector2(0f, 120f));
+                        PointTutArrowAt((RectTransform)questAreaButton.transform, new Vector2(0f, 1f));
+                    }
+                    break;
+                case 1:
+                    tutMessageText.text = "Accept this quest";
+                    var acceptRect = GetFirstQuestAcceptButtonRect();
+                    if (acceptRect != null)
+                    {
+                        PositionPanelNearTarget(acceptRect, new Vector2(0f, 120f));
+                        PointTutArrowAt(acceptRect, new Vector2(0f, 1f));
+                    }
+                    break;
+                case 2:
+                    tutMessageText.text = "Head back to the map";
+                    if (questBackButton != null)
+                    {
+                        PositionPanelNearTarget((RectTransform)questBackButton.transform, new Vector2(0f, 120f));
+                        PointTutArrowAt((RectTransform)questBackButton.transform, new Vector2(0f, 1f));
+                    }
+                    break;
+                case 3:
+                    tutMessageText.text = "Start your expedition!";
+                    if (startButton != null)
+                    {
+                        PositionPanelNearTarget((RectTransform)startButton.transform, new Vector2(0f, 120f));
+                        PointTutArrowAt((RectTransform)startButton.transform, new Vector2(0f, 1f));
+                    }
+                    break;
+            }
+        }
+
+        private void PositionPanelNearTarget(RectTransform target, Vector2 offset)
+        {
+            if (target == null || safeAreaRect == null) return;
+            Vector3 screenPos = RectTransformUtility.WorldToScreenPoint(null, target.position);
+            if (RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                safeAreaRect, screenPos, null, out Vector2 localPoint))
+            {
+                tutPanelRect.anchoredPosition = localPoint + offset;
+            }
+        }
+
+        private RectTransform GetFirstQuestAcceptButtonRect()
+        {
+            if (questCards.Count == 0) return null;
+            var firstCard = questCards[0];
+            if (firstCard == null) return null;
+            var actionBtn = firstCard.transform.Find("ActionBtn");
+            if (actionBtn != null)
+                return actionBtn.GetComponent<RectTransform>();
+            return null;
+        }
+
+        private void CompleteQuestTutorial()
+        {
+            JsonSaveSystem.Data.questTutorialComplete = true;
+            JsonSaveSystem.Save();
+            if (tutPanelObj != null) Destroy(tutPanelObj);
+            if (tutArrowObj != null) Destroy(tutArrowObj);
+            questTutorialActive = false;
         }
 
         private bool HasAffordableUpgrade()
@@ -284,6 +375,9 @@ namespace TowerDefense.UI
         private void OnContinuousClicked()
         {
             if (labTutorialActive) return;
+            if (questTutorialActive && questTutorialStep != 3) return;
+            if (questTutorialActive && questTutorialStep == 3)
+                CompleteQuestTutorial();
             if (QuestManager.Instance != null && !QuestManager.Instance.HasActiveQuest)
             {
                 Debug.Log("No quest selected! Open the Quest panel to accept a quest first.");
@@ -295,6 +389,7 @@ namespace TowerDefense.UI
 
         private void OnLabClicked()
         {
+            if (questTutorialActive) return;
             if (mapPanel != null) mapPanel.SetActive(false);
             ShowLab();
 
@@ -577,7 +672,7 @@ namespace TowerDefense.UI
 
         private void OnResetClicked()
         {
-            if (labTutorialActive) return;
+            if (labTutorialActive || questTutorialActive) return;
             if (resetConfirmOverlay != null) return;
             ShowResetConfirmation();
         }
@@ -686,6 +781,8 @@ namespace TowerDefense.UI
         private void OnResetConfirmed()
         {
             JsonSaveSystem.DeleteAll();
+            if (QuestManager.Instance != null)
+                QuestManager.Instance.ReloadFromSave();
             SceneManager.LoadScene(0);
         }
 
@@ -704,6 +801,12 @@ namespace TowerDefense.UI
         {
             if (mapPanel != null) mapPanel.SetActive(false);
             ShowQuestPanel();
+
+            if (questTutorialActive && questTutorialStep == 0)
+            {
+                questTutorialStep = 1;
+                ShowQuestTutorialStep();
+            }
         }
 
         private void ShowQuestPanel()
@@ -715,8 +818,15 @@ namespace TowerDefense.UI
 
         private void OnQuestBackClicked()
         {
+            if (questTutorialActive && questTutorialStep < 2) return;
             if (questPanel != null) questPanel.SetActive(false);
             ShowMap();
+
+            if (questTutorialActive && questTutorialStep == 2)
+            {
+                questTutorialStep = 3;
+                ShowQuestTutorialStep();
+            }
         }
 
         private void UpdateQuestResources()
@@ -912,6 +1022,12 @@ namespace TowerDefense.UI
             if (QuestManager.Instance == null) return;
             QuestManager.Instance.AcceptQuest(questId);
             RefreshQuestCards();
+
+            if (questTutorialActive && questTutorialStep == 1)
+            {
+                questTutorialStep = 2;
+                ShowQuestTutorialStep();
+            }
         }
 
         // --- Static helper ---
