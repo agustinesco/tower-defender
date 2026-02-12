@@ -524,10 +524,20 @@ namespace TowerDefense.UI
         {
             if (pieceProvider == null || activeTab != HandTab.Paths) return;
 
+            var gm = GameManager.Instance;
+
             for (int i = 0; i < cards.Count; i++)
             {
                 var card = cards[i];
                 if (card.UI == null || card.UI.CooldownOverlay == null) continue;
+
+                // Update escalating path cost
+                var config = pieceProvider.GetConfig(i);
+                if (config != null && gm != null)
+                {
+                    int currentCost = gm.GetPieceCost(config.placementCost);
+                    card.UI.CostLabel.text = $"{currentCost}";
+                }
 
                 float fraction = pieceProvider.GetCooldownFraction(i);
                 bool onCooldown = fraction > 0f;

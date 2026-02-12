@@ -75,6 +75,11 @@ namespace TowerDefense.Core
         private Dictionary<HexCoord, GameObject> mineVisuals = new Dictionary<HexCoord, GameObject>();
         private Dictionary<HexCoord, UI.MineTimerIndicator> mineTimerIndicators = new Dictionary<HexCoord, UI.MineTimerIndicator>();
 
+        private int newPathsPlaced = 0;
+        [Header("Path Price Escalation")]
+        [SerializeField] private float pathPriceScale = 1f;
+        [SerializeField] private float pathPriceExponent = 1.5f;
+
         private const int MineCost = 100;
         private const int LureCost = 75;
         private const float LureGoldMultiplier = 2f;
@@ -510,12 +515,19 @@ namespace TowerDefense.Core
             var config = pieceProvider.GetConfig(handIndex);
             HexPieceType type = config.pieceType;
 
+            bool isNewPlacement = !hexPieces.ContainsKey(coord);
+            int cost = isNewPlacement ? GetPieceCost(config.placementCost) : config.placementCost;
+
             // Check and spend gold
-            if (!SpendCurrency(config.placementCost))
+            if (!SpendCurrency(cost))
                 return;
 
+            // Track new path placements for price escalation
+            if (isNewPlacement)
+                newPathsPlaced++;
+
             // Handle replacement of existing piece
-            if (hexPieces.TryGetValue(coord, out var existingPiece))
+            if (!isNewPlacement && hexPieces.TryGetValue(coord, out var existingPiece))
             {
                 ReplacePiece(coord, existingPiece);
             }
@@ -849,6 +861,12 @@ namespace TowerDefense.Core
 
             piece.Initialize(data, config, hexBaseMaterial, hexPathMaterial, castleMaterial);
             hexPieces[data.Coord] = piece;
+        }
+
+        public int GetPieceCost(int baseCost)
+        {
+            if (newPathsPlaced <= 0) return baseCost;
+            return baseCost + Mathf.RoundToInt(pathPriceScale * Mathf.Pow(newPathsPlaced, pathPriceExponent));
         }
 
         public void AddCurrency(int amount)
