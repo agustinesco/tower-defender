@@ -10,6 +10,7 @@ namespace TowerDefense.Core
     public class WaveManager : MonoBehaviour
     {
         [SerializeField] private WaveData waveData;
+        [SerializeField] private ContinuousDifficulty difficultyConfig;
 
         // Fallback values if no WaveData is assigned
         [Header("Fallback Settings (used if no WaveData assigned)")]
@@ -229,11 +230,15 @@ namespace TowerDefense.Core
             OnWaveComplete?.Invoke();
         }
 
-        private Enemy SpawnEnemy(List<Vector3> path, float healthMultiplier, float speedMultiplier, Data.EnemyType type = Data.EnemyType.Ground)
+        private Enemy SpawnEnemy(List<Vector3> path, float healthMultiplier, float speedMultiplier, Data.EnemyType type = Data.EnemyType.Ground, float goldMultiplier = 1f)
         {
             var enemy = GameManager.Instance.SpawnEnemy(type, new List<Vector3>(path), currentWave, healthMultiplier, speedMultiplier);
             if (enemy != null)
+            {
+                if (goldMultiplier != 1f)
+                    enemy.SetGoldMultiplier(goldMultiplier);
                 TrackEnemy(enemy);
+            }
             return enemy;
         }
 
@@ -390,48 +395,138 @@ namespace TowerDefense.Core
             }
 
             var gm = GameManager.Instance;
-            float elapsed = 0f;
             var wait1s = new WaitForSeconds(1f);
 
-            while (!gm.IsGameOver)
+            // Block-based difficulty
+            if (difficultyConfig != null && difficultyConfig.blocks != null && difficultyConfig.blocks.Count > 0)
             {
-                // Pick a random spawn path
-                pathsSnapshotReuse.Clear();
-                pathsSnapshotReuse.AddRange(spawnPaths);
-                if (pathsSnapshotReuse.Count == 0)
+                int blockIndex = 0;
+                float blockElapsed = 0f;
+                int lastBlockCycles = 0;
+                bool isLastBlock = false;
+
+                while (!gm.IsGameOver)
                 {
-                    yield return wait1s;
-                    continue;
+                    var block = difficultyConfig.blocks[blockIndex];
+                    isLastBlock = blockIndex == difficultyConfig.blocks.Count - 1;
+
+                    // Pick a random spawn path
+                    pathsSnapshotReuse.Clear();
+                    pathsSnapshotReuse.AddRange(spawnPaths);
+                    if (pathsSnapshotReuse.Count == 0)
+                    {
+                        yield return wait1s;
+                        continue;
+                    }
+
+                    var chosen = pathsSnapshotReuse[Random.Range(0, pathsSnapshotReuse.Count)];
+
+                    // Zone scaling stacks on top of block multipliers
+                    int spawnZone = gm.GetZone(chosen.Key);
+                    float zoneHealthMul = gm.GetZoneHealthMultiplier(spawnZone);
+                    float zoneSpeedMul = gm.GetZoneSpeedMultiplier(spawnZone);
+
+                    // Pick enemy type via weighted random
+                    Data.EnemyType type = PickWeightedEnemy(block.enemies);
+
+                    // Last block: stack the above-1x portion each cycle
+                    float healthMul = block.healthMultiplier;
+                    float speedMul = block.speedMultiplier;
+                    float goldMul = block.goldMultiplier;
+                    if (isLastBlock && lastBlockCycles > 0)
+                    {
+                        healthMul += lastBlockCycles * (block.healthMultiplier - 1f);
+                        speedMul += lastBlockCycles * (block.speedMultiplier - 1f);
+                        goldMul += lastBlockCycles * (block.goldMultiplier - 1f);
+                    }
+
+                    SpawnEnemy(chosen.Value, healthMul * zoneHealthMul, speedMul * zoneSpeedMul, type, goldMul);
+                    continuousEnemyCount++;
+
+                    yield return new WaitForSeconds(block.spawnInterval);
+
+                    blockElapsed += block.spawnInterval;
+
+                    // Advance to next block when duration expires
+                    if (block.duration > 0f && blockElapsed >= block.duration)
+                    {
+                        if (isLastBlock)
+                        {
+                            // Last block cycles: reset timer, increment scaling
+                            lastBlockCycles++;
+                            blockElapsed = 0f;
+                        }
+                        else
+                        {
+                            blockIndex++;
+                            blockElapsed = 0f;
+                        }
+                    }
                 }
-
-                var chosen = pathsSnapshotReuse[Random.Range(0, pathsSnapshotReuse.Count)];
-
-                // Scale difficulty with time
-                float difficultyScale = 1f + elapsed / 60f; // +1x per minute
-                float healthMul = difficultyScale;
-                float speedMul = 1f + elapsed / 300f; // slower speed ramp
-
-                // Zone scaling
-                int spawnZone = gm != null ? gm.GetZone(chosen.Key) : 1;
-                float zoneHealthMul = gm != null ? gm.GetZoneHealthMultiplier(spawnZone) : 1f;
-                float zoneSpeedMul = gm != null ? gm.GetZoneSpeedMultiplier(spawnZone) : 1f;
-
-                // Determine enemy type
-                Data.EnemyType type = Data.EnemyType.Ground;
-                if (elapsed > 300f && Random.value < 0.15f)
-                    type = Data.EnemyType.Cart;
-                else if (elapsed > 30f && Random.value < 0.25f)
-                    type = Data.EnemyType.Flying;
-
-                SpawnEnemy(chosen.Value, healthMul * zoneHealthMul, speedMul * zoneSpeedMul, type);
-                continuousEnemyCount++;
-
-                // Interval decays from 2s to 0.3s over time
-                float interval = Mathf.Max(0.3f, 2f - elapsed / 120f);
-                yield return new WaitForSeconds(interval);
-
-                elapsed += interval;
             }
+            else
+            {
+                // Fallback: original time-based scaling when no config assigned
+                float elapsed = 0f;
+                while (!gm.IsGameOver)
+                {
+                    pathsSnapshotReuse.Clear();
+                    pathsSnapshotReuse.AddRange(spawnPaths);
+                    if (pathsSnapshotReuse.Count == 0)
+                    {
+                        yield return wait1s;
+                        continue;
+                    }
+
+                    var chosen = pathsSnapshotReuse[Random.Range(0, pathsSnapshotReuse.Count)];
+
+                    float difficultyScale = 1f + elapsed / 60f;
+                    float healthMul = difficultyScale;
+                    float speedMul = 1f + elapsed / 300f;
+
+                    int spawnZone = gm.GetZone(chosen.Key);
+                    float zoneHealthMul = gm.GetZoneHealthMultiplier(spawnZone);
+                    float zoneSpeedMul = gm.GetZoneSpeedMultiplier(spawnZone);
+
+                    Data.EnemyType type = Data.EnemyType.Ground;
+                    if (elapsed > 300f && Random.value < 0.15f)
+                        type = Data.EnemyType.Cart;
+                    else if (elapsed > 30f && Random.value < 0.25f)
+                        type = Data.EnemyType.Flying;
+
+                    SpawnEnemy(chosen.Value, healthMul * zoneHealthMul, speedMul * zoneSpeedMul, type);
+                    continuousEnemyCount++;
+
+                    float interval = Mathf.Max(0.3f, 2f - elapsed / 120f);
+                    yield return new WaitForSeconds(interval);
+
+                    elapsed += interval;
+                }
+            }
+        }
+
+        private Data.EnemyType PickWeightedEnemy(List<EnemySpawnWeight> enemies)
+        {
+            if (enemies == null || enemies.Count == 0)
+                return Data.EnemyType.Ground;
+
+            float totalWeight = 0f;
+            for (int i = 0; i < enemies.Count; i++)
+                totalWeight += enemies[i].weight;
+
+            if (totalWeight <= 0f)
+                return Data.EnemyType.Ground;
+
+            float roll = Random.Range(0f, totalWeight);
+            float cumulative = 0f;
+            for (int i = 0; i < enemies.Count; i++)
+            {
+                cumulative += enemies[i].weight;
+                if (roll <= cumulative)
+                    return enemies[i].enemyType;
+            }
+
+            return enemies[enemies.Count - 1].enemyType;
         }
     }
 }
