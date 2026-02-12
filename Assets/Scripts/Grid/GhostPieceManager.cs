@@ -22,7 +22,7 @@ namespace TowerDefense.Grid
         {
             goblinCampSprite = campSprite;
             ghostHexMaterial = TowerDefense.Core.MaterialCache.CreateTransparent(new Color(0.75f, 0.75f, 0.75f, 0.12f));
-            ghostPathMaterial = TowerDefense.Core.MaterialCache.CreateTransparent(new Color(0.35f, 0.25f, 0.15f, 0.15f));
+            ghostPathMaterial = TowerDefense.Core.MaterialCache.CreateTransparent(new Color(1f, 0.95f, 0.6f, 0.5f));
         }
 
         public void SetHiddenSpawners(HashSet<HexCoord> spawners)
