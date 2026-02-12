@@ -39,6 +39,13 @@ namespace TowerDefense.UI
         private const float PerpendicularOffset = 6.5f;
         private const float PathHalfWidth = 4.0f;
 
+        // Tower tap delay — prevents accidental placement when dragging
+        private bool towerTapPending;
+        private float towerTapStartTime;
+        private Vector2 towerTapStartPos;
+        private const float TowerTapDelay = 0.15f;
+        private const float TowerTapMaxDrift = 20f; // pixels
+
         // Tower placement visual helpers
         private List<GameObject> towerExclusionIndicators = new List<GameObject>();
         private List<GameObject> pathBorderLines = new List<GameObject>();
@@ -356,7 +363,38 @@ namespace TowerDefense.UI
             if (tut != null && !tut.AllowTowerPlace())
                 return;
 
-            if (!IsTapOnGameWorld()) return;
+            // Start tracking tap on touch/click begin
+            if (IsTapOnGameWorld())
+            {
+                towerTapPending = true;
+                towerTapStartTime = Time.unscaledTime;
+                towerTapStartPos = Input.mousePosition;
+                return;
+            }
+
+            if (!towerTapPending) return;
+
+            // Cancel if finger drifted too far (user is dragging the camera)
+            float drift = Vector2.Distance((Vector2)Input.mousePosition, towerTapStartPos);
+            if (drift > TowerTapMaxDrift)
+            {
+                towerTapPending = false;
+                return;
+            }
+
+            // Cancel if finger was released before the delay
+            bool held = Input.GetMouseButton(0) || Input.touchCount > 0;
+            if (!held)
+            {
+                towerTapPending = false;
+                return;
+            }
+
+            // Wait for the delay
+            if (Time.unscaledTime - towerTapStartTime < TowerTapDelay) return;
+
+            // Delay met and finger still near start — place the tower
+            towerTapPending = false;
 
             Ray ray = cam.ScreenPointToRay(Input.mousePosition);
             var groundPlane = new Plane(Vector3.up, Vector3.zero);
