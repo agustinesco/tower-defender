@@ -64,6 +64,7 @@ namespace TowerDefense.Core
         private GhostPieceManager ghostPieceManager;
         private PieceDragHandler pieceDragHandler;
         private PieceHandUI pieceHandUI;
+        private TerrainManager terrainManager;
 
         private List<GoblinCampSpawner> goblinCampSpawners = new List<GoblinCampSpawner>();
         private HashSet<HexCoord> hiddenSpawners = new HashSet<HexCoord>();
@@ -293,6 +294,12 @@ namespace TowerDefense.Core
 
             // 1e. Create zone boundary visuals
             CreateZoneRings();
+
+            // 1f. Initialize terrain
+            var terrainObj = new GameObject("TerrainManager");
+            terrainManager = terrainObj.AddComponent<TerrainManager>();
+            terrainManager.Initialize();
+            terrainManager.UpdateTerrain(mapData);
 
             // 2. Initialize piece provider (filter out locked pieces)
             var availablePieces = new List<HexPieceConfig>();
@@ -542,6 +549,10 @@ namespace TowerDefense.Core
 
             // Check if placing this piece reveals any hidden spawners
             RevealAdjacentSpawners(coord, rotation.ConnectedEdges);
+
+            // Update terrain ring
+            if (terrainManager != null)
+                terrainManager.UpdateTerrain(mapData);
 
             // Recalculate all goblin camp paths (map topology may have changed)
             RecalculateGoblinCampPaths();

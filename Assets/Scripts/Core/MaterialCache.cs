@@ -105,6 +105,7 @@ namespace TowerDefense.Core
         private static Mesh _cubeMesh;
         private static Mesh _sphereMesh;
         private static Mesh _capsuleMesh;
+        private static Mesh _quadMesh;
 
         public static Mesh GetPrimitiveMesh(PrimitiveType type)
         {
@@ -119,6 +120,9 @@ namespace TowerDefense.Core
                 case PrimitiveType.Capsule:
                     if (_capsuleMesh == null) _capsuleMesh = Resources.GetBuiltinResource<Mesh>("New-Capsule.fbx");
                     return _capsuleMesh;
+                case PrimitiveType.Quad:
+                    if (_quadMesh == null) _quadMesh = Resources.GetBuiltinResource<Mesh>("Quad.fbx");
+                    return _quadMesh;
                 default: // Cylinder and others
                     if (_cylinderMesh == null) _cylinderMesh = Resources.GetBuiltinResource<Mesh>("New-Cylinder.fbx");
                     return _cylinderMesh;
