@@ -104,6 +104,17 @@ namespace TowerDefense.Core
                 },
                 new LabUpgrade
                 {
+                    upgradeName = "Cannon",
+                    description = "Unlock the Cannon tower",
+                    upgradeType = LabUpgradeType.TowerUnlock,
+                    valuePerLevel = 1f,
+                    maxLevel = 1,
+                    costResource = ResourceType.IronOre,
+                    baseCost = 0,
+                    costPerLevel = 0
+                },
+                new LabUpgrade
+                {
                     upgradeName = "Slow",
                     description = "Unlock the Slow tower",
                     upgradeType = LabUpgradeType.TowerUnlock,
@@ -246,6 +257,21 @@ namespace TowerDefense.Core
 
             Debug.Log($"Lab: Purchased {upgrade.upgradeName} level {level + 1} for {cost} {upgrade.costResource}");
             return true;
+        }
+
+        public void ForceUnlock(string upgradeName)
+        {
+            foreach (var upgrade in upgrades)
+            {
+                if (upgrade.upgradeName == upgradeName)
+                {
+                    purchasedLevels[upgrade.upgradeName] = upgrade.maxLevel;
+                    Save();
+                    OnLabChanged?.Invoke();
+                    Debug.Log($"Lab: Force-unlocked '{upgradeName}' via quest reward");
+                    return;
+                }
+            }
         }
 
         public void UnlockAllTowers()

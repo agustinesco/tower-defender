@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a00331114c68c4bcc8c92a2cd5dc3197, type: 3}
+  m_Name: FullExpedition
+  m_EditorClassIdentifier: Assembly-CSharp::TowerDefense.Data.QuestDefinition
+  questId: full_expedition
+  questName: Full Expedition
+  description: 'Complete a full expedition: gather, fight, and expand.'
+  objectives:
+  - objectiveType: 0
+    resourceType: 0
+    requiredAmount: 5
+  - objectiveType: 1
+    resourceType: 0
+    requiredAmount: 30
+  - objectiveType: 2
+    resourceType: 0
+    requiredAmount: 5
+  rewardResource: 3
+  rewardAmount: 5
+  prerequisiteQuestId: iron_rush
+  unlockLabUpgrade: 

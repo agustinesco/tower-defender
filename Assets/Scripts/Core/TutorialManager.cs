@@ -52,6 +52,8 @@ namespace TowerDefense.Core
         [SerializeField] private RectTransform arrowRect;
         [SerializeField] private RectTransform safeAreaRect;
 
+        public static Sprite CachedArrowSprite { get; private set; }
+
         private TutorialStep currentStep;
 
         private PieceDragHandler pieceDragHandler;
@@ -76,6 +78,9 @@ namespace TowerDefense.Core
                 return;
             }
             Instance = this;
+
+            if (arrowImage != null && arrowImage.sprite != null)
+                CachedArrowSprite = arrowImage.sprite;
         }
 
         private static bool IsStepSeen(TutorialStep step)

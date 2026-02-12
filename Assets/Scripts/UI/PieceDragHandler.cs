@@ -356,11 +356,7 @@ namespace TowerDefense.UI
             if (tut != null && !tut.AllowTowerPlace())
                 return;
 
-            if (!Input.GetMouseButtonDown(0)) return;
-
-            if (UnityEngine.EventSystems.EventSystem.current != null &&
-                UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject())
-                return;
+            if (!IsTapOnGameWorld()) return;
 
             Ray ray = cam.ScreenPointToRay(Input.mousePosition);
             var groundPlane = new Plane(Vector3.up, Vector3.zero);
@@ -467,12 +463,8 @@ namespace TowerDefense.UI
         {
             if (cam == null) return;
 
-            if (Input.GetMouseButtonDown(0))
+            if (IsTapOnGameWorld())
             {
-                if (UnityEngine.EventSystems.EventSystem.current != null &&
-                    UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject())
-                    return;
-
                 Ray ray = cam.ScreenPointToRay(Input.mousePosition);
                 var groundPlane = new Plane(Vector3.up, Vector3.zero);
                 if (groundPlane.Raycast(ray, out float enter))
@@ -521,14 +513,36 @@ namespace TowerDefense.UI
             return best;
         }
 
+        /// <summary>
+        /// Returns true when the player taps/clicks the game world (not UI).
+        /// On mobile, uses touch.fingerId for reliable IsPointerOverGameObject checks.
+        /// </summary>
+        private bool IsTapOnGameWorld()
+        {
+            if (Input.touchCount > 0)
+            {
+                var touch = Input.GetTouch(0);
+                if (touch.phase != TouchPhase.Began) return false;
+                if (UnityEngine.EventSystems.EventSystem.current != null &&
+                    UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject(touch.fingerId))
+                    return false;
+                return true;
+            }
+
+            if (!Input.GetMouseButtonDown(0)) return false;
+            if (UnityEngine.EventSystems.EventSystem.current != null &&
+                UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject())
+                return false;
+            return true;
+        }
+
         private void HandleGhostInput()
         {
             if (cam == null) return;
 
             if (Input.GetMouseButtonDown(0))
             {
-                if (UnityEngine.EventSystems.EventSystem.current != null &&
-                    UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject())
+                if (!IsTapOnGameWorld())
                     return;
 
                 Ray ray = cam.ScreenPointToRay(Input.mousePosition);

@@ -247,6 +247,7 @@ namespace TowerDefense.Core
         private void HandleEnemyDeath(Enemy enemy)
         {
             activeEnemies.Remove(enemy);
+            QuestManager.Instance?.RecordKill();
         }
 
         private void HandleEnemyReachedCastle(Enemy enemy)

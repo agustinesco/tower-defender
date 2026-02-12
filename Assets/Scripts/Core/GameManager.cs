@@ -82,12 +82,6 @@ namespace TowerDefense.Core
         private const float ModContinuousDuration = 120f; // 2 minutes
 
         // Zone system — each entry is the max hex distance for that zone boundary
-        [Header("Run Objectives")]
-        [SerializeField] private List<RunObjective> runObjectives = new List<RunObjective>
-        {
-            new RunObjective { resourceType = ResourceType.IronOre, requiredAmount = 10 }
-        };
-
         [Header("Zone Boundaries (hex distances)")]
         [SerializeField] private int[] zoneBoundaries = { 3, 6, 9 };
         private HashSet<int> unlockedZones = new HashSet<int> { 1 };
@@ -192,20 +186,7 @@ namespace TowerDefense.Core
         public event System.Action OnBuildPhaseEnded;
         public event System.Action OnObjectivesMet;
 
-        public IReadOnlyList<RunObjective> RunObjectives => runObjectives;
         public bool ObjectivesMet => objectivesMet;
-
-        public bool AreObjectivesMet()
-        {
-            if (PersistenceManager.Instance == null) return false;
-            for (int i = 0; i < runObjectives.Count; i++)
-            {
-                var obj = runObjectives[i];
-                if (PersistenceManager.Instance.GetRunGathered(obj.resourceType) < obj.requiredAmount)
-                    return false;
-            }
-            return runObjectives.Count > 0;
-        }
 
         private void Awake()
         {
@@ -226,6 +207,11 @@ namespace TowerDefense.Core
             {
                 var labObj = new GameObject("LabManager");
                 labObj.AddComponent<LabManager>();
+            }
+            if (QuestManager.Instance == null)
+            {
+                var questObj = new GameObject("QuestManager");
+                questObj.AddComponent<QuestManager>();
             }
 
             // Initialize currency/lives in Awake so other scripts' Start() reads correct values
@@ -402,16 +388,20 @@ namespace TowerDefense.Core
                 pieceHandUI.RefreshHand(pieceProvider.Pieces);
             }
 
-            if (PersistenceManager.Instance != null)
-                PersistenceManager.Instance.OnResourcesChanged += CheckObjectives;
+            if (QuestManager.Instance != null)
+            {
+                QuestManager.Instance.StartRun();
+                QuestManager.Instance.OnObjectivesMet += OnQuestObjectivesMet;
+            }
+            if (PersistenceManager.Instance != null && QuestManager.Instance != null)
+                PersistenceManager.Instance.OnResourcesChanged += QuestManager.Instance.OnResourcesChanged;
 
             Invoke(nameof(FireInitialEvents), 0.1f);
         }
 
-        private void CheckObjectives()
+        private void OnQuestObjectivesMet()
         {
             if (objectivesMet) return;
-            if (!AreObjectivesMet()) return;
             objectivesMet = true;
             OnObjectivesMet?.Invoke();
         }
@@ -479,8 +469,12 @@ namespace TowerDefense.Core
             if (pieceProvider != null)
                 pieceProvider.OnHandChanged -= OnHandChanged;
 
-            if (PersistenceManager.Instance != null)
-                PersistenceManager.Instance.OnResourcesChanged -= CheckObjectives;
+            if (QuestManager.Instance != null)
+            {
+                QuestManager.Instance.OnObjectivesMet -= OnQuestObjectivesMet;
+                if (PersistenceManager.Instance != null)
+                    PersistenceManager.Instance.OnResourcesChanged -= QuestManager.Instance.OnResourcesChanged;
+            }
         }
 
         private void FireInitialEvents()
@@ -571,6 +565,8 @@ namespace TowerDefense.Core
             // Auto-build mine on ore deposits
             if (orePatches.ContainsKey(coord) && !activeMiningOutposts.Contains(coord))
                 AutoBuildMine(coord);
+
+            QuestManager.Instance?.RecordTilePlaced();
 
             Debug.Log($"Piece placed at {coord}: {type} with edges [{string.Join(", ", rotation.ConnectedEdges)}]. Spawn points: {spawnPoints.Count}");
         }
@@ -899,6 +895,8 @@ namespace TowerDefense.Core
         {
             if (gameOver) return;
             gameOver = true;
+            // Complete quest before banking resources
+            QuestManager.Instance?.CompleteActiveQuest();
             // Bank all gathered resources on voluntary exit
             PersistenceManager.Instance?.BankRunResources();
             UpgradeManager.Instance?.ResetForNewRun();

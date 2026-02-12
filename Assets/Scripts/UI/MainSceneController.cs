@@ -25,11 +25,19 @@ namespace TowerDefense.UI
         [SerializeField] private Text[] labTabTexts;
         [SerializeField] private Button[] labTabButtons;
 
+        [Header("Quest Panel")]
+        [SerializeField] private GameObject questPanel;
+        [SerializeField] private Text questResourceLabel;
+        [SerializeField] private Transform questGridContent;
+        [SerializeField] private Button questBackButton;
+        [SerializeField] private Button questAreaButton;
+
         [Header("Tutorial")]
         [SerializeField] private Sprite tutorialArrowSprite;
 
         private int activeLabTab;
         private List<GameObject> labUpgradeCards = new List<GameObject>();
+        private List<GameObject> questCards = new List<GameObject>();
 
         private static readonly Color[] LabTabActiveColors = {
             new Color(0.25f, 0.3f, 0.55f),
@@ -65,6 +73,11 @@ namespace TowerDefense.UI
                 var labObj = new GameObject("LabManager");
                 labObj.AddComponent<LabManager>();
             }
+            if (QuestManager.Instance == null)
+            {
+                var questObj = new GameObject("QuestManager");
+                questObj.AddComponent<QuestManager>();
+            }
         }
 
         private void Start()
@@ -75,6 +88,8 @@ namespace TowerDefense.UI
             if (labButton != null) labButton.onClick.AddListener(OnLabClicked);
             if (labBackButton != null) labBackButton.onClick.AddListener(OnLabBackClicked);
             if (resetButton != null) resetButton.onClick.AddListener(OnResetClicked);
+            if (questBackButton != null) questBackButton.onClick.AddListener(OnQuestBackClicked);
+            if (questAreaButton != null) questAreaButton.onClick.AddListener(OnQuestAreaClicked);
 
             if (labTabButtons != null)
             {
@@ -119,6 +134,8 @@ namespace TowerDefense.UI
             var upgrades = LabManager.Instance.Upgrades;
             for (int i = 0; i < upgrades.Count; i++)
             {
+                // Skip quest-granted unlocks (hidden from the lab UI)
+                if (upgrades[i].baseCost == 0 && upgrades[i].upgradeType == LabUpgradeType.TowerUnlock) continue;
                 if (LabManager.Instance.CanPurchase(upgrades[i]))
                     return true;
             }
@@ -261,11 +278,17 @@ namespace TowerDefense.UI
             UpdateResources();
             if (mapPanel != null) mapPanel.SetActive(true);
             if (labPanel != null) labPanel.SetActive(false);
+            if (questPanel != null) questPanel.SetActive(false);
         }
 
         private void OnContinuousClicked()
         {
             if (labTutorialActive) return;
+            if (QuestManager.Instance != null && !QuestManager.Instance.HasActiveQuest)
+            {
+                Debug.Log("No quest selected! Open the Quest panel to accept a quest first.");
+                return;
+            }
             GameModeSelection.SelectedMode = GameMode.Continuous;
             SceneManager.LoadScene(1);
         }
@@ -353,6 +376,8 @@ namespace TowerDefense.UI
             {
                 var upgrade = upgrades[i];
                 if (!UpgradeMatchesTab(upgrade, activeLabTab)) continue;
+                // Hide quest-granted unlocks (baseCost 0) from the lab
+                if (upgrade.baseCost == 0 && upgrade.upgradeType == LabUpgradeType.TowerUnlock) continue;
                 labUpgradeCards.Add(CreateLabUpgradeCard(upgrade));
             }
 
@@ -671,6 +696,222 @@ namespace TowerDefense.UI
                 Destroy(resetConfirmOverlay);
                 resetConfirmOverlay = null;
             }
+        }
+
+        // --- Quest Panel ---
+
+        private void OnQuestAreaClicked()
+        {
+            if (mapPanel != null) mapPanel.SetActive(false);
+            ShowQuestPanel();
+        }
+
+        private void ShowQuestPanel()
+        {
+            UpdateQuestResources();
+            RefreshQuestCards();
+            if (questPanel != null) questPanel.SetActive(true);
+        }
+
+        private void OnQuestBackClicked()
+        {
+            if (questPanel != null) questPanel.SetActive(false);
+            ShowMap();
+        }
+
+        private void UpdateQuestResources()
+        {
+            if (questResourceLabel == null || PersistenceManager.Instance == null) return;
+
+            var pm = PersistenceManager.Instance;
+            questResourceLabel.text = string.Format(
+                "Iron: {0}    Gems: {1}    Florpus: {2}    Adamantite: {3}",
+                pm.GetBanked(ResourceType.IronOre),
+                pm.GetBanked(ResourceType.Gems),
+                pm.GetBanked(ResourceType.Florpus),
+                pm.GetBanked(ResourceType.Adamantite)
+            );
+        }
+
+        private void RefreshQuestCards()
+        {
+            foreach (var card in questCards)
+            {
+                if (card != null) Destroy(card);
+            }
+            questCards.Clear();
+
+            if (QuestManager.Instance == null || questGridContent == null) return;
+
+            var quests = QuestManager.Instance.AllQuests;
+            for (int i = 0; i < quests.Count; i++)
+            {
+                if (!QuestManager.Instance.IsQuestUnlocked(quests[i].questId))
+                    continue;
+                questCards.Add(CreateQuestCard(quests[i]));
+            }
+        }
+
+        private GameObject CreateQuestCard(QuestDefinition quest)
+        {
+            var qm = QuestManager.Instance;
+            bool isActive = qm.ActiveQuestId == quest.questId;
+            bool isCompleted = qm.IsQuestCompleted(quest.questId);
+
+            var card = new GameObject($"QuestCard_{quest.questId}");
+            card.transform.SetParent(questGridContent);
+            card.AddComponent<RectTransform>();
+
+            var cardBg = card.AddComponent<Image>();
+            cardBg.color = isActive ? new Color(0.15f, 0.2f, 0.15f, 0.9f) : new Color(0.14f, 0.14f, 0.2f, 0.9f);
+
+            // Left accent bar
+            var accentObj = new GameObject("Accent");
+            accentObj.transform.SetParent(card.transform);
+            var accentRect = accentObj.AddComponent<RectTransform>();
+            accentRect.anchorMin = new Vector2(0, 0);
+            accentRect.anchorMax = new Vector2(0, 1);
+            accentRect.pivot = new Vector2(0, 0.5f);
+            accentRect.anchoredPosition = Vector2.zero;
+            accentRect.sizeDelta = new Vector2(6, 0);
+            var accentImg = accentObj.AddComponent<Image>();
+            accentImg.color = GetResourceColor(quest.rewardResource);
+            accentImg.raycastTarget = false;
+
+            // Name
+            var nameObj = new GameObject("Name");
+            nameObj.transform.SetParent(card.transform);
+            var nameRect = nameObj.AddComponent<RectTransform>();
+            nameRect.anchorMin = new Vector2(0, 0.72f);
+            nameRect.anchorMax = new Vector2(1, 0.98f);
+            nameRect.offsetMin = new Vector2(16, 0);
+            nameRect.offsetMax = new Vector2(-8, 0);
+            var nameText = nameObj.AddComponent<Text>();
+            nameText.text = quest.questName;
+            nameText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            nameText.fontSize = 20;
+            nameText.fontStyle = FontStyle.Bold;
+            nameText.color = Color.white;
+            nameText.alignment = TextAnchor.MiddleLeft;
+            nameText.raycastTarget = false;
+
+            // Objectives text
+            var objObj = new GameObject("Objectives");
+            objObj.transform.SetParent(card.transform);
+            var objRect = objObj.AddComponent<RectTransform>();
+            objRect.anchorMin = new Vector2(0, 0.38f);
+            objRect.anchorMax = new Vector2(1, 0.72f);
+            objRect.offsetMin = new Vector2(16, 0);
+            objRect.offsetMax = new Vector2(-8, 0);
+            var objText = objObj.AddComponent<Text>();
+            objText.text = BuildObjectiveSummary(quest);
+            objText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            objText.fontSize = 14;
+            objText.color = new Color(0.7f, 0.7f, 0.7f);
+            objText.alignment = TextAnchor.UpperLeft;
+            objText.raycastTarget = false;
+
+            // Reward text
+            var rewardObj = new GameObject("Reward");
+            rewardObj.transform.SetParent(card.transform);
+            var rewardRect = rewardObj.AddComponent<RectTransform>();
+            rewardRect.anchorMin = new Vector2(0, 0.02f);
+            rewardRect.anchorMax = new Vector2(0.45f, 0.35f);
+            rewardRect.offsetMin = new Vector2(16, 0);
+            rewardRect.offsetMax = Vector2.zero;
+            var rewardText = rewardObj.AddComponent<Text>();
+            string rewardStr = quest.rewardAmount > 0
+                ? $"Reward: {quest.rewardAmount} {GetResourceShortName(quest.rewardResource)}"
+                : "Reward:";
+            if (!string.IsNullOrEmpty(quest.unlockLabUpgrade))
+                rewardStr += (quest.rewardAmount > 0 ? " + " : " ") + $"Unlock {quest.unlockLabUpgrade}";
+            rewardText.text = rewardStr;
+            rewardText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            rewardText.fontSize = 14;
+            rewardText.color = new Color(1f, 0.85f, 0.2f);
+            rewardText.alignment = TextAnchor.MiddleLeft;
+            rewardText.raycastTarget = false;
+
+            // Action button
+            var btnObj = new GameObject("ActionBtn");
+            btnObj.transform.SetParent(card.transform);
+            var btnRect = btnObj.AddComponent<RectTransform>();
+            btnRect.anchorMin = new Vector2(0.5f, 0.05f);
+            btnRect.anchorMax = new Vector2(0.95f, 0.35f);
+            btnRect.offsetMin = Vector2.zero;
+            btnRect.offsetMax = Vector2.zero;
+
+            var btnImage = btnObj.AddComponent<Image>();
+            var btn = btnObj.AddComponent<Button>();
+            btn.targetGraphic = btnImage;
+
+            var btnTextObj = new GameObject("Text");
+            btnTextObj.transform.SetParent(btnObj.transform);
+            var btnTextRect = btnTextObj.AddComponent<RectTransform>();
+            btnTextRect.anchorMin = Vector2.zero;
+            btnTextRect.anchorMax = Vector2.one;
+            btnTextRect.offsetMin = Vector2.zero;
+            btnTextRect.offsetMax = Vector2.zero;
+            var btnText = btnTextObj.AddComponent<Text>();
+            btnText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            btnText.fontSize = 14;
+            btnText.alignment = TextAnchor.MiddleCenter;
+
+            if (isActive)
+            {
+                btnImage.color = new Color(0.5f, 0.5f, 0.2f);
+                btnText.text = "ACTIVE";
+                btnText.color = Color.white;
+                btn.interactable = false;
+            }
+            else if (isCompleted)
+            {
+                btnImage.color = new Color(0.2f, 0.5f, 0.2f);
+                btnText.text = "Replay";
+                btnText.color = Color.white;
+                var capturedId = quest.questId;
+                btn.onClick.AddListener(() => OnAcceptQuest(capturedId));
+            }
+            else
+            {
+                btnImage.color = new Color(0.2f, 0.4f, 0.6f);
+                btnText.text = "Accept";
+                btnText.color = Color.white;
+                var capturedId = quest.questId;
+                btn.onClick.AddListener(() => OnAcceptQuest(capturedId));
+            }
+
+            return card;
+        }
+
+        private string BuildObjectiveSummary(QuestDefinition quest)
+        {
+            var sb = new System.Text.StringBuilder();
+            for (int i = 0; i < quest.objectives.Count; i++)
+            {
+                var obj = quest.objectives[i];
+                if (i > 0) sb.Append("\n");
+                switch (obj.objectiveType)
+                {
+                    case QuestObjectiveType.GatherResource:
+                        sb.Append($"Gather {obj.requiredAmount} {GetResourceShortName(obj.resourceType)}");
+                        break;
+                    case QuestObjectiveType.KillEnemies:
+                        sb.Append($"Kill {obj.requiredAmount} enemies");
+                        break;
+                    case QuestObjectiveType.ExpandTiles:
+                        sb.Append($"Place {obj.requiredAmount} tiles");
+                        break;
+                }
+            }
+            return sb.ToString();
+        }
+
+        private void OnAcceptQuest(string questId)
+        {
+            if (QuestManager.Instance == null) return;
+            QuestManager.Instance.AcceptQuest(questId);
+            RefreshQuestCards();
         }
 
         // --- Static helper ---

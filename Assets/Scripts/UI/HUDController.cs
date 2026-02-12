@@ -75,6 +75,13 @@ namespace TowerDefense.UI
         private bool continuousStarted;
         private bool escapeAvailable;
 
+        // Quest escape tutorial
+        private bool questEscapeTutActive;
+        private GameObject tutPanelObj;
+        private GameObject tutArrowObj;
+        private RectTransform tutArrowRect;
+        private const string QuestEscapeTutPref = "tut_quest_escape";
+
         // Upgrade button glow
         private bool canAffordUpgrade;
         private float upgradeCheckTimer;
@@ -187,9 +194,11 @@ namespace TowerDefense.UI
             if (PersistenceManager.Instance != null)
             {
                 PersistenceManager.Instance.OnResourcesChanged += UpdateResources;
-                PersistenceManager.Instance.OnResourcesChanged += UpdateEscapeProgress;
                 UpdateResources();
             }
+
+            if (QuestManager.Instance != null)
+                QuestManager.Instance.OnQuestProgressChanged += UpdateEscapeProgress;
 
             if (GameManager.Instance != null)
                 GameManager.Instance.OnObjectivesMet += OnObjectivesMet;
@@ -556,6 +565,9 @@ namespace TowerDefense.UI
             }
 
             // Escape progress is updated via OnResourcesChanged / OnObjectivesMet events
+
+            if (questEscapeTutActive)
+                UpdateQuestEscapeTutArrow();
         }
 
         private void UpdateResources()
@@ -643,26 +655,40 @@ namespace TowerDefense.UI
         private void UpdateEscapeProgress()
         {
             if (!continuousStarted || escapeAvailable) return;
-            if (escapeButtonText == null || GameManager.Instance == null) return;
+            if (escapeButtonText == null) return;
 
-            var objectives = GameManager.Instance.RunObjectives;
-            if (objectives.Count == 0) return;
+            var qm = QuestManager.Instance;
+            if (qm == null || !qm.HasActiveQuest) return;
 
-            var pm = PersistenceManager.Instance;
-            if (pm == null) return;
+            var quest = qm.GetActiveQuest();
+            if (quest == null) return;
 
-            // Build combined progress string
             var parts = new System.Text.StringBuilder();
-            for (int i = 0; i < objectives.Count; i++)
+            for (int i = 0; i < quest.objectives.Count; i++)
             {
-                var obj = objectives[i];
-                int current = pm.GetRunGathered(obj.resourceType);
+                var obj = quest.objectives[i];
+                int current = qm.GetObjectiveProgress(obj);
                 int required = obj.requiredAmount;
-                string name = GetShortResourceName(obj.resourceType);
+                string label = GetObjectiveLabel(obj);
                 if (i > 0) parts.Append("  ");
-                parts.Append($"{name}: {current}/{required}");
+                parts.Append($"{label}: {current}/{required}");
             }
             escapeButtonText.text = parts.ToString();
+        }
+
+        private static string GetObjectiveLabel(QuestObjective obj)
+        {
+            switch (obj.objectiveType)
+            {
+                case QuestObjectiveType.GatherResource:
+                    return GetShortResourceName(obj.resourceType);
+                case QuestObjectiveType.KillEnemies:
+                    return "Kills";
+                case QuestObjectiveType.ExpandTiles:
+                    return "Tiles";
+                default:
+                    return "???";
+            }
         }
 
         private void OnObjectivesMet()
@@ -673,6 +699,84 @@ namespace TowerDefense.UI
                 escapeButtonObj.GetComponent<Image>().color = new Color(0.8f, 0.65f, 0.1f);
             if (escapeButtonText != null)
                 escapeButtonText.text = "Escape!";
+
+            if (PlayerPrefs.GetInt(QuestEscapeTutPref, 0) == 0)
+                StartQuestEscapeTutorial();
+        }
+
+        private void StartQuestEscapeTutorial()
+        {
+            questEscapeTutActive = true;
+            Time.timeScale = 0f;
+
+            // Panel
+            tutPanelObj = new GameObject("QuestEscapeTutPanel");
+            tutPanelObj.transform.SetParent(canvas.transform, false);
+            var panelRect = tutPanelObj.AddComponent<RectTransform>();
+            panelRect.anchorMin = new Vector2(0.5f, 0.5f);
+            panelRect.anchorMax = new Vector2(0.5f, 0.5f);
+            panelRect.anchoredPosition = new Vector2(0f, 60f);
+            panelRect.sizeDelta = new Vector2(640f, 120f);
+            var panelBg = tutPanelObj.AddComponent<Image>();
+            panelBg.color = new Color(0.08f, 0.08f, 0.12f, 0.92f);
+            panelBg.raycastTarget = false;
+
+            var textObj = new GameObject("Message");
+            textObj.transform.SetParent(tutPanelObj.transform, false);
+            var textRect = textObj.AddComponent<RectTransform>();
+            textRect.anchorMin = Vector2.zero;
+            textRect.anchorMax = Vector2.one;
+            textRect.offsetMin = new Vector2(16f, 8f);
+            textRect.offsetMax = new Vector2(-16f, -8f);
+            var msgText = textObj.AddComponent<Text>();
+            msgText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            msgText.fontSize = 20;
+            msgText.fontStyle = FontStyle.Bold;
+            msgText.color = Color.white;
+            msgText.alignment = TextAnchor.MiddleCenter;
+            msgText.raycastTarget = false;
+            msgText.text = "Quest complete! Tap Escape to leave with your rewards.\nNext time you can choose to stay and keep exploring.";
+
+            // Arrow — reuse the same sprite from the base tutorial
+            tutArrowObj = new GameObject("QuestEscapeTutArrow");
+            tutArrowObj.transform.SetParent(canvas.transform, false);
+            tutArrowRect = tutArrowObj.AddComponent<RectTransform>();
+            tutArrowRect.anchorMin = new Vector2(0.5f, 0.5f);
+            tutArrowRect.anchorMax = new Vector2(0.5f, 0.5f);
+            tutArrowRect.sizeDelta = new Vector2(60f, 60f);
+            var arrowImg = tutArrowObj.AddComponent<Image>();
+            if (TutorialManager.CachedArrowSprite != null)
+                arrowImg.sprite = TutorialManager.CachedArrowSprite;
+            arrowImg.color = new Color(1f, 0.3f, 0.3f, 1f);
+            arrowImg.raycastTarget = false;
+
+            // Rotate arrow to point downward at the escape button
+            tutArrowRect.localRotation = Quaternion.Euler(0f, 0f, -90f);
+        }
+
+        private void UpdateQuestEscapeTutArrow()
+        {
+            if (escapeButtonObj == null || tutArrowRect == null) return;
+
+            var targetRect = escapeButtonObj.GetComponent<RectTransform>();
+            Vector3 screenPos = RectTransformUtility.WorldToScreenPoint(null, targetRect.position);
+            if (RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                canvas.transform as RectTransform, screenPos, null, out Vector2 localPoint))
+            {
+                float bounce = Mathf.Sin(Time.unscaledTime * 3f) * 15f;
+                Vector2 offset = new Vector2(0f, 1f) * (50f + bounce);
+                tutArrowRect.anchoredPosition = localPoint + offset;
+            }
+        }
+
+        private void CompleteQuestEscapeTutorial()
+        {
+            PlayerPrefs.SetInt(QuestEscapeTutPref, 1);
+            PlayerPrefs.Save();
+            if (tutPanelObj != null) Destroy(tutPanelObj);
+            if (tutArrowObj != null) Destroy(tutArrowObj);
+            questEscapeTutActive = false;
+            Time.timeScale = 1f;
         }
 
         private static string GetShortResourceName(ResourceType type)
@@ -728,6 +832,12 @@ namespace TowerDefense.UI
         private void OnEscapeClicked()
         {
             if (!escapeAvailable) return;
+            if (questEscapeTutActive)
+            {
+                CompleteQuestEscapeTutorial();
+                GameManager.Instance?.ExitRun();
+                return;
+            }
             escapeConfirmOverlay.SetActive(true);
         }
 
@@ -821,14 +931,20 @@ namespace TowerDefense.UI
 
         private void OnDestroy()
         {
+            if (questEscapeTutActive)
+                Time.timeScale = 1f;
             if (upgradeGlowPS != null)
                 Destroy(upgradeGlowPS.gameObject);
+            if (tutPanelObj != null)
+                Destroy(tutPanelObj);
+            if (tutArrowObj != null)
+                Destroy(tutArrowObj);
 
             if (GameManager.Instance != null)
                 GameManager.Instance.OnObjectivesMet -= OnObjectivesMet;
 
-            if (PersistenceManager.Instance != null)
-                PersistenceManager.Instance.OnResourcesChanged -= UpdateEscapeProgress;
+            if (QuestManager.Instance != null)
+                QuestManager.Instance.OnQuestProgressChanged -= UpdateEscapeProgress;
         }
     }
 }

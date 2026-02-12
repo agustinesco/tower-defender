@@ -89,6 +89,15 @@ namespace TowerDefense.Core
             return true;
         }
 
+        public void AddBankedResource(ResourceType type, int amount)
+        {
+            if (!bankedResources.ContainsKey(type))
+                bankedResources[type] = 0;
+            bankedResources[type] += amount;
+            Save();
+            OnResourcesChanged?.Invoke();
+        }
+
         public void ResetRun()
         {
             runResources.Clear();
