@@ -18,6 +18,11 @@ namespace TowerDefense.Core
 
         public List<string> tutorialStepsSeen = new List<string>();
         public bool labTutorialComplete;
+        public bool questEscapeTutComplete;
+
+        // Quest data
+        public string activeQuestId = "";
+        public List<string> completedQuestIds = new List<string>();
 
         // Runtime dictionaries (not serialized, rebuilt from lists)
         [NonSerialized] public Dictionary<string, int> resources;
@@ -103,6 +108,8 @@ namespace TowerDefense.Core
             if (cachedData.labKeys == null) cachedData.labKeys = new List<string>();
             if (cachedData.labValues == null) cachedData.labValues = new List<int>();
             if (cachedData.tutorialStepsSeen == null) cachedData.tutorialStepsSeen = new List<string>();
+            if (cachedData.activeQuestId == null) cachedData.activeQuestId = "";
+            if (cachedData.completedQuestIds == null) cachedData.completedQuestIds = new List<string>();
 
             cachedData.BuildDictionaries();
             dirty = false;
@@ -189,7 +196,35 @@ namespace TowerDefense.Core
         {
             Data.tutorialStepsSeen.Clear();
             Data.labTutorialComplete = false;
+            Data.questEscapeTutComplete = false;
             dirty = true;
+        }
+
+        // --- Quest helpers ---
+
+        public static string GetActiveQuestId()
+        {
+            return Data.activeQuestId ?? "";
+        }
+
+        public static void SetActiveQuestId(string questId)
+        {
+            Data.activeQuestId = questId ?? "";
+            dirty = true;
+        }
+
+        public static bool IsQuestCompleted(string questId)
+        {
+            return Data.completedQuestIds.Contains(questId);
+        }
+
+        public static void MarkQuestCompleted(string questId)
+        {
+            if (!Data.completedQuestIds.Contains(questId))
+            {
+                Data.completedQuestIds.Add(questId);
+                dirty = true;
+            }
         }
 
         // --- Migration from PlayerPrefs ---
@@ -251,6 +286,36 @@ namespace TowerDefense.Core
             {
                 Data.labTutorialComplete = PlayerPrefs.GetInt(labTutKey, 0) == 1;
                 PlayerPrefs.DeleteKey(labTutKey);
+                migrated = true;
+            }
+
+            // Migrate quest data
+            if (PlayerPrefs.HasKey("quest_active"))
+            {
+                Data.activeQuestId = PlayerPrefs.GetString("quest_active", "");
+                PlayerPrefs.DeleteKey("quest_active");
+                migrated = true;
+            }
+
+            // Migrate completed quests (check known quest IDs)
+            for (int i = 1; i <= 20; i++)
+            {
+                string qKey = $"quest_done_q{i:D3}";
+                if (PlayerPrefs.HasKey(qKey))
+                {
+                    string qid = $"q{i:D3}";
+                    if (!Data.completedQuestIds.Contains(qid))
+                        Data.completedQuestIds.Add(qid);
+                    PlayerPrefs.DeleteKey(qKey);
+                    migrated = true;
+                }
+            }
+
+            // Migrate quest escape tutorial
+            if (PlayerPrefs.HasKey("tut_quest_escape"))
+            {
+                Data.questEscapeTutComplete = PlayerPrefs.GetInt("tut_quest_escape", 0) == 1;
+                PlayerPrefs.DeleteKey("tut_quest_escape");
                 migrated = true;
             }
 

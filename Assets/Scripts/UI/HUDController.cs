@@ -80,8 +80,6 @@ namespace TowerDefense.UI
         private GameObject tutPanelObj;
         private GameObject tutArrowObj;
         private RectTransform tutArrowRect;
-        private const string QuestEscapeTutPref = "tut_quest_escape";
-
         // Upgrade button glow
         private bool canAffordUpgrade;
         private float upgradeCheckTimer;
@@ -700,7 +698,7 @@ namespace TowerDefense.UI
             if (escapeButtonText != null)
                 escapeButtonText.text = "Escape!";
 
-            if (PlayerPrefs.GetInt(QuestEscapeTutPref, 0) == 0)
+            if (!JsonSaveSystem.Data.questEscapeTutComplete)
                 StartQuestEscapeTutorial();
         }
 
@@ -771,8 +769,8 @@ namespace TowerDefense.UI
 
         private void CompleteQuestEscapeTutorial()
         {
-            PlayerPrefs.SetInt(QuestEscapeTutPref, 1);
-            PlayerPrefs.Save();
+            JsonSaveSystem.Data.questEscapeTutComplete = true;
+            JsonSaveSystem.Save();
             if (tutPanelObj != null) Destroy(tutPanelObj);
             if (tutArrowObj != null) Destroy(tutArrowObj);
             questEscapeTutActive = false;

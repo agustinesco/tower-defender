@@ -37,7 +37,7 @@ namespace TowerDefense.Core
             allQuests = Resources.LoadAll<QuestDefinition>("Quests")
                 .OrderBy(q => q.questId)
                 .ToList();
-            activeQuestId = PlayerPrefs.GetString("quest_active", "");
+            activeQuestId = JsonSaveSystem.GetActiveQuestId();
         }
 
         public QuestDefinition GetActiveQuest()
@@ -54,21 +54,21 @@ namespace TowerDefense.Core
         public void AcceptQuest(string questId)
         {
             activeQuestId = questId;
-            PlayerPrefs.SetString("quest_active", questId);
-            PlayerPrefs.Save();
+            JsonSaveSystem.SetActiveQuestId(questId);
+            JsonSaveSystem.Save();
             OnQuestAccepted?.Invoke();
         }
 
         public void AbandonQuest()
         {
             activeQuestId = "";
-            PlayerPrefs.SetString("quest_active", "");
-            PlayerPrefs.Save();
+            JsonSaveSystem.SetActiveQuestId("");
+            JsonSaveSystem.Save();
         }
 
         public bool IsQuestCompleted(string questId)
         {
-            return PlayerPrefs.GetInt($"quest_done_{questId}", 0) == 1;
+            return JsonSaveSystem.IsQuestCompleted(questId);
         }
 
         public bool IsQuestUnlocked(string questId)
@@ -135,8 +135,8 @@ namespace TowerDefense.Core
             if (quest == null) return;
             if (!AreAllObjectivesMet(quest)) return;
 
-            PlayerPrefs.SetInt($"quest_done_{quest.questId}", 1);
-            PlayerPrefs.Save();
+            JsonSaveSystem.MarkQuestCompleted(quest.questId);
+            JsonSaveSystem.Save();
 
             if (quest.rewardAmount > 0 && PersistenceManager.Instance != null)
                 PersistenceManager.Instance.AddBankedResource(quest.rewardResource, quest.rewardAmount);

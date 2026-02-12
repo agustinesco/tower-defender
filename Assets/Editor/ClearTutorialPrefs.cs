@@ -1,4 +1,5 @@
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using TowerDefense.Core;
 
@@ -18,5 +19,16 @@ public static class ClearTutorialPrefs
     {
         JsonSaveSystem.DeleteAll();
         Debug.Log("Deleted all save data.");
+
+        if (Application.isPlaying)
+        {
+            UnityEngine.SceneManagement.SceneManager.LoadScene(0);
+        }
+        else
+        {
+            string mainMenuPath = "Assets/Scenes/MainMenu.unity";
+            if (System.IO.File.Exists(mainMenuPath))
+                EditorSceneManager.OpenScene(mainMenuPath);
+        }
     }
 }
