@@ -23,7 +23,7 @@ namespace TowerDefense.UI
 
         [Header("Resources")]
         [SerializeField] private TextMeshProUGUI currencyText;
-        [SerializeField] private Image goldIcons;
+
         [SerializeField] private TextMeshProUGUI ironOreText;
         [SerializeField] private Image ironOreIcon;
         [SerializeField] private GameObject ironOreRow;
@@ -161,13 +161,6 @@ namespace TowerDefense.UI
                 UpdateCurrency(GameManager.Instance.Currency);
 
                 // Set resource icons now that GameManager is available
-                if (goldIcons != null)
-                {
-                    var goldSprite = GameManager.Instance.GoldSprite;
-                    if (goldSprite != null)
-                        goldIcons.sprite = goldSprite;
-                    goldIcons.color = new Color(1f, 0.85f, 0.2f);
-                }
                 foreach (var kvp in resourceIcons)
                 {
                     var sprite = GameManager.Instance.GetResourceSprite(kvp.Key);
@@ -302,7 +295,7 @@ namespace TowerDefense.UI
         private void UpdateCurrency(int currency)
         {
             if (currencyText != null)
-                currencyText.text = $"Gold: {currency}g";
+                currencyText.text = $"{currency}";
         }
 
         private TowerSlot currentSlot;
