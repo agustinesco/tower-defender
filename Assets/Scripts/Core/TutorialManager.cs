@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using TowerDefense.Grid;
@@ -46,7 +47,7 @@ namespace TowerDefense.Core
         [SerializeField] private GraphicRaycaster raycaster;
         [SerializeField] private GameObject panel;
         [SerializeField] private RectTransform panelRect;
-        [SerializeField] private Text messageText;
+        [SerializeField] private TextMeshProUGUI messageText;
         [SerializeField] private Button okButton;
         [SerializeField] private Image arrowImage;
         [SerializeField] private RectTransform arrowRect;

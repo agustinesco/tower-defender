@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
@@ -29,7 +30,7 @@ namespace TowerDefense.UI
         [SerializeField] private GameObject towersTabObj;
         [SerializeField] private GameObject modsTabObj;
         [SerializeField] private GameObject tooltipObj;
-        [SerializeField] private Text tooltipText;
+        [SerializeField] private TextMeshProUGUI tooltipText;
 
         private List<PieceCard> cards = new List<PieceCard>();
         private int selectedIndex = -1;

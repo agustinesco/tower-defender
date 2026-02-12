@@ -13,7 +13,7 @@ namespace TowerDefense.UI
         [SerializeField] private TextMeshProUGUI costLabel;
         [SerializeField] private GameObject cooldownOverlay;
         [SerializeField] private Image cooldownImage;
-        [SerializeField] private Text cooldownText;
+        [SerializeField] private TextMeshProUGUI cooldownText;
         [SerializeField] private Button button;
         [SerializeField] private LayoutElement layoutElement;
         [SerializeField] private RectTransform pathPreviewContainer;
@@ -25,7 +25,7 @@ namespace TowerDefense.UI
         public TextMeshProUGUI CostLabel => costLabel;
         public GameObject CooldownOverlay => cooldownOverlay;
         public Image CooldownImage => cooldownImage;
-        public Text CooldownText => cooldownText;
+        public TextMeshProUGUI CooldownText => cooldownText;
         public Button Button => button;
         public LayoutElement LayoutElement => layoutElement;
         public RectTransform PathPreviewContainer => pathPreviewContainer;

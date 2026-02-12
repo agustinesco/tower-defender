@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using System.Collections.Generic;
@@ -204,26 +205,24 @@ namespace TowerDefense.UI
             hNameObj.transform.SetParent(headerObj.transform, false);
             var hNameLE = hNameObj.AddComponent<LayoutElement>();
             hNameLE.flexibleWidth = 1;
-            var hNameText = hNameObj.AddComponent<Text>();
+            var hNameText = hNameObj.AddComponent<TextMeshProUGUI>();
             hNameText.text = resource.ToString();
-            hNameText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             hNameText.fontSize = 14;
-            hNameText.fontStyle = FontStyle.Bold;
+            hNameText.fontStyle = FontStyles.Bold;
             hNameText.color = resColor;
-            hNameText.alignment = TextAnchor.MiddleLeft;
+            hNameText.alignment = TextAlignmentOptions.Left;
 
             // Balance
             var hBalObj = new GameObject("Balance", typeof(RectTransform));
             hBalObj.transform.SetParent(headerObj.transform, false);
             var hBalLE = hBalObj.AddComponent<LayoutElement>();
             hBalLE.preferredWidth = 60;
-            var hBalText = hBalObj.AddComponent<Text>();
+            var hBalText = hBalObj.AddComponent<TextMeshProUGUI>();
             int balance = PersistenceManager.Instance != null ? PersistenceManager.Instance.GetRunGathered(resource) : 0;
             hBalText.text = $"{balance}";
-            hBalText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             hBalText.fontSize = 14;
             hBalText.color = Color.white;
-            hBalText.alignment = TextAnchor.MiddleRight;
+            hBalText.alignment = TextAlignmentOptions.Right;
 
             // --- Cards Row ---
             var rowObj = new GameObject("CardsRow", typeof(RectTransform));

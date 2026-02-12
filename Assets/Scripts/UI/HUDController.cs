@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
@@ -18,21 +19,21 @@ namespace TowerDefense.UI
 
         [Header("Lives Bar")]
         [SerializeField] private Image livesBarFill;
-        [SerializeField] private Text livesBarText;
+        [SerializeField] private TextMeshProUGUI livesBarText;
 
         [Header("Resources")]
-        [SerializeField] private Text currencyText;
+        [SerializeField] private TextMeshProUGUI currencyText;
         [SerializeField] private Image goldIcons;
-        [SerializeField] private Text ironOreText;
+        [SerializeField] private TextMeshProUGUI ironOreText;
         [SerializeField] private Image ironOreIcon;
         [SerializeField] private GameObject ironOreRow;
-        [SerializeField] private Text gemsText;
+        [SerializeField] private TextMeshProUGUI gemsText;
         [SerializeField] private Image gemsIcon;
         [SerializeField] private GameObject gemsRow;
-        [SerializeField] private Text florpusText;
+        [SerializeField] private TextMeshProUGUI florpusText;
         [SerializeField] private Image florpusIcon;
         [SerializeField] private GameObject florpusRow;
-        [SerializeField] private Text adamantiteText;
+        [SerializeField] private TextMeshProUGUI adamantiteText;
         [SerializeField] private Image adamantiteIcon;
         [SerializeField] private GameObject adamantiteRow;
 
@@ -49,18 +50,18 @@ namespace TowerDefense.UI
         [SerializeField] private GameObject cheatPanelObj;
 
         [Header("Build Timer")]
-        [SerializeField] private Text buildTimerText;
+        [SerializeField] private TextMeshProUGUI buildTimerText;
         [SerializeField] private GameObject buildTimerObj;
 
         [Header("Escape")]
         [SerializeField] private Button escapeButton;
         [SerializeField] private GameObject escapeButtonObj;
-        [SerializeField] private Text escapeButtonText;
+        [SerializeField] private TextMeshProUGUI escapeButtonText;
         [SerializeField] private GameObject escapeConfirmOverlay;
         [SerializeField] private GameObject escapeOverlayCanvasObj;
 
         private int lastLives = -1;
-        private Dictionary<ResourceType, Text> resourceTexts = new Dictionary<ResourceType, Text>();
+        private Dictionary<ResourceType, TextMeshProUGUI> resourceTexts = new Dictionary<ResourceType, TextMeshProUGUI>();
         private Dictionary<ResourceType, Image> resourceIcons = new Dictionary<ResourceType, Image>();
         private Dictionary<ResourceType, GameObject> resourceRows = new Dictionary<ResourceType, GameObject>();
         private List<GameObject> towerButtons = new List<GameObject>();
@@ -250,17 +251,16 @@ namespace TowerDefense.UI
             textRect.offsetMin = Vector2.zero;
             textRect.offsetMax = Vector2.zero;
 
-            var text = textObj.AddComponent<Text>();
+            var text = textObj.AddComponent<TextMeshProUGUI>();
             text.text = label;
-            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             text.fontSize = 20;
             text.color = Color.white;
-            text.alignment = TextAnchor.MiddleCenter;
+            text.alignment = TextAlignmentOptions.Center;
 
             return button;
         }
 
-        private Text CreateText(Transform parent, string name, Vector2 anchorMin, Vector2 anchorMax,
+        private TextMeshProUGUI CreateText(Transform parent, string name, Vector2 anchorMin, Vector2 anchorMax,
             Vector2 position, string content)
         {
             GameObject textObj = new GameObject(name);
@@ -272,12 +272,11 @@ namespace TowerDefense.UI
             rect.anchoredPosition = position;
             rect.sizeDelta = new Vector2(150, 40);
 
-            var text = textObj.AddComponent<Text>();
+            var text = textObj.AddComponent<TextMeshProUGUI>();
             text.text = content;
-            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             text.fontSize = 24;
             text.color = Color.white;
-            text.alignment = TextAnchor.MiddleCenter;
+            text.alignment = TextAlignmentOptions.Center;
 
             return text;
         }
@@ -367,12 +366,11 @@ namespace TowerDefense.UI
                 textRect.offsetMin = Vector2.zero;
                 textRect.offsetMax = Vector2.zero;
 
-                var text = textObj.AddComponent<Text>();
+                var text = textObj.AddComponent<TextMeshProUGUI>();
                 text.text = $"{towerData.towerName}\n{towerData.cost}g";
-                text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
                 text.fontSize = 14;
                 text.color = Color.white;
-                text.alignment = TextAnchor.MiddleCenter;
+                text.alignment = TextAlignmentOptions.Center;
 
                 towerButtons.Add(buttonObj);
             }
@@ -488,7 +486,7 @@ namespace TowerDefense.UI
 
         private void SetButtonLabel(Button button, string label)
         {
-            var text = button.GetComponentInChildren<Text>();
+            var text = button.GetComponentInChildren<TextMeshProUGUI>();
             if (text != null)
                 text.text = label;
         }
@@ -726,12 +724,11 @@ namespace TowerDefense.UI
             textRect.anchorMax = Vector2.one;
             textRect.offsetMin = new Vector2(16f, 8f);
             textRect.offsetMax = new Vector2(-16f, -8f);
-            var msgText = textObj.AddComponent<Text>();
-            msgText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            var msgText = textObj.AddComponent<TextMeshProUGUI>();
             msgText.fontSize = 20;
-            msgText.fontStyle = FontStyle.Bold;
+            msgText.fontStyle = FontStyles.Bold;
             msgText.color = Color.white;
-            msgText.alignment = TextAnchor.MiddleCenter;
+            msgText.alignment = TextAlignmentOptions.Center;
             msgText.raycastTarget = false;
             msgText.text = "Quest complete! Tap Escape to leave with your rewards.\nNext time you can choose to stay and keep exploring.";
 

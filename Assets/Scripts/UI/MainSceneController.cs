@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
@@ -11,23 +12,23 @@ namespace TowerDefense.UI
     {
         [Header("Map Panel")]
         [SerializeField] private GameObject mapPanel;
-        [SerializeField] private Text resourceText;
+        [SerializeField] private TextMeshProUGUI resourceText;
         [SerializeField] private Button startButton;
         [SerializeField] private Button labButton;
         [SerializeField] private Button resetButton;
 
         [Header("Lab Panel")]
         [SerializeField] private GameObject labPanel;
-        [SerializeField] private Text labResourceLabel;
+        [SerializeField] private TextMeshProUGUI labResourceLabel;
         [SerializeField] private Transform labGridContent;
         [SerializeField] private Button labBackButton;
         [SerializeField] private Image[] labTabImages;
-        [SerializeField] private Text[] labTabTexts;
+        [SerializeField] private TextMeshProUGUI[] labTabTexts;
         [SerializeField] private Button[] labTabButtons;
 
         [Header("Quest Panel")]
         [SerializeField] private GameObject questPanel;
-        [SerializeField] private Text questResourceLabel;
+        [SerializeField] private TextMeshProUGUI questResourceLabel;
         [SerializeField] private Transform questGridContent;
         [SerializeField] private Button questBackButton;
         [SerializeField] private Button questAreaButton;
@@ -56,7 +57,7 @@ namespace TowerDefense.UI
         private int questTutorialStep; // 0 = quest board, 1 = accept, 2 = back, 3 = play
         private GameObject tutPanelObj;
         private RectTransform tutPanelRect;
-        private Text tutMessageText;
+        private TextMeshProUGUI tutMessageText;
         private GameObject tutArrowObj;
         private RectTransform tutArrowRect;
         private RectTransform tutTargetRect;
@@ -253,12 +254,11 @@ namespace TowerDefense.UI
             textRect.anchorMax = Vector2.one;
             textRect.offsetMin = new Vector2(16f, 8f);
             textRect.offsetMax = new Vector2(-16f, -8f);
-            tutMessageText = textObj.AddComponent<Text>();
-            tutMessageText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            tutMessageText = textObj.AddComponent<TextMeshProUGUI>();
             tutMessageText.fontSize = 22;
-            tutMessageText.fontStyle = FontStyle.Bold;
+            tutMessageText.fontStyle = FontStyles.Bold;
             tutMessageText.color = Color.white;
-            tutMessageText.alignment = TextAnchor.MiddleCenter;
+            tutMessageText.alignment = TextAlignmentOptions.Center;
             tutMessageText.raycastTarget = false;
 
             // Arrow
@@ -518,13 +518,12 @@ namespace TowerDefense.UI
             nameRect.anchorMax = new Vector2(1, 0.95f);
             nameRect.offsetMin = new Vector2(16, 0);
             nameRect.offsetMax = new Vector2(-8, 0);
-            var nameText = nameObj.AddComponent<Text>();
+            var nameText = nameObj.AddComponent<TextMeshProUGUI>();
             nameText.text = upgrade.upgradeName;
-            nameText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             nameText.fontSize = 20;
-            nameText.fontStyle = FontStyle.Bold;
+            nameText.fontStyle = FontStyles.Bold;
             nameText.color = Color.white;
-            nameText.alignment = TextAnchor.MiddleLeft;
+            nameText.alignment = TextAlignmentOptions.Left;
             nameText.raycastTarget = false;
 
             // Description
@@ -535,12 +534,11 @@ namespace TowerDefense.UI
             descRect.anchorMax = new Vector2(1, 0.65f);
             descRect.offsetMin = new Vector2(16, 0);
             descRect.offsetMax = new Vector2(-8, 0);
-            var descText = descObj.AddComponent<Text>();
+            var descText = descObj.AddComponent<TextMeshProUGUI>();
             descText.text = upgrade.description;
-            descText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             descText.fontSize = 14;
             descText.color = new Color(0.7f, 0.7f, 0.7f);
-            descText.alignment = TextAnchor.UpperLeft;
+            descText.alignment = TextAlignmentOptions.TopLeft;
             descText.raycastTarget = false;
 
             // Level / status
@@ -552,7 +550,7 @@ namespace TowerDefense.UI
             levelRect.anchorMax = new Vector2(0.45f, 0.35f);
             levelRect.offsetMin = new Vector2(16, 0);
             levelRect.offsetMax = Vector2.zero;
-            var levelText = levelObj.AddComponent<Text>();
+            var levelText = levelObj.AddComponent<TextMeshProUGUI>();
             if (isUnlock)
             {
                 levelText.text = maxed ? "UNLOCKED" : "LOCKED";
@@ -563,9 +561,8 @@ namespace TowerDefense.UI
                 levelText.text = $"Lv {level}/{upgrade.maxLevel}";
                 levelText.color = maxed ? new Color(0.4f, 0.8f, 0.4f) : Color.white;
             }
-            levelText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             levelText.fontSize = 16;
-            levelText.alignment = TextAnchor.MiddleLeft;
+            levelText.alignment = TextAlignmentOptions.Left;
             levelText.raycastTarget = false;
 
             // Buy button or MAX label
@@ -595,12 +592,11 @@ namespace TowerDefense.UI
                 buyTextRect.anchorMax = Vector2.one;
                 buyTextRect.offsetMin = Vector2.zero;
                 buyTextRect.offsetMax = Vector2.zero;
-                var buyText = buyTextObj.AddComponent<Text>();
+                var buyText = buyTextObj.AddComponent<TextMeshProUGUI>();
                 buyText.text = $"Buy {cost} {GetResourceShortName(upgrade.costResource)}";
-                buyText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
                 buyText.fontSize = 14;
                 buyText.color = canBuy ? Color.white : new Color(0.6f, 0.6f, 0.6f);
-                buyText.alignment = TextAnchor.MiddleCenter;
+                buyText.alignment = TextAlignmentOptions.Center;
             }
             else
             {
@@ -611,12 +607,11 @@ namespace TowerDefense.UI
                 maxRect.anchorMax = new Vector2(0.95f, 0.35f);
                 maxRect.offsetMin = Vector2.zero;
                 maxRect.offsetMax = Vector2.zero;
-                var maxText = maxObj.AddComponent<Text>();
+                var maxText = maxObj.AddComponent<TextMeshProUGUI>();
                 maxText.text = "MAX";
-                maxText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
                 maxText.fontSize = 20;
                 maxText.color = new Color(1f, 0.85f, 0.2f);
-                maxText.alignment = TextAnchor.MiddleCenter;
+                maxText.alignment = TextAlignmentOptions.Center;
                 maxText.raycastTarget = false;
             }
 
@@ -711,13 +706,12 @@ namespace TowerDefense.UI
             textRect.anchorMax = new Vector2(0.95f, 0.9f);
             textRect.offsetMin = Vector2.zero;
             textRect.offsetMax = Vector2.zero;
-            var text = textObj.AddComponent<Text>();
+            var text = textObj.AddComponent<TextMeshProUGUI>();
             text.text = "Reset all progress?\nThis cannot be undone.";
-            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             text.fontSize = 22;
-            text.fontStyle = FontStyle.Bold;
+            text.fontStyle = FontStyles.Bold;
             text.color = Color.white;
-            text.alignment = TextAnchor.MiddleCenter;
+            text.alignment = TextAlignmentOptions.Center;
             text.raycastTarget = false;
 
             // Confirm button
@@ -741,13 +735,12 @@ namespace TowerDefense.UI
             ctRect.anchorMax = Vector2.one;
             ctRect.offsetMin = Vector2.zero;
             ctRect.offsetMax = Vector2.zero;
-            var ctText = confirmTextObj.AddComponent<Text>();
+            var ctText = confirmTextObj.AddComponent<TextMeshProUGUI>();
             ctText.text = "Reset";
-            ctText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             ctText.fontSize = 20;
-            ctText.fontStyle = FontStyle.Bold;
+            ctText.fontStyle = FontStyles.Bold;
             ctText.color = Color.white;
-            ctText.alignment = TextAnchor.MiddleCenter;
+            ctText.alignment = TextAlignmentOptions.Center;
 
             // Cancel button
             var cancelObj = new GameObject("Cancel");
@@ -770,12 +763,11 @@ namespace TowerDefense.UI
             clRect.anchorMax = Vector2.one;
             clRect.offsetMin = Vector2.zero;
             clRect.offsetMax = Vector2.zero;
-            var clText = cancelTextObj.AddComponent<Text>();
+            var clText = cancelTextObj.AddComponent<TextMeshProUGUI>();
             clText.text = "Cancel";
-            clText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             clText.fontSize = 20;
             clText.color = Color.white;
-            clText.alignment = TextAnchor.MiddleCenter;
+            clText.alignment = TextAlignmentOptions.Center;
         }
 
         private void OnResetConfirmed()
@@ -896,13 +888,12 @@ namespace TowerDefense.UI
             nameRect.anchorMax = new Vector2(1, 0.98f);
             nameRect.offsetMin = new Vector2(16, 0);
             nameRect.offsetMax = new Vector2(-8, 0);
-            var nameText = nameObj.AddComponent<Text>();
+            var nameText = nameObj.AddComponent<TextMeshProUGUI>();
             nameText.text = quest.questName;
-            nameText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             nameText.fontSize = 20;
-            nameText.fontStyle = FontStyle.Bold;
+            nameText.fontStyle = FontStyles.Bold;
             nameText.color = Color.white;
-            nameText.alignment = TextAnchor.MiddleLeft;
+            nameText.alignment = TextAlignmentOptions.Left;
             nameText.raycastTarget = false;
 
             // Objectives text
@@ -913,12 +904,11 @@ namespace TowerDefense.UI
             objRect.anchorMax = new Vector2(1, 0.72f);
             objRect.offsetMin = new Vector2(16, 0);
             objRect.offsetMax = new Vector2(-8, 0);
-            var objText = objObj.AddComponent<Text>();
+            var objText = objObj.AddComponent<TextMeshProUGUI>();
             objText.text = BuildObjectiveSummary(quest);
-            objText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             objText.fontSize = 14;
             objText.color = new Color(0.7f, 0.7f, 0.7f);
-            objText.alignment = TextAnchor.UpperLeft;
+            objText.alignment = TextAlignmentOptions.TopLeft;
             objText.raycastTarget = false;
 
             // Reward text
@@ -929,17 +919,16 @@ namespace TowerDefense.UI
             rewardRect.anchorMax = new Vector2(0.45f, 0.35f);
             rewardRect.offsetMin = new Vector2(16, 0);
             rewardRect.offsetMax = Vector2.zero;
-            var rewardText = rewardObj.AddComponent<Text>();
+            var rewardText = rewardObj.AddComponent<TextMeshProUGUI>();
             string rewardStr = quest.rewardAmount > 0
                 ? $"Reward: {quest.rewardAmount} {GetResourceShortName(quest.rewardResource)}"
                 : "Reward:";
             if (!string.IsNullOrEmpty(quest.unlockLabUpgrade))
                 rewardStr += (quest.rewardAmount > 0 ? " + " : " ") + $"Unlock {quest.unlockLabUpgrade}";
             rewardText.text = rewardStr;
-            rewardText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             rewardText.fontSize = 14;
             rewardText.color = new Color(1f, 0.85f, 0.2f);
-            rewardText.alignment = TextAnchor.MiddleLeft;
+            rewardText.alignment = TextAlignmentOptions.Left;
             rewardText.raycastTarget = false;
 
             // Action button
@@ -962,10 +951,9 @@ namespace TowerDefense.UI
             btnTextRect.anchorMax = Vector2.one;
             btnTextRect.offsetMin = Vector2.zero;
             btnTextRect.offsetMax = Vector2.zero;
-            var btnText = btnTextObj.AddComponent<Text>();
-            btnText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            var btnText = btnTextObj.AddComponent<TextMeshProUGUI>();
             btnText.fontSize = 14;
-            btnText.alignment = TextAnchor.MiddleCenter;
+            btnText.alignment = TextAlignmentOptions.Center;
 
             if (isActive)
             {

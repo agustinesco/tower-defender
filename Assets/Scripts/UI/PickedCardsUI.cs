@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using System.Collections.Generic;
@@ -156,12 +157,11 @@ namespace TowerDefense.UI
             titleRectTransform.offsetMin = new Vector2(5, 0);
             titleRectTransform.offsetMax = new Vector2(-5, 0);
 
-            var titleText = titleObj.AddComponent<Text>();
+            var titleText = titleObj.AddComponent<TextMeshProUGUI>();
             titleText.text = cardData.cardName;
-            titleText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             titleText.fontSize = 14;
             titleText.color = Color.white;
-            titleText.alignment = TextAnchor.MiddleCenter;
+            titleText.alignment = TextAlignmentOptions.Center;
 
             // Level badge
             GameObject badgeObj = new GameObject("LevelBadge");
@@ -185,12 +185,11 @@ namespace TowerDefense.UI
             badgeTextRect.offsetMin = Vector2.zero;
             badgeTextRect.offsetMax = Vector2.zero;
 
-            var badgeText = badgeTextObj.AddComponent<Text>();
+            var badgeText = badgeTextObj.AddComponent<TextMeshProUGUI>();
             badgeText.text = $"Lv.{level}";
-            badgeText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             badgeText.fontSize = 14;
             badgeText.color = Color.white;
-            badgeText.alignment = TextAnchor.MiddleCenter;
+            badgeText.alignment = TextAlignmentOptions.Center;
 
             cardObjects.Add(cardObj);
         }
