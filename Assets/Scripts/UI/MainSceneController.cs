@@ -33,6 +33,7 @@ namespace TowerDefense.UI
         [SerializeField] private Transform questGridContent;
         [SerializeField] private Button questBackButton;
         [SerializeField] private Button questAreaButton;
+        [SerializeField] private Button questStartButton;
 
         [Header("Notifications")]
         [SerializeField] private GameObject questNotifyObj;
@@ -62,7 +63,7 @@ namespace TowerDefense.UI
         private bool labTutorialActive;
         private int labTutorialStep; // 0 = map, 1 = lab
         private bool questTutorialActive;
-        private int questTutorialStep; // 0 = quest board, 1 = accept, 2 = back, 3 = play
+        private int questTutorialStep; // 0 = quest board, 1 = accept, 2 = start run
         private GameObject tutPanelObj;
         private RectTransform tutPanelRect;
         private TextMeshProUGUI tutMessageText;
@@ -95,12 +96,19 @@ namespace TowerDefense.UI
         {
             Time.timeScale = 1f;
 
-            if (startButton != null) startButton.onClick.AddListener(OnContinuousClicked);
+            // Main menu start button now opens quest panel
+            if (startButton != null)
+            {
+                startButton.onClick.AddListener(OnQuestAreaClicked);
+                var label = startButton.GetComponentInChildren<TextMeshProUGUI>();
+                if (label != null) label.text = "Quests";
+            }
             if (labButton != null) labButton.onClick.AddListener(OnLabClicked);
             if (labBackButton != null) labBackButton.onClick.AddListener(OnLabBackClicked);
             if (resetButton != null) resetButton.onClick.AddListener(OnResetClicked);
             if (questBackButton != null) questBackButton.onClick.AddListener(OnQuestBackClicked);
             if (questAreaButton != null) questAreaButton.onClick.AddListener(OnQuestAreaClicked);
+            if (questStartButton != null) questStartButton.onClick.AddListener(OnContinuousClicked);
 
             if (labTabButtons != null)
             {
@@ -112,6 +120,7 @@ namespace TowerDefense.UI
             }
 
             ShowMap();
+            UpdateQuestStartButton();
             CheckQuestTutorial();
             if (!questTutorialActive)
                 CheckLabTutorial();
@@ -163,10 +172,10 @@ namespace TowerDefense.UI
             {
                 case 0:
                     tutMessageText.text = "Pick a quest to begin your expedition!";
-                    if (questAreaButton != null)
+                    if (startButton != null)
                     {
-                        PositionPanelNearTarget((RectTransform)questAreaButton.transform, new Vector2(0f, 120f));
-                        PointTutArrowAt((RectTransform)questAreaButton.transform, new Vector2(0f, 1f));
+                        PositionPanelNearTarget((RectTransform)startButton.transform, new Vector2(0f, 120f));
+                        PointTutArrowAt((RectTransform)startButton.transform, new Vector2(0f, 1f));
                     }
                     break;
                 case 1:
@@ -179,19 +188,11 @@ namespace TowerDefense.UI
                     }
                     break;
                 case 2:
-                    tutMessageText.text = "Head back to the map";
-                    if (questBackButton != null)
-                    {
-                        PositionPanelNearTarget((RectTransform)questBackButton.transform, new Vector2(0f, 120f));
-                        PointTutArrowAt((RectTransform)questBackButton.transform, new Vector2(0f, 1f));
-                    }
-                    break;
-                case 3:
                     tutMessageText.text = "Start your expedition!";
-                    if (startButton != null)
+                    if (questStartButton != null)
                     {
-                        PositionPanelNearTarget((RectTransform)startButton.transform, new Vector2(0f, 120f));
-                        PointTutArrowAt((RectTransform)startButton.transform, new Vector2(0f, 1f));
+                        PositionPanelNearTarget((RectTransform)questStartButton.transform, new Vector2(0f, 120f));
+                        PointTutArrowAt((RectTransform)questStartButton.transform, new Vector2(0f, 1f));
                     }
                     break;
             }
@@ -457,8 +458,8 @@ namespace TowerDefense.UI
         private void OnContinuousClicked()
         {
             if (labTutorialActive) return;
-            if (questTutorialActive && questTutorialStep != 3) return;
-            if (questTutorialActive && questTutorialStep == 3)
+            if (questTutorialActive && questTutorialStep != 2) return;
+            if (questTutorialActive && questTutorialStep == 2)
                 CompleteQuestTutorial();
             if (QuestManager.Instance != null && !QuestManager.Instance.HasActiveQuest)
             {
@@ -888,20 +889,22 @@ namespace TowerDefense.UI
         {
             UpdateQuestResources();
             RefreshQuestCards();
+            UpdateQuestStartButton();
             if (questPanel != null) questPanel.SetActive(true);
+        }
+
+        private void UpdateQuestStartButton()
+        {
+            if (questStartButton == null) return;
+            bool hasQuest = QuestManager.Instance != null && QuestManager.Instance.HasActiveQuest;
+            questStartButton.interactable = hasQuest;
         }
 
         private void OnQuestBackClicked()
         {
-            if (questTutorialActive && questTutorialStep < 2) return;
+            if (questTutorialActive) return;
             if (questPanel != null) questPanel.SetActive(false);
             ShowMap();
-
-            if (questTutorialActive && questTutorialStep == 2)
-            {
-                questTutorialStep = 3;
-                ShowQuestTutorialStep();
-            }
         }
 
         private void UpdateQuestResources()
@@ -1093,6 +1096,7 @@ namespace TowerDefense.UI
             if (QuestManager.Instance == null) return;
             QuestManager.Instance.AcceptQuest(questId);
             RefreshQuestCards();
+            UpdateQuestStartButton();
 
             if (questTutorialActive && questTutorialStep == 1)
             {
