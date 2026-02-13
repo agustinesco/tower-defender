@@ -37,7 +37,7 @@ namespace TowerDefense.Core
             "Enemies spawn from open path edges. Place towers near paths to defend! You can rebuild over existing paths, but not over mines",
             "Switch to the Towers tab",
             "Select a tower to place",
-            "Tap near the path to place your tower",
+            "Tap a slot to place your tower",
             "Tap Start Wave to send enemies!",
             "Your tower attacks automatically. You're ready!"
         };
@@ -132,8 +132,6 @@ namespace TowerDefense.Core
 
         private bool HasUnlockedTowers()
         {
-            if (!GameManager.Instance.UseFreeTowerPlacement)
-                return false;
             var tm = FindFirstObjectByType<TowerManager>();
             if (tm == null || tm.AllTowers == null || tm.AllTowers.Count == 0)
                 return false;
@@ -426,10 +424,9 @@ namespace TowerDefense.Core
                     break;
 
                 case TutorialStep.PlaceTower:
-                    // Point near a placed path tile
-                    var nearPathCoord = FindNearPathCoord();
-                    if (nearPathCoord.HasValue)
-                        PointArrowAtWorldPos(HexGrid.HexToWorld(nearPathCoord.Value) + Vector3.up * 2f, Vector2.down);
+                    var slotPos = FindNearestAvailableSlot();
+                    if (slotPos.HasValue)
+                        PointArrowAtWorldPos(slotPos.Value + Vector3.up * 2f, Vector2.down);
                     else
                         arrowImage.gameObject.SetActive(false);
                     break;
@@ -462,6 +459,31 @@ namespace TowerDefense.Core
                 {
                     bestDist = dist;
                     best = kvp.Key;
+                }
+            }
+            return best;
+        }
+
+        private Vector3? FindNearestAvailableSlot()
+        {
+            var gm = GameManager.Instance;
+            if (gm == null) return null;
+
+            Vector3 castle = HexGrid.HexToWorld(new HexCoord(0, 0));
+            float bestDist = float.MaxValue;
+            Vector3? best = null;
+
+            foreach (var kvp in gm.HexPieces)
+            {
+                foreach (var slot in kvp.Value.Slots)
+                {
+                    if (slot.IsOccupied) continue;
+                    float dist = Vector3.Distance(castle, slot.transform.position);
+                    if (dist < bestDist)
+                    {
+                        bestDist = dist;
+                        best = slot.transform.position;
+                    }
                 }
             }
             return best;

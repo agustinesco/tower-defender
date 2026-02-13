@@ -174,10 +174,10 @@ namespace TowerDefense.UI
             {
                 case 0:
                     tutMessageText.text = "Pick a quest to begin your expedition!";
-                    if (startButton != null)
+                    if (questAreaButton != null)
                     {
-                        PositionPanelNearTarget((RectTransform)startButton.transform, new Vector2(0f, 120f));
-                        PointTutArrowAt((RectTransform)startButton.transform, new Vector2(0f, 1f));
+                        PositionPanelNearTarget((RectTransform)questAreaButton.transform, new Vector2(0f, 120f));
+                        PointTutArrowAt((RectTransform)questAreaButton.transform, new Vector2(0f, 1f));
                     }
                     break;
                 case 1:

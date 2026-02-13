@@ -18,7 +18,7 @@ namespace TowerDefense.Core
         [SerializeField] private float buildGracePeriod = 30f;
 
         [Header("Tower Placement Mode")]
-        [SerializeField] private bool useFreeTowerPlacement = true;
+        [SerializeField] private bool useFreeTowerPlacement = false;
         public bool UseFreeTowerPlacement => useFreeTowerPlacement;
 
         [Header("Materials")]
@@ -444,7 +444,7 @@ namespace TowerDefense.Core
                 pieceHandUI.SetPieceProvider(pieceProvider);
 
                 // Set free tower mode BEFORE first RefreshHand so tabs are created correctly
-                if (useFreeTowerPlacement && towerManager != null)
+                if (towerManager != null)
                 {
                     pieceHandUI.SetFreeTowerMode(true);
                     pieceHandUI.SetAvailableTowers(towerManager.AllTowers);

@@ -1409,7 +1409,7 @@ MonoBehaviour:
   startingCurrency: 200
   startingTiles: 2
   buildGracePeriod: 30
-  useFreeTowerPlacement: 1
+  useFreeTowerPlacement: 0
   hexBaseMaterial: {fileID: 2100000, guid: 5d6cf16251e284a6793a8d631943c6ef, type: 2}
   hexPathMaterial: {fileID: 2100000, guid: b1b50c7d30ff04f3c904fbf3c70136b5, type: 2}
   castleMaterial: {fileID: 2100000, guid: 05ef35fb40867429488043aa062e5b35, type: 2}

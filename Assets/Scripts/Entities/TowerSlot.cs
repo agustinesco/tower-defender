@@ -36,7 +36,7 @@ namespace TowerDefense.Grid
             visualIndicator = MaterialCache.CreatePrimitive(PrimitiveType.Cylinder);
             visualIndicator.transform.SetParent(transform);
             visualIndicator.transform.localPosition = Vector3.zero;
-            visualIndicator.transform.localScale = new Vector3(1f, 0.1f, 1f);
+            visualIndicator.transform.localScale = new Vector3(4.8f, 0.1f, 4.8f);
 
             // Set color
             var renderer = visualIndicator.GetComponent<Renderer>();

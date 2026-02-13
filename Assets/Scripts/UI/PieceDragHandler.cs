@@ -49,6 +49,7 @@ namespace TowerDefense.UI
         // Tower placement visual helpers
         private List<GameObject> towerExclusionIndicators = new List<GameObject>();
         private List<GameObject> pathBorderLines = new List<GameObject>();
+        private List<GameObject> slotRangeIndicators = new List<GameObject>();
 
         private static readonly Color HighlightColor = new Color(0.3f, 0.9f, 0.3f);
 
@@ -171,8 +172,16 @@ namespace TowerDefense.UI
         private void ShowTowerPlacementHelpers()
         {
             HideTowerPlacementHelpers();
-            ShowExclusionRadii();
-            ShowPathBorders();
+            bool freeMode = GameManager.Instance != null && GameManager.Instance.UseFreeTowerPlacement;
+            if (freeMode)
+            {
+                ShowExclusionRadii();
+                ShowPathBorders();
+            }
+            else
+            {
+                ShowSlotRangeIndicators();
+            }
         }
 
         private void HideTowerPlacementHelpers()
@@ -190,6 +199,14 @@ namespace TowerDefense.UI
                     Destroy(pathBorderLines[i]);
             }
             pathBorderLines.Clear();
+
+            for (int i = 0; i < slotRangeIndicators.Count; i++)
+            {
+                if (slotRangeIndicators[i] != null)
+                    Destroy(slotRangeIndicators[i]);
+            }
+            slotRangeIndicators.Clear();
+            ResetSlotHighlights();
         }
 
         private void ShowExclusionRadii()
@@ -261,6 +278,51 @@ namespace TowerDefense.UI
             lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             lr.receiveShadows = false;
             return obj;
+        }
+
+        private void ShowSlotRangeIndicators()
+        {
+            var gm = GameManager.Instance;
+            if (gm == null || selectedTowerData == null) return;
+
+            float effectiveRange = Mathf.Max(selectedTowerData.range, 10.5f);
+
+            foreach (var kvp in gm.HexPieces)
+            {
+                foreach (var slot in kvp.Value.Slots)
+                {
+                    if (slot.IsOccupied) continue;
+
+                    // Range circle
+                    var indicator = MaterialCache.CreatePrimitive(PrimitiveType.Cylinder);
+                    indicator.transform.position = slot.transform.position + Vector3.up * 0.02f;
+                    indicator.transform.localScale = new Vector3(effectiveRange * 2f, 0.01f, effectiveRange * 2f);
+
+                    var rend = indicator.GetComponent<Renderer>();
+                    if (rend != null)
+                        rend.material = MaterialCache.CreateTransparent(new Color(1f, 1f, 0f), 0.15f);
+
+                    slotRangeIndicators.Add(indicator);
+
+                    // Highlight the slot indicator
+                    slot.SetHighlight(true);
+                }
+            }
+        }
+
+        private void ResetSlotHighlights()
+        {
+            var gm = GameManager.Instance;
+            if (gm == null) return;
+
+            foreach (var kvp in gm.HexPieces)
+            {
+                foreach (var slot in kvp.Value.Slots)
+                {
+                    if (!slot.IsOccupied)
+                        slot.SetHighlight(false);
+                }
+            }
         }
 
         private void ComputeValidTargets(ModificationType type)
@@ -363,6 +425,33 @@ namespace TowerDefense.UI
             if (tut != null && !tut.AllowTowerPlace())
                 return;
 
+            bool freeMode = GameManager.Instance != null && GameManager.Instance.UseFreeTowerPlacement;
+
+            if (!freeMode)
+            {
+                // Slot mode: raycast for TowerSlot on tap
+                if (!IsTapOnGameWorld()) return;
+
+                Ray ray = cam.ScreenPointToRay(Input.mousePosition);
+                if (Physics.Raycast(ray, out RaycastHit hit, 100f))
+                {
+                    var slot = hit.collider.GetComponent<TowerSlot>();
+                    if (slot != null && !slot.IsOccupied && cachedTowerManager != null)
+                    {
+                        cachedTowerManager.SelectSlot(slot);
+                        if (cachedTowerManager.BuildTower(selectedTowerData))
+                        {
+                            HideTowerPlacementHelpers();
+                            isTowerSelected = false;
+                            selectedTowerData = null;
+                            handUI.DeselectTowerCard();
+                        }
+                    }
+                }
+                return;
+            }
+
+            // Free mode: tap-delay logic for path snapping
             // Start tracking tap on touch/click begin
             if (IsTapOnGameWorld())
             {
@@ -396,12 +485,12 @@ namespace TowerDefense.UI
             // Delay met and finger still near start — place the tower
             towerTapPending = false;
 
-            Ray ray = cam.ScreenPointToRay(Input.mousePosition);
+            Ray freeRay = cam.ScreenPointToRay(Input.mousePosition);
             var groundPlane = new Plane(Vector3.up, Vector3.zero);
-            if (!groundPlane.Raycast(ray, out float enter))
+            if (!groundPlane.Raycast(freeRay, out float enter))
                 return;
 
-            Vector3 cursorWorld = ray.GetPoint(enter);
+            Vector3 cursorWorld = freeRay.GetPoint(enter);
 
             if (TrySnapToPath(cursorWorld, selectedTowerData, out Vector3 snappedPos))
             {
