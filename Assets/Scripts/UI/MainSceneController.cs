@@ -49,7 +49,8 @@ namespace TowerDefense.UI
         private static readonly Color[] LabTabActiveColors = {
             new Color(0.25f, 0.3f, 0.55f),
             new Color(0.55f, 0.25f, 0.25f),
-            new Color(0.25f, 0.45f, 0.3f)
+            new Color(0.25f, 0.45f, 0.3f),
+            new Color(0.45f, 0.35f, 0.2f)
         };
         private static readonly Color LabTabInactiveColor = new Color(0.18f, 0.18f, 0.22f);
 
@@ -519,9 +520,12 @@ namespace TowerDefense.UI
         {
             switch (tab)
             {
-                case 0: return upgrade.upgradeType != LabUpgradeType.TowerUnlock && upgrade.upgradeType != LabUpgradeType.ModUnlock;
+                case 0: return upgrade.upgradeType != LabUpgradeType.TowerUnlock
+                    && upgrade.upgradeType != LabUpgradeType.ModUnlock
+                    && upgrade.upgradeType != LabUpgradeType.PieceUnlock;
                 case 1: return upgrade.upgradeType == LabUpgradeType.TowerUnlock;
                 case 2: return upgrade.upgradeType == LabUpgradeType.ModUnlock;
+                case 3: return upgrade.upgradeType == LabUpgradeType.PieceUnlock;
                 default: return false;
             }
         }
