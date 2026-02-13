@@ -32,6 +32,8 @@ namespace TowerDefense.Grid
         private Dictionary<HexCoord, HexPieceData> map;
         private Dictionary<HexPieceType, HexPieceConfig> pieceConfigs;
         private HashSet<HexCoord> nonReplaceableCoords = new HashSet<HexCoord>();
+        private int maxPlacementDistance = -1; // -1 = no limit
+        private static readonly HexCoord origin = new HexCoord(0, 0);
 
         public PlacementValidator(Dictionary<HexCoord, HexPieceData> mapData, Dictionary<HexPieceType, HexPieceConfig> configs)
         {
@@ -49,6 +51,11 @@ namespace TowerDefense.Grid
             nonReplaceableCoords = coords ?? new HashSet<HexCoord>();
         }
 
+        public void SetMaxPlacementDistance(int distance)
+        {
+            maxPlacementDistance = distance;
+        }
+
         /// <summary>
         /// Finds all edges of placed pieces that face unoccupied neighbor hexes.
         /// Returns list of (coord, edge) pairs where coord is the existing piece and edge points to an empty neighbor.
@@ -63,6 +70,11 @@ namespace TowerDefense.Grid
                 foreach (int edge in piece.ConnectedEdges)
                 {
                     HexCoord neighbor = piece.Coord.GetNeighbor(edge);
+
+                    // Skip neighbors beyond the map boundary
+                    if (maxPlacementDistance >= 0 && origin.DistanceTo(neighbor) > maxPlacementDistance)
+                        continue;
+
                     if (!map.ContainsKey(neighbor))
                     {
                         openEdges.Add((piece.Coord, edge));
@@ -230,6 +242,10 @@ namespace TowerDefense.Grid
                 if (edge == entryEdge) continue; // Entry edge is already validated
 
                 HexCoord neighborCoord = candidateCoord.GetNeighbor(edge);
+
+                // Reject exit edges that point beyond the map boundary
+                if (maxPlacementDistance >= 0 && origin.DistanceTo(neighborCoord) > maxPlacementDistance)
+                    return false;
 
                 if (map.ContainsKey(neighborCoord))
                 {

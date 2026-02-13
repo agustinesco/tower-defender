@@ -28,6 +28,10 @@ namespace TowerDefense.Core
         private WaitForSeconds wait0_5s;
         private WaitForSeconds wait3_0s;
 
+        // Wave bonus config
+        private int waveBaseBonus = 50;
+        private int waveBonusPerWave = 10;
+
         // Reusable list for spawn path snapshots
         private readonly List<KeyValuePair<HexCoord, List<Vector3>>> pathsSnapshotReuse = new List<KeyValuePair<HexCoord, List<Vector3>>>();
 
@@ -36,6 +40,16 @@ namespace TowerDefense.Core
         public bool IsContinuousMode => isContinuousMode;
 
         public event System.Action OnWaveComplete;
+
+        public void SetMapConfig(MapConfig config)
+        {
+            if (config.waveData != null)
+                waveData = config.waveData;
+            if (config.continuousDifficulty != null)
+                difficultyConfig = config.continuousDifficulty;
+            waveBaseBonus = config.waveBaseBonus;
+            waveBonusPerWave = config.waveBonusPerWave;
+        }
 
         private void Start()
         {
@@ -225,7 +239,7 @@ namespace TowerDefense.Core
 
             waveInProgress = false;
             AudioManager.Instance?.PlayWaveComplete();
-            int waveBonus = 50 + (currentWave - 1) * 10;
+            int waveBonus = waveBaseBonus + (currentWave - 1) * waveBonusPerWave;
             GameManager.Instance?.AddCurrency(waveBonus);
             OnWaveComplete?.Invoke();
         }

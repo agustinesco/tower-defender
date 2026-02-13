@@ -82,12 +82,20 @@ namespace TowerDefense.Core
         [SerializeField] private float pathPriceScale = 1f;
         [SerializeField] private float pathPriceExponent = 1.5f;
 
+        // Runtime fields resolved from MapConfig or serialized defaults
+        private int[] activeZoneBoundaries;
+        private float activePathPriceScale;
+        private float activePathPriceExponent;
+        private float activeBuildGracePeriod;
+        private float activeZoneHealthStep;
+        private float activeZoneSpeedStep;
+
         private const int MineCost = 100;
         private const int LureCost = 75;
         private const float LureGoldMultiplier = 2f;
         private const int HasteCost = 400;
         private const int GoldenTouchCost = 500;
-        private const float ModContinuousDuration = 120f; // 2 minutes
+        private const float ModContinuousDuration = 120f;
 
         // Zone system — each entry is the max hex distance for that zone boundary
         [Header("Zone Boundaries (hex distances)")]
@@ -223,9 +231,12 @@ namespace TowerDefense.Core
             }
 
             // Initialize currency/lives in Awake so other scripts' Start() reads correct values
-            currentLives = startingLives + (LabManager.Instance != null ? LabManager.Instance.BonusStartingLives + LabManager.Instance.BonusMaxHP : 0);
+            var earlyConfig = ResolveMapConfig();
+            int baseLives = earlyConfig != null ? earlyConfig.startingLives : startingLives;
+            int baseCurrency = earlyConfig != null ? earlyConfig.startingCurrency : startingCurrency;
+            currentLives = baseLives + (LabManager.Instance != null ? LabManager.Instance.BonusStartingLives + LabManager.Instance.BonusMaxHP : 0);
             maxLives = currentLives;
-            currentCurrency = startingCurrency + (LabManager.Instance != null ? LabManager.Instance.BonusStartingGold : 0);
+            currentCurrency = baseCurrency + (LabManager.Instance != null ? LabManager.Instance.BonusStartingGold : 0);
         }
 
         private void Start()
@@ -238,6 +249,11 @@ namespace TowerDefense.Core
             {
                 Debug.LogError($"GameManager.Start FAILED: {e.Message}\n{e.StackTrace}");
             }
+        }
+
+        private MapConfig ResolveMapConfig()
+        {
+            return QuestManager.Instance?.GetActiveQuest()?.mapConfig;
         }
 
         private void InitializeGame()
@@ -274,12 +290,22 @@ namespace TowerDefense.Core
                 audioObj.AddComponent<AudioManager>();
             }
 
+            // Resolve MapConfig from active quest (null = use serialized defaults)
+            var mapConfig = ResolveMapConfig();
+            activeZoneBoundaries = mapConfig != null ? mapConfig.zoneBoundaries : zoneBoundaries;
+            activePathPriceScale = mapConfig != null ? mapConfig.pathPriceScale : pathPriceScale;
+            activePathPriceExponent = mapConfig != null ? mapConfig.pathPriceExponent : pathPriceExponent;
+            activeBuildGracePeriod = mapConfig != null ? mapConfig.buildGracePeriod : buildGracePeriod;
+            activeZoneHealthStep = mapConfig != null ? mapConfig.zoneHealthStep : 0.5f;
+            activeZoneSpeedStep = mapConfig != null ? mapConfig.zoneSpeedStep : 0.1f;
+
             // 1. Generate castle and starting path
             mapGenerator = new MapGenerator();
             mapData = mapGenerator.GenerateInitialCastle();
 
             // 1a. Auto-generate starting tiles
-            var startingPieces = mapGenerator.GenerateStartingPath(startingTiles);
+            int tileCount = mapConfig != null ? mapConfig.startingTiles : startingTiles;
+            var startingPieces = mapGenerator.GenerateStartingPath(tileCount);
             foreach (var piece in startingPieces)
             {
                 mapData[piece.Coord] = piece;
@@ -291,12 +317,32 @@ namespace TowerDefense.Core
                 CreateHexPiece(kvp.Value);
             }
 
-            // 1b. Generate hidden spawner positions (goblin camps disabled)
-            hiddenSpawners = new HashSet<HexCoord>();
+            // 1b. Generate hidden spawner positions
+            int spawnerCount = mapConfig != null ? mapConfig.hiddenSpawnerCount : 0;
+            if (spawnerCount > 0)
+            {
+                int spMinDist = mapConfig != null ? mapConfig.hiddenSpawnerMinDistance : 3;
+                int spMaxDist = mapConfig != null ? mapConfig.hiddenSpawnerMaxDistance : 7;
+                hiddenSpawners = mapGenerator.GenerateHiddenSpawners(spawnerCount, spMinDist, spMaxDist);
+            }
+            else
+            {
+                hiddenSpawners = new HashSet<HexCoord>();
+            }
 
             // 1c. Generate ore patches and create visual markers
-            int zone1Boundary = zoneBoundaries.Length > 0 ? zoneBoundaries[0] : 3;
-            orePatches = mapGenerator.GenerateOrePatches(minDistance: 2, maxDistance: 6, zoneBoundary: zone1Boundary);
+            if (mapConfig != null && mapConfig.zoneOreConfigs != null && mapConfig.zoneOreConfigs.Length > 0)
+            {
+                orePatches = mapGenerator.GenerateOrePatches(
+                    mapConfig.oreMinDistance, mapConfig.oreMaxDistance,
+                    activeZoneBoundaries, mapConfig.zoneOreConfigs,
+                    mapConfig.guaranteeStartingOre, mapConfig.guaranteedOreType);
+            }
+            else
+            {
+                int zone1Boundary = activeZoneBoundaries.Length > 0 ? activeZoneBoundaries[0] : 3;
+                orePatches = mapGenerator.GenerateOrePatches(minDistance: 2, maxDistance: 6, zoneBoundary: zone1Boundary);
+            }
             CreateOrePatchMarkers();
 
             // 1e. Create zone boundary visuals
@@ -306,6 +352,8 @@ namespace TowerDefense.Core
             var terrainObj = new GameObject("TerrainManager");
             terrainManager = terrainObj.AddComponent<TerrainManager>();
             terrainManager.Initialize();
+            if (activeZoneBoundaries != null && activeZoneBoundaries.Length > 0)
+                terrainManager.SetMaxPlacementDistance(activeZoneBoundaries[activeZoneBoundaries.Length - 1]);
             terrainManager.UpdateTerrain(mapData);
 
             // 2. Initialize piece provider (filter out locked pieces)
@@ -324,6 +372,8 @@ namespace TowerDefense.Core
 
             // 3. Initialize placement validator
             placementValidator = new PlacementValidator(mapData, pieceConfigLookup);
+            if (activeZoneBoundaries != null && activeZoneBoundaries.Length > 0)
+                placementValidator.SetMaxPlacementDistance(activeZoneBoundaries[activeZoneBoundaries.Length - 1]);
             UpdateNonReplaceableCoords();
 
             // 3b. Detect open-edge spawn points
@@ -361,6 +411,8 @@ namespace TowerDefense.Core
             if (waveManager != null)
             {
                 waveManager.OnWaveComplete += OnWaveComplete;
+                if (mapConfig != null)
+                    waveManager.SetMapConfig(mapConfig);
             }
 
             upgradeSelectionUI = FindFirstObjectByType<UpgradeSelectionUI>();
@@ -868,7 +920,7 @@ namespace TowerDefense.Core
         public int GetPieceCost(int baseCost)
         {
             if (newPathsPlaced <= 0) return baseCost;
-            return baseCost + Mathf.RoundToInt(pathPriceScale * Mathf.Pow(newPathsPlaced, pathPriceExponent));
+            return baseCost + Mathf.RoundToInt(activePathPriceScale * Mathf.Pow(newPathsPlaced, activePathPriceExponent));
         }
 
         public void AddCurrency(int amount)
@@ -1004,7 +1056,7 @@ namespace TowerDefense.Core
         private void StartBuildPhase()
         {
             buildPhaseActive = true;
-            buildTimer = buildGracePeriod;
+            buildTimer = activeBuildGracePeriod;
             SetSpawnIndicatorsVisible(true);
             OnBuildPhaseStarted?.Invoke();
         }
@@ -1407,12 +1459,13 @@ namespace TowerDefense.Core
         public int GetZone(HexCoord coord)
         {
             int dist = new HexCoord(0, 0).DistanceTo(coord);
-            for (int i = 0; i < zoneBoundaries.Length; i++)
+            var bounds = activeZoneBoundaries ?? zoneBoundaries;
+            for (int i = 0; i < bounds.Length; i++)
             {
-                if (dist <= zoneBoundaries[i])
+                if (dist <= bounds[i])
                     return i + 1;
             }
-            return zoneBoundaries.Length + 1;
+            return bounds.Length + 1;
         }
 
         public bool IsZoneUnlocked(int zone)
@@ -1432,16 +1485,17 @@ namespace TowerDefense.Core
 
         public float GetZoneHealthMultiplier(int zone)
         {
-            return 1f + (zone - 1) * 0.5f;
+            return 1f + (zone - 1) * activeZoneHealthStep;
         }
 
         public float GetZoneSpeedMultiplier(int zone)
         {
-            return 1f + (zone - 1) * 0.1f;
+            return 1f + (zone - 1) * activeZoneSpeedStep;
         }
 
         private void CreateZoneRings()
         {
+            var bounds = activeZoneBoundaries ?? zoneBoundaries;
             Color[] ringColors = new Color[]
             {
                 new Color(0.8f, 0.8f, 0.2f, 0.6f),  // yellow
@@ -1450,9 +1504,17 @@ namespace TowerDefense.Core
                 new Color(0.6f, 0.1f, 0.1f, 0.6f),  // dark red
             };
 
-            for (int i = 0; i < zoneBoundaries.Length; i++)
+            for (int i = 0; i < bounds.Length; i++)
             {
-                float worldRadius = 2f * HexGrid.InnerRadius * zoneBoundaries[i];
+                bool isOuterBoundary = i == bounds.Length - 1;
+
+                if (isOuterBoundary)
+                {
+                    CreateHexBoundaryRing(bounds[i]);
+                    continue;
+                }
+
+                float worldRadius = 2f * HexGrid.InnerRadius * bounds[i];
                 Color color = ringColors[Mathf.Min(i, ringColors.Length - 1)];
 
                 var ringObj = new GameObject($"ZoneRing_{i + 2}");
@@ -1461,10 +1523,9 @@ namespace TowerDefense.Core
                 var lr = ringObj.AddComponent<LineRenderer>();
                 lr.loop = true;
                 lr.useWorldSpace = true;
+                lr.positionCount = 60;
                 lr.startWidth = 1.5f;
                 lr.endWidth = 1.5f;
-                lr.positionCount = 60;
-
                 lr.material = MaterialCache.CreateUnlit(color);
 
                 for (int p = 0; p < 60; p++)
@@ -1479,6 +1540,106 @@ namespace TowerDefense.Core
 
                 zoneRings.Add(ringObj);
             }
+        }
+
+        private void CreateHexBoundaryRing(int maxDist)
+        {
+            var origin = new HexCoord(0, 0);
+            var segments = new List<(Vector3 a, Vector3 b)>();
+
+            for (int q = -maxDist; q <= maxDist; q++)
+            {
+                for (int r = -maxDist; r <= maxDist; r++)
+                {
+                    var hex = new HexCoord(q, r);
+                    if (origin.DistanceTo(hex) != maxDist) continue;
+
+                    var corners = HexGrid.GetHexCorners(hex);
+                    for (int e = 0; e < 6; e++)
+                    {
+                        var neighbor = hex.GetNeighbor(e);
+                        if (origin.DistanceTo(neighbor) > maxDist)
+                        {
+                            var a = corners[e];
+                            var b = corners[(e + 1) % 6];
+                            a.y = 0.15f;
+                            b.y = 0.15f;
+                            segments.Add((a, b));
+                        }
+                    }
+                }
+            }
+
+            if (segments.Count == 0) return;
+
+            // Build adjacency: map each vertex position to its segment indices
+            var adjacency = new Dictionary<long, List<int>>();
+            for (int i = 0; i < segments.Count; i++)
+            {
+                long keyA = BoundaryPosKey(segments[i].a);
+                long keyB = BoundaryPosKey(segments[i].b);
+                if (!adjacency.TryGetValue(keyA, out var listA))
+                {
+                    listA = new List<int>();
+                    adjacency[keyA] = listA;
+                }
+                listA.Add(i);
+                if (!adjacency.TryGetValue(keyB, out var listB))
+                {
+                    listB = new List<int>();
+                    adjacency[keyB] = listB;
+                }
+                listB.Add(i);
+            }
+
+            // Chain segments into an ordered closed path
+            var points = new List<Vector3>();
+            var used = new HashSet<int>();
+            used.Add(0);
+            points.Add(segments[0].a);
+            var currentEnd = segments[0].b;
+
+            while (used.Count < segments.Count)
+            {
+                points.Add(currentEnd);
+                long key = BoundaryPosKey(currentEnd);
+                if (!adjacency.TryGetValue(key, out var neighbors)) break;
+                bool found = false;
+                for (int n = 0; n < neighbors.Count; n++)
+                {
+                    int idx = neighbors[n];
+                    if (used.Contains(idx)) continue;
+                    used.Add(idx);
+                    if (BoundaryPosKey(segments[idx].a) == key)
+                        currentEnd = segments[idx].b;
+                    else
+                        currentEnd = segments[idx].a;
+                    found = true;
+                    break;
+                }
+                if (!found) break;
+            }
+
+            var ringObj = new GameObject("BoundaryRing");
+            ringObj.transform.position = Vector3.zero;
+            var lr = ringObj.AddComponent<LineRenderer>();
+            lr.loop = true;
+            lr.useWorldSpace = true;
+            lr.startWidth = 3f;
+            lr.endWidth = 3f;
+            lr.material = MaterialCache.CreateUnlit(new Color(0.8f, 0.15f, 0.15f, 1f));
+            lr.positionCount = points.Count;
+            for (int i = 0; i < points.Count; i++)
+                lr.SetPosition(i, points[i]);
+
+            zoneRings.Add(ringObj);
+        }
+
+        private static long BoundaryPosKey(Vector3 v)
+        {
+            int x = Mathf.RoundToInt(v.x * 100);
+            int z = Mathf.RoundToInt(v.z * 100);
+            return ((long)x << 32) | (uint)z;
         }
 
         private void CollectMiningResources()

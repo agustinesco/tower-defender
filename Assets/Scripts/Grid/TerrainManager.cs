@@ -12,7 +12,11 @@ namespace TowerDefense.Grid
         private const float PerlinScale = 0.15f;
 
         private static readonly Color BaseColor = new Color(0.18f, 0.22f, 0.12f);
+        private static readonly Color UnbuildableColor = new Color(0.2f, 0.2f, 0.2f);
         private static readonly Color GroundColor = new Color(0.12f, 0.10f, 0.08f);
+
+        private static readonly HexCoord Origin = new HexCoord(0, 0);
+        private int maxPlacementDistance = -1;
 
         private Dictionary<HexCoord, GameObject> terrainHexes = new Dictionary<HexCoord, GameObject>();
         private Mesh sharedHexMesh;
@@ -41,6 +45,11 @@ namespace TowerDefense.Grid
             groundPlane.transform.position = new Vector3(0f, GroundPlaneY, 0f);
             groundPlane.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
             groundPlane.transform.localScale = new Vector3(GroundPlaneSize, GroundPlaneSize, 1f);
+        }
+
+        public void SetMaxPlacementDistance(int distance)
+        {
+            maxPlacementDistance = distance;
         }
 
         public void UpdateTerrain(Dictionary<HexCoord, HexPieceData> mapData)
@@ -89,8 +98,9 @@ namespace TowerDefense.Grid
                 obj.transform.position = new Vector3(worldPos.x, TerrainHexY, worldPos.z);
 
                 // Apply per-hex color via MaterialPropertyBlock
+                bool unbuildable = maxPlacementDistance >= 0 && Origin.DistanceTo(coord) > maxPlacementDistance;
                 var block = MaterialCache.GetPropertyBlock();
-                block.SetColor(ColorID, GetPerlinColor(coord));
+                block.SetColor(ColorID, unbuildable ? UnbuildableColor : GetPerlinColor(coord));
                 mr.SetPropertyBlock(block);
                 MaterialCache.ReturnPropertyBlock(block);
 

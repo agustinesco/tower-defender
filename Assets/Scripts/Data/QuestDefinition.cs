@@ -22,5 +22,6 @@ namespace TowerDefense.Data
         public int rewardAmount;
         public string prerequisiteQuestId;  // Quest that must be completed to unlock this one (empty = always unlocked)
         public string unlockLabUpgrade;     // Lab upgrade name to force-unlock on completion (empty = none)
+        public MapConfig mapConfig;         // null = use GameManager defaults
     }
 }

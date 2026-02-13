@@ -223,11 +223,24 @@ namespace TowerDefense.Grid
 
         public Dictionary<HexCoord, OrePatch> GenerateOrePatches(int minDistance = 2, int maxDistance = 6, int zoneBoundary = 3)
         {
+            var configs = new ZoneOreConfig[]
+            {
+                new ZoneOreConfig { resourceTypes = new[] { ResourceType.IronOre, ResourceType.Gems }, nodeCount = 6 },
+                new ZoneOreConfig { resourceTypes = new[] { ResourceType.Florpus, ResourceType.Adamantite }, nodeCount = 4 }
+            };
+            return GenerateOrePatches(minDistance, maxDistance, new[] { zoneBoundary }, configs, true, ResourceType.IronOre);
+        }
+
+        public Dictionary<HexCoord, OrePatch> GenerateOrePatches(
+            int minDistance, int maxDistance, int[] zoneBoundaries,
+            ZoneOreConfig[] zoneOreConfigs,
+            bool guaranteeStartingOre, ResourceType guaranteedOreType)
+        {
             orePatches.Clear();
             var origin = new HexCoord(0, 0);
-            var innerCandidates = new List<HexCoord>();
-            var outerCandidates = new List<HexCoord>();
 
+            // Collect all candidate hexes in [minDistance, maxDistance] that aren't occupied or spawners
+            var allCandidates = new List<HexCoord>();
             for (int q = -maxDistance; q <= maxDistance; q++)
             {
                 for (int r = -maxDistance; r <= maxDistance; r++)
@@ -238,45 +251,75 @@ namespace TowerDefense.Grid
                         && !pieces.ContainsKey(coord)
                         && !hiddenSpawners.Contains(coord))
                     {
-                        if (dist <= zoneBoundary)
-                            innerCandidates.Add(coord);
-                        else
-                            outerCandidates.Add(coord);
+                        allCandidates.Add(coord);
                     }
                 }
             }
 
-            // Guarantee one IronOre adjacent to starting tiles
-            int guaranteedIron = PlaceGuaranteedIronNode(innerCandidates);
+            // Bucket candidates by zone using zoneBoundaries
+            // Zone i (1-indexed): dist <= zoneBoundaries[i-1]
+            // Last bucket: dist > last boundary
+            int zoneCount = zoneBoundaries.Length + 1;
+            var zoneBuckets = new List<List<HexCoord>>();
+            for (int i = 0; i < zoneCount; i++)
+                zoneBuckets.Add(new List<HexCoord>());
 
-            // Shuffle both lists
-            Shuffle(innerCandidates);
-            Shuffle(outerCandidates);
+            foreach (var coord in allCandidates)
+            {
+                int dist = origin.DistanceTo(coord);
+                int zoneIndex = zoneBoundaries.Length; // default: beyond last boundary
+                for (int i = 0; i < zoneBoundaries.Length; i++)
+                {
+                    if (dist <= zoneBoundaries[i])
+                    {
+                        zoneIndex = i;
+                        break;
+                    }
+                }
+                zoneBuckets[zoneIndex].Add(coord);
+            }
 
-            // Zone 1 (inner): IronOre and Gems only, 6 nodes (minus guaranteed)
-            ResourceType[] innerTypes = { ResourceType.IronOre, ResourceType.Gems };
-            int innerCount = 6 - guaranteedIron;
-            PlaceOrePatches(innerCandidates, innerTypes, innerCount, origin, minDistance, zoneBoundary);
+            // Guarantee one ore node adjacent to path in zone 1
+            int guaranteedCount = 0;
+            if (guaranteeStartingOre && zoneBuckets.Count > 0)
+            {
+                guaranteedCount = PlaceGuaranteedOreNode(zoneBuckets[0], guaranteedOreType);
+            }
 
-            // Zone 2+ (outer): Florpus and Adamantite only, 4 nodes
-            ResourceType[] outerTypes = { ResourceType.Florpus, ResourceType.Adamantite };
-            int outerCount = 4;
-            PlaceOrePatches(outerCandidates, outerTypes, outerCount, origin, zoneBoundary + 1, maxDistance);
+            // For each zone with a ZoneOreConfig entry, place ore patches
+            if (zoneOreConfigs != null)
+            {
+                for (int i = 0; i < zoneOreConfigs.Length && i < zoneCount; i++)
+                {
+                    var config = zoneOreConfigs[i];
+                    if (config == null || config.resourceTypes == null || config.resourceTypes.Length == 0)
+                        continue;
+
+                    Shuffle(zoneBuckets[i]);
+
+                    int count = config.nodeCount;
+                    if (i == 0) count -= guaranteedCount; // Subtract guaranteed node from zone 1
+
+                    int zoneMinDist = i == 0 ? minDistance : zoneBoundaries[i - 1] + 1;
+                    int zoneMaxDist = i < zoneBoundaries.Length ? zoneBoundaries[i] : maxDistance;
+
+                    PlaceOrePatches(zoneBuckets[i], config.resourceTypes, count, origin, zoneMinDist, zoneMaxDist);
+                }
+            }
 
             return new Dictionary<HexCoord, OrePatch>(orePatches);
         }
 
-        private int PlaceGuaranteedIronNode(List<HexCoord> innerCandidates)
+        private int PlaceGuaranteedOreNode(List<HexCoord> candidates, ResourceType oreType)
         {
             // Find empty hexes reachable from an open edge of the existing path.
-            // An open edge is a connected edge that points to an empty hex.
             var reachable = new List<HexCoord>();
             foreach (var kvp in pieces)
             {
                 foreach (int edge in kvp.Value.ConnectedEdges)
                 {
                     HexCoord neighbor = kvp.Value.Coord.GetNeighbor(edge);
-                    if (!pieces.ContainsKey(neighbor) && innerCandidates.Contains(neighbor))
+                    if (!pieces.ContainsKey(neighbor) && candidates.Contains(neighbor))
                     {
                         if (!reachable.Contains(neighbor))
                             reachable.Add(neighbor);
@@ -287,8 +330,8 @@ namespace TowerDefense.Grid
             if (reachable.Count == 0) return 0;
 
             var chosen = reachable[random.Next(reachable.Count)];
-            orePatches[chosen] = new OrePatch(chosen, ResourceType.IronOre, 1);
-            innerCandidates.Remove(chosen);
+            orePatches[chosen] = new OrePatch(chosen, oreType, 1);
+            candidates.Remove(chosen);
             GuaranteedOreCoord = chosen;
             return 1;
         }

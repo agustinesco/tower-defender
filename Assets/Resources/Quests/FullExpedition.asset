@@ -28,4 +28,5 @@ MonoBehaviour:
   rewardResource: 3
   rewardAmount: 5
   prerequisiteQuestId: iron_rush
-  unlockLabUpgrade: 
+  unlockLabUpgrade:
+  mapConfig: {fileID: 11400000, guid: 7c207f17dcf544c24883339922525a2a, type: 2}
