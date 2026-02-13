@@ -1507,58 +1507,33 @@ namespace TowerDefense.Core
             for (int i = 0; i < bounds.Length; i++)
             {
                 bool isOuterBoundary = i == bounds.Length - 1;
+                Color color = isOuterBoundary
+                    ? new Color(0.8f, 0.15f, 0.15f, 1f)
+                    : ringColors[Mathf.Min(i, ringColors.Length - 1)];
+                float width = isOuterBoundary ? 3f : 1.5f;
+                string name = isOuterBoundary ? "BoundaryRing" : $"ZoneRing_{i + 2}";
 
-                if (isOuterBoundary)
-                {
-                    CreateHexBoundaryRing(bounds[i]);
-                    continue;
-                }
-
-                float worldRadius = 2f * HexGrid.InnerRadius * bounds[i];
-                Color color = ringColors[Mathf.Min(i, ringColors.Length - 1)];
-
-                var ringObj = new GameObject($"ZoneRing_{i + 2}");
-                ringObj.transform.position = Vector3.zero;
-
-                var lr = ringObj.AddComponent<LineRenderer>();
-                lr.loop = true;
-                lr.useWorldSpace = true;
-                lr.positionCount = 60;
-                lr.startWidth = 1.5f;
-                lr.endWidth = 1.5f;
-                lr.material = MaterialCache.CreateUnlit(color);
-
-                for (int p = 0; p < 60; p++)
-                {
-                    float angle = p * (360f / 60f) * Mathf.Deg2Rad;
-                    lr.SetPosition(p, new Vector3(
-                        Mathf.Cos(angle) * worldRadius,
-                        0.15f,
-                        Mathf.Sin(angle) * worldRadius
-                    ));
-                }
-
-                zoneRings.Add(ringObj);
+                CreateHexZoneRing(bounds[i], color, width, name);
             }
         }
 
-        private void CreateHexBoundaryRing(int maxDist)
+        private void CreateHexZoneRing(int distance, Color color, float width, string name)
         {
             var origin = new HexCoord(0, 0);
             var segments = new List<(Vector3 a, Vector3 b)>();
 
-            for (int q = -maxDist; q <= maxDist; q++)
+            for (int q = -distance; q <= distance; q++)
             {
-                for (int r = -maxDist; r <= maxDist; r++)
+                for (int r = -distance; r <= distance; r++)
                 {
                     var hex = new HexCoord(q, r);
-                    if (origin.DistanceTo(hex) != maxDist) continue;
+                    if (origin.DistanceTo(hex) != distance) continue;
 
                     var corners = HexGrid.GetHexCorners(hex);
                     for (int e = 0; e < 6; e++)
                     {
                         var neighbor = hex.GetNeighbor(e);
-                        if (origin.DistanceTo(neighbor) > maxDist)
+                        if (origin.DistanceTo(neighbor) > distance)
                         {
                             var a = corners[e];
                             var b = corners[(e + 1) % 6];
@@ -1576,8 +1551,8 @@ namespace TowerDefense.Core
             var adjacency = new Dictionary<long, List<int>>();
             for (int i = 0; i < segments.Count; i++)
             {
-                long keyA = BoundaryPosKey(segments[i].a);
-                long keyB = BoundaryPosKey(segments[i].b);
+                long keyA = HexEdgePosKey(segments[i].a);
+                long keyB = HexEdgePosKey(segments[i].b);
                 if (!adjacency.TryGetValue(keyA, out var listA))
                 {
                     listA = new List<int>();
@@ -1602,7 +1577,7 @@ namespace TowerDefense.Core
             while (used.Count < segments.Count)
             {
                 points.Add(currentEnd);
-                long key = BoundaryPosKey(currentEnd);
+                long key = HexEdgePosKey(currentEnd);
                 if (!adjacency.TryGetValue(key, out var neighbors)) break;
                 bool found = false;
                 for (int n = 0; n < neighbors.Count; n++)
@@ -1610,7 +1585,7 @@ namespace TowerDefense.Core
                     int idx = neighbors[n];
                     if (used.Contains(idx)) continue;
                     used.Add(idx);
-                    if (BoundaryPosKey(segments[idx].a) == key)
+                    if (HexEdgePosKey(segments[idx].a) == key)
                         currentEnd = segments[idx].b;
                     else
                         currentEnd = segments[idx].a;
@@ -1620,14 +1595,14 @@ namespace TowerDefense.Core
                 if (!found) break;
             }
 
-            var ringObj = new GameObject("BoundaryRing");
+            var ringObj = new GameObject(name);
             ringObj.transform.position = Vector3.zero;
             var lr = ringObj.AddComponent<LineRenderer>();
             lr.loop = true;
             lr.useWorldSpace = true;
-            lr.startWidth = 3f;
-            lr.endWidth = 3f;
-            lr.material = MaterialCache.CreateUnlit(new Color(0.8f, 0.15f, 0.15f, 1f));
+            lr.startWidth = width;
+            lr.endWidth = width;
+            lr.material = MaterialCache.CreateUnlit(color);
             lr.positionCount = points.Count;
             for (int i = 0; i < points.Count; i++)
                 lr.SetPosition(i, points[i]);
@@ -1635,7 +1610,7 @@ namespace TowerDefense.Core
             zoneRings.Add(ringObj);
         }
 
-        private static long BoundaryPosKey(Vector3 v)
+        private static long HexEdgePosKey(Vector3 v)
         {
             int x = Mathf.RoundToInt(v.x * 100);
             int z = Mathf.RoundToInt(v.z * 100);
