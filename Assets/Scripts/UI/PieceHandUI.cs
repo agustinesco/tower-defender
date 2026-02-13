@@ -77,6 +77,9 @@ namespace TowerDefense.UI
             public bool IsTowerCard;
             public TowerData TowerData;
             public bool IsLocked;
+            // Cached values to avoid per-frame string allocations
+            public int LastDisplayedCost = -1;
+            public int LastDisplayedCooldown = -1;
         }
 
         private CanvasScaler parentCanvasScaler;
@@ -536,10 +539,17 @@ namespace TowerDefense.UI
                 // Path-specific updates (cooldowns, escalating cost)
                 if (activeTab == HandTab.Paths && pieceProvider != null && card.UI.CooldownOverlay != null)
                 {
-                    // Update escalating path cost label
+                    // Update escalating path cost label only when changed
                     var config = pieceProvider.GetConfig(i);
                     if (config != null && gm != null)
-                        card.UI.CostLabel.text = $"{gm.GetPieceCost(config.placementCost)}";
+                    {
+                        int currentCost = gm.GetPieceCost(config.placementCost);
+                        if (currentCost != card.LastDisplayedCost)
+                        {
+                            card.LastDisplayedCost = currentCost;
+                            card.UI.CostLabel.text = $"{currentCost}";
+                        }
+                    }
 
                     float fraction = pieceProvider.GetCooldownFraction(i);
                     bool onCooldown = fraction > 0f;
@@ -549,12 +559,20 @@ namespace TowerDefense.UI
                     if (onCooldown)
                     {
                         card.UI.SetCooldownFill(fraction);
-                        float remaining = pieceProvider.GetCooldownRemaining(i);
-                        card.UI.SetCooldownText(Mathf.CeilToInt(remaining).ToString());
+                        int cooldownSec = Mathf.CeilToInt(pieceProvider.GetCooldownRemaining(i));
+                        if (cooldownSec != card.LastDisplayedCooldown)
+                        {
+                            card.LastDisplayedCooldown = cooldownSec;
+                            card.UI.SetCooldownText(cooldownSec.ToString());
+                        }
                     }
                     else
                     {
-                        card.UI.SetCooldownText(null);
+                        if (card.LastDisplayedCooldown != 0)
+                        {
+                            card.LastDisplayedCooldown = 0;
+                            card.UI.SetCooldownText(null);
+                        }
                     }
                 }
             }

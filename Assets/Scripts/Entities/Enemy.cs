@@ -361,15 +361,8 @@ namespace TowerDefense.Entities
             int count = isBoss ? 12 : 6;
             for (int i = 0; i < count; i++)
             {
-                var obj = Core.MaterialCache.CreatePrimitive(PrimitiveType.Sphere);
-                obj.name = "DeathParticle";
-                obj.transform.position = transform.position;
                 float size = Random.Range(0.2f, 0.5f);
-                obj.transform.localScale = Vector3.one * size;
-                var r = obj.GetComponent<Renderer>();
-                if (r != null)
-                    r.material = Core.MaterialCache.CreateUnlit(enemyColor);
-                obj.AddComponent<DeathBurstParticle>().Initialize(enemyColor);
+                DeathBurstParticle.GetFromPool(transform.position, size, enemyColor);
             }
         }
 
@@ -425,7 +418,7 @@ namespace TowerDefense.Entities
             var gm = GameManager.Instance;
             if (gm == null) return;
 
-            var wm = Object.FindFirstObjectByType<Core.WaveManager>();
+            var wm = gm.WaveManagerRef;
             for (int i = 0; i < 3; i++)
             {
                 var path = new List<Vector3>(remaining);
@@ -438,12 +431,8 @@ namespace TowerDefense.Entities
 
         private void SpawnCurrencyPopup(int amount)
         {
-            var popupObj = new GameObject("CurrencyPopup");
-            popupObj.transform.position = transform.position + Vector3.up * 2f;
-
-            var popup = popupObj.AddComponent<CurrencyPopup>();
             Sprite goldSprite = GameManager.Instance != null ? GameManager.Instance.GoldSprite : null;
-            popup.Initialize(amount, goldSprite);
+            CurrencyPopup.GetFromPool(transform.position + Vector3.up * 2f, amount, goldSprite);
         }
 
         private void ReachCastle()
@@ -456,6 +445,8 @@ namespace TowerDefense.Entities
 
     public class DeathBurstParticle : MonoBehaviour
     {
+        private static readonly Queue<DeathBurstParticle> pool = new Queue<DeathBurstParticle>();
+
         private Vector3 velocity;
         private float lifetime = 0.35f;
         private float timer;
@@ -463,6 +454,41 @@ namespace TowerDefense.Entities
         private Renderer rend;
         private MaterialPropertyBlock propBlock;
         private Color baseColor;
+        private Material cachedMaterial;
+
+        public static DeathBurstParticle GetFromPool(Vector3 position, float size, Color color)
+        {
+            DeathBurstParticle p = null;
+            while (pool.Count > 0)
+            {
+                p = pool.Dequeue();
+                if (p != null) break;
+                p = null;
+            }
+
+            if (p == null)
+            {
+                var obj = Core.MaterialCache.CreatePrimitive(PrimitiveType.Sphere);
+                obj.name = "DeathParticle";
+                p = obj.AddComponent<DeathBurstParticle>();
+                p.rend = obj.GetComponent<Renderer>();
+                p.cachedMaterial = Core.MaterialCache.CreateUnlit(color);
+                if (p.rend != null) p.rend.sharedMaterial = p.cachedMaterial;
+                p.propBlock = Core.MaterialCache.GetPropertyBlock();
+            }
+
+            p.transform.position = position;
+            p.transform.localScale = Vector3.one * size;
+            p.gameObject.SetActive(true);
+            p.Initialize(color);
+            return p;
+        }
+
+        private void ReturnToPool()
+        {
+            gameObject.SetActive(false);
+            pool.Enqueue(this);
+        }
 
         public void Initialize(Color color)
         {
@@ -471,10 +497,11 @@ namespace TowerDefense.Entities
                 Random.Range(1f, 4f),
                 Random.Range(-5f, 5f)
             );
+            timer = 0f;
             startScale = transform.localScale;
-            rend = GetComponent<Renderer>();
             baseColor = color;
-            propBlock = Core.MaterialCache.GetPropertyBlock();
+            if (cachedMaterial != null)
+                cachedMaterial.color = color;
         }
 
         private void Update()
@@ -482,8 +509,7 @@ namespace TowerDefense.Entities
             timer += Time.deltaTime;
             if (timer >= lifetime)
             {
-                Cleanup();
-                Destroy(gameObject);
+                ReturnToPool();
                 return;
             }
 
@@ -500,20 +526,15 @@ namespace TowerDefense.Entities
             }
         }
 
-        private void Cleanup()
+        private void OnDestroy()
         {
-            if (rend != null && rend.sharedMaterial != null)
-                Destroy(rend.sharedMaterial);
+            if (cachedMaterial != null)
+                Destroy(cachedMaterial);
             if (propBlock != null)
             {
                 Core.MaterialCache.ReturnPropertyBlock(propBlock);
                 propBlock = null;
             }
-        }
-
-        private void OnDestroy()
-        {
-            Cleanup();
         }
     }
 }

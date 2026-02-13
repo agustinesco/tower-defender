@@ -1,10 +1,13 @@
 using UnityEngine;
+using System.Collections.Generic;
 using TowerDefense.Data;
 
 namespace TowerDefense.UI
 {
     public class ResourcePopup : MonoBehaviour
     {
+        private static readonly Queue<ResourcePopup> pool = new Queue<ResourcePopup>();
+
         private float duration = 2.5f;
         private float timer;
         private Vector3 startPos;
@@ -12,34 +15,69 @@ namespace TowerDefense.UI
         private Vector3 midPos;
         private TextMesh textMesh;
         private Color textColor;
+        private bool initialized;
+
+        public static ResourcePopup GetFromPool(int amount, ResourceType resourceType, Vector3 from, Vector3 to)
+        {
+            ResourcePopup p = null;
+            while (pool.Count > 0)
+            {
+                p = pool.Dequeue();
+                if (p != null) break;
+                p = null;
+            }
+
+            if (p == null)
+            {
+                var obj = new GameObject("ResourcePopup");
+                p = obj.AddComponent<ResourcePopup>();
+            }
+
+            p.gameObject.SetActive(true);
+            p.Initialize(amount, resourceType, from, to);
+            return p;
+        }
+
+        private void ReturnToPool()
+        {
+            gameObject.SetActive(false);
+            pool.Enqueue(this);
+        }
 
         public void Initialize(int amount, ResourceType resourceType, Vector3 from, Vector3 to)
         {
+            timer = 0f;
             startPos = from;
             endPos = to;
             midPos = Vector3.Lerp(startPos, endPos, 0.5f) + Vector3.up * 8f;
             transform.position = startPos;
             transform.localScale = Vector3.one * 2f;
 
-            var textObj = new GameObject("Text");
-            textObj.transform.SetParent(transform);
-            textObj.transform.localPosition = Vector3.zero;
-
-            textMesh = textObj.AddComponent<TextMesh>();
-            textMesh.text = $"+{amount} {resourceType}";
-            textMesh.fontSize = 48;
-            textMesh.characterSize = 0.3f;
-            textMesh.anchor = TextAnchor.MiddleCenter;
-            textMesh.alignment = TextAlignment.Center;
-            textMesh.fontStyle = FontStyle.Bold;
-
             textColor = Core.GameManager.Instance.GetResourceColor(resourceType);
+
+            if (!initialized)
+            {
+                initialized = true;
+
+                var textObj = new GameObject("Text");
+                textObj.transform.SetParent(transform);
+                textObj.transform.localPosition = Vector3.zero;
+
+                textMesh = textObj.AddComponent<TextMesh>();
+                textMesh.fontSize = 48;
+                textMesh.characterSize = 0.3f;
+                textMesh.anchor = TextAnchor.MiddleCenter;
+                textMesh.alignment = TextAlignment.Center;
+                textMesh.fontStyle = FontStyle.Bold;
+
+                var textRenderer = textObj.GetComponent<MeshRenderer>();
+                textRenderer.sortingOrder = 100;
+
+                gameObject.AddComponent<BillboardSprite>();
+            }
+
+            textMesh.text = $"+{amount} {resourceType}";
             textMesh.color = textColor;
-
-            var textRenderer = textObj.GetComponent<MeshRenderer>();
-            textRenderer.sortingOrder = 100;
-
-            gameObject.AddComponent<BillboardSprite>();
         }
 
         private void Update()
@@ -76,7 +114,7 @@ namespace TowerDefense.UI
             }
 
             if (timer >= duration)
-                Destroy(gameObject);
+                ReturnToPool();
         }
     }
 }

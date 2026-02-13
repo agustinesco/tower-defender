@@ -57,6 +57,7 @@ namespace TowerDefense.Core
         private Dictionary<HexCoord, int> spawnPointEdges = new Dictionary<HexCoord, int>();
         private MapGenerator mapGenerator;
         private WaveManager waveManager;
+        public WaveManager WaveManagerRef => waveManager;
         private UpgradeSelectionUI upgradeSelectionUI;
         private TowerManager towerManager;
 
@@ -907,9 +908,7 @@ namespace TowerDefense.Core
 
             // Castle damage popup at castle position
             Vector3 castlePos = HexGrid.HexToWorld(new HexCoord(0, 0)) + Vector3.up * 3f;
-            var popupObj = new GameObject("CastleDamagePopup");
-            popupObj.transform.position = castlePos;
-            popupObj.AddComponent<UI.CastleDamagePopup>().Initialize();
+            UI.CastleDamagePopup.GetFromPool(castlePos);
 
             if (currentLives <= 0)
             {
@@ -1500,8 +1499,7 @@ namespace TowerDefense.Core
 
             Vector3 mineWorldPos = HexGrid.HexToWorld(coord) + Vector3.up * 2f;
             Vector3 castleWorldPos = HexGrid.HexToWorld(new HexCoord(0, 0)) + Vector3.up * 2f;
-            var popup = new GameObject("ResourcePopup").AddComponent<UI.ResourcePopup>();
-            popup.Initialize(yield, patch.ResourceType, mineWorldPos, castleWorldPos);
+            UI.ResourcePopup.GetFromPool(yield, patch.ResourceType, mineWorldPos, castleWorldPos);
 
             Debug.Log($"Mined {yield} {patch.ResourceType} from outpost at {coord}");
         }

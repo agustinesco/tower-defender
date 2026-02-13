@@ -40,6 +40,15 @@ namespace TowerDefense.Entities
         private GameObject visual;
         private Material visualMaterial;
 
+        // Cached gradient to avoid per-shot allocations
+        private Gradient cachedGradient;
+        private readonly GradientColorKey[] cachedColorKeys = new GradientColorKey[2];
+        private readonly GradientAlphaKey[] cachedAlphaKeys = new GradientAlphaKey[]
+        {
+            new GradientAlphaKey(1.0f, 0.0f),
+            new GradientAlphaKey(0.0f, 1.0f)
+        };
+
         public static Projectile GetFromPool(Vector3 position)
         {
             while (pool.Count > 0)
@@ -156,19 +165,13 @@ namespace TowerDefense.Entities
                 trail.material = Core.MaterialCache.CreateSpriteDefault();
             }
 
-            // Set trail color gradient
-            Gradient gradient = new Gradient();
-            gradient.SetKeys(
-                new GradientColorKey[] {
-                    new GradientColorKey(projectileColor, 0.0f),
-                    new GradientColorKey(projectileColor, 1.0f)
-                },
-                new GradientAlphaKey[] {
-                    new GradientAlphaKey(1.0f, 0.0f),
-                    new GradientAlphaKey(0.0f, 1.0f)
-                }
-            );
-            trail.colorGradient = gradient;
+            // Set trail color gradient (reuse cached gradient)
+            if (cachedGradient == null)
+                cachedGradient = new Gradient();
+            cachedColorKeys[0] = new GradientColorKey(projectileColor, 0.0f);
+            cachedColorKeys[1] = new GradientColorKey(projectileColor, 1.0f);
+            cachedGradient.SetKeys(cachedColorKeys, cachedAlphaKeys);
+            trail.colorGradient = cachedGradient;
         }
 
         private void Update()
@@ -325,48 +328,72 @@ namespace TowerDefense.Entities
             int debrisCount = Random.Range(3, 6);
             for (int i = 0; i < debrisCount; i++)
             {
-                var debrisObj = Core.MaterialCache.CreatePrimitive(PrimitiveType.Cube);
-                debrisObj.name = "ImpactDebris";
-                debrisObj.transform.position = transform.position;
-                debrisObj.transform.localScale = Vector3.one * Random.Range(0.15f, 0.3f);
-                var r = debrisObj.GetComponent<Renderer>();
-                if (r != null)
-                    r.material = Core.MaterialCache.CreateUnlit(projectileColor);
-                var debris = debrisObj.AddComponent<ImpactDebris>();
-                debris.Initialize(projectileColor);
+                float size = Random.Range(0.15f, 0.3f);
+                ImpactDebris.GetFromPool(transform.position, size, projectileColor);
             }
         }
 
         private void SpawnAoeIndicator()
         {
-            var indicatorObj = new GameObject("AoeIndicator");
-            indicatorObj.transform.position = new Vector3(transform.position.x, 0.15f, transform.position.z);
-            var indicator = indicatorObj.AddComponent<AoeIndicator>();
-            indicator.Initialize(areaRadius, projectileColor);
+            var pos = new Vector3(transform.position.x, 0.15f, transform.position.z);
+            AoeIndicator.GetFromPool(pos, areaRadius, projectileColor);
         }
     }
 
     public class AoeIndicator : MonoBehaviour
     {
+        private static readonly Queue<AoeIndicator> pool = new Queue<AoeIndicator>();
+
         private float radius;
         private float duration = 0.5f;
         private float timer;
         private LineRenderer lineRenderer;
         private Color baseColor;
+        private Material cachedMaterial;
+
+        public static AoeIndicator GetFromPool(Vector3 position, float radius, Color color)
+        {
+            AoeIndicator a = null;
+            while (pool.Count > 0)
+            {
+                a = pool.Dequeue();
+                if (a != null) break;
+                a = null;
+            }
+
+            if (a == null)
+            {
+                var obj = new GameObject("AoeIndicator");
+                a = obj.AddComponent<AoeIndicator>();
+                a.lineRenderer = obj.AddComponent<LineRenderer>();
+                a.lineRenderer.loop = true;
+                a.lineRenderer.useWorldSpace = true;
+                a.lineRenderer.positionCount = 32;
+                a.cachedMaterial = Core.MaterialCache.CreateUnlit(color);
+                a.lineRenderer.material = a.cachedMaterial;
+            }
+
+            a.transform.position = position;
+            a.gameObject.SetActive(true);
+            a.Initialize(radius, color);
+            return a;
+        }
+
+        private void ReturnToPool()
+        {
+            gameObject.SetActive(false);
+            pool.Enqueue(this);
+        }
 
         public void Initialize(float radius, Color color)
         {
             this.radius = radius;
             this.timer = duration;
             this.baseColor = color;
-
-            lineRenderer = gameObject.AddComponent<LineRenderer>();
-            lineRenderer.loop = true;
-            lineRenderer.useWorldSpace = true;
+            if (cachedMaterial != null)
+                cachedMaterial.color = color;
             lineRenderer.startWidth = 0.3f;
             lineRenderer.endWidth = 0.3f;
-            lineRenderer.positionCount = 32;
-            lineRenderer.material = Core.MaterialCache.CreateUnlit(color);
 
             UpdateCircle(0f);
         }
@@ -376,7 +403,7 @@ namespace TowerDefense.Entities
             timer -= Time.deltaTime;
             if (timer <= 0f)
             {
-                Destroy(gameObject);
+                ReturnToPool();
                 return;
             }
 
@@ -409,17 +436,54 @@ namespace TowerDefense.Entities
 
         private void OnDestroy()
         {
-            if (lineRenderer != null && lineRenderer.material != null)
-                Destroy(lineRenderer.material);
+            if (cachedMaterial != null)
+                Destroy(cachedMaterial);
         }
     }
 
     public class ImpactDebris : MonoBehaviour
     {
+        private static readonly Queue<ImpactDebris> pool = new Queue<ImpactDebris>();
+
         private Vector3 velocity;
         private float lifetime = 0.4f;
         private float timer;
         private Vector3 startScale;
+        private Renderer rend;
+        private Material cachedMaterial;
+
+        public static ImpactDebris GetFromPool(Vector3 position, float size, Color color)
+        {
+            ImpactDebris d = null;
+            while (pool.Count > 0)
+            {
+                d = pool.Dequeue();
+                if (d != null) break;
+                d = null;
+            }
+
+            if (d == null)
+            {
+                var obj = Core.MaterialCache.CreatePrimitive(PrimitiveType.Cube);
+                obj.name = "ImpactDebris";
+                d = obj.AddComponent<ImpactDebris>();
+                d.rend = obj.GetComponent<Renderer>();
+                d.cachedMaterial = Core.MaterialCache.CreateUnlit(color);
+                if (d.rend != null) d.rend.sharedMaterial = d.cachedMaterial;
+            }
+
+            d.transform.position = position;
+            d.transform.localScale = Vector3.one * size;
+            d.gameObject.SetActive(true);
+            d.Initialize(color);
+            return d;
+        }
+
+        private void ReturnToPool()
+        {
+            gameObject.SetActive(false);
+            pool.Enqueue(this);
+        }
 
         public void Initialize(Color color)
         {
@@ -428,7 +492,10 @@ namespace TowerDefense.Entities
                 Random.Range(2f, 5f),
                 Random.Range(-3f, 3f)
             );
+            timer = 0f;
             startScale = transform.localScale;
+            if (cachedMaterial != null)
+                cachedMaterial.color = color;
         }
 
         private void Update()
@@ -436,7 +503,7 @@ namespace TowerDefense.Entities
             timer += Time.deltaTime;
             if (timer >= lifetime)
             {
-                Destroy(gameObject);
+                ReturnToPool();
                 return;
             }
 
@@ -449,9 +516,8 @@ namespace TowerDefense.Entities
 
         private void OnDestroy()
         {
-            var r = GetComponent<Renderer>();
-            if (r != null && r.sharedMaterial != null)
-                Destroy(r.sharedMaterial);
+            if (cachedMaterial != null)
+                Destroy(cachedMaterial);
         }
     }
 }
