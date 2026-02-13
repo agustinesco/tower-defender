@@ -57,5 +57,25 @@ namespace TowerDefense.UI
             if (cooldownText != null)
                 cooldownText.gameObject.SetActive(!string.IsNullOrEmpty(text));
         }
+
+        public void SetAffordable(bool canAfford)
+        {
+            if (button != null)
+                button.interactable = canAfford;
+            if (background != null)
+            {
+                var c = background.color;
+                background.color = new Color(c.r, c.g, c.b, canAfford ? 1f : 0.35f);
+            }
+            if (icon != null && icon.gameObject.activeSelf)
+            {
+                var c = icon.color;
+                icon.color = new Color(c.r, c.g, c.b, canAfford ? 1f : 0.35f);
+            }
+            if (costLabel != null)
+            {
+                costLabel.color = canAfford ? Color.white : new Color(1f, 0.3f, 0.3f, 0.7f);
+            }
+        }
     }
 }

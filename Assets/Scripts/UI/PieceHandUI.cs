@@ -522,39 +522,69 @@ namespace TowerDefense.UI
 
         private void Update()
         {
-            if (pieceProvider == null || activeTab != HandTab.Paths) return;
-
             var gm = GameManager.Instance;
+            int currency = gm != null ? gm.Currency : 0;
 
             for (int i = 0; i < cards.Count; i++)
             {
                 var card = cards[i];
-                if (card.UI == null || card.UI.CooldownOverlay == null) continue;
+                if (card.UI == null) continue;
 
-                // Update escalating path cost
-                var config = pieceProvider.GetConfig(i);
-                if (config != null && gm != null)
+                int cost = GetCardCost(card, gm);
+                card.UI.SetAffordable(currency >= cost);
+
+                // Path-specific updates (cooldowns, escalating cost)
+                if (activeTab == HandTab.Paths && pieceProvider != null && card.UI.CooldownOverlay != null)
                 {
-                    int currentCost = gm.GetPieceCost(config.placementCost);
-                    card.UI.CostLabel.text = $"{currentCost}";
-                }
+                    // Update escalating path cost label
+                    var config = pieceProvider.GetConfig(i);
+                    if (config != null && gm != null)
+                        card.UI.CostLabel.text = $"{gm.GetPieceCost(config.placementCost)}";
 
-                float fraction = pieceProvider.GetCooldownFraction(i);
-                bool onCooldown = fraction > 0f;
+                    float fraction = pieceProvider.GetCooldownFraction(i);
+                    bool onCooldown = fraction > 0f;
 
-                card.UI.SetCooldownActive(onCooldown);
+                    card.UI.SetCooldownActive(onCooldown);
 
-                if (onCooldown)
-                {
-                    card.UI.SetCooldownFill(fraction);
-                    float remaining = pieceProvider.GetCooldownRemaining(i);
-                    card.UI.SetCooldownText(Mathf.CeilToInt(remaining).ToString());
-                }
-                else
-                {
-                    card.UI.SetCooldownText(null);
+                    if (onCooldown)
+                    {
+                        card.UI.SetCooldownFill(fraction);
+                        float remaining = pieceProvider.GetCooldownRemaining(i);
+                        card.UI.SetCooldownText(Mathf.CeilToInt(remaining).ToString());
+                    }
+                    else
+                    {
+                        card.UI.SetCooldownText(null);
+                    }
                 }
             }
+        }
+
+        private int GetCardCost(PieceCard card, GameManager gm)
+        {
+            if (card.IsTowerCard && card.TowerData != null)
+                return card.TowerData.cost;
+
+            if (card.IsModificationCard && gm != null)
+            {
+                return card.ModType switch
+                {
+                    ModificationType.Lure => gm.GetLureCost(),
+                    ModificationType.Haste => gm.GetHasteCost(),
+                    ModificationType.GoldenTouch => gm.GetGoldenTouchCost(),
+                    _ => 0
+                };
+            }
+
+            // Path card
+            if (pieceProvider != null && gm != null)
+            {
+                var config = pieceProvider.GetConfig(card.HandIndex);
+                if (config != null)
+                    return gm.GetPieceCost(config.placementCost);
+            }
+
+            return 0;
         }
 
         private void OnCardClicked(int index, HexPieceType type)
