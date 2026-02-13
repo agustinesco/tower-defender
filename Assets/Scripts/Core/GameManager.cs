@@ -1028,6 +1028,7 @@ namespace TowerDefense.Core
         private void OnShopExitRun()
         {
             ExitRun();
+            MainSceneController.LoadMainMenu();
         }
 
         private void RecalculateGoblinCampPaths()

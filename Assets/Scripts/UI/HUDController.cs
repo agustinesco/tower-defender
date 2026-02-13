@@ -400,6 +400,9 @@ namespace TowerDefense.UI
 
         private void ShowGameOver()
         {
+            // Only show game over screen on death, not voluntary escape
+            if (GameManager.Instance != null && GameManager.Instance.Lives > 0) return;
+
             CreateText(canvas.transform, "GameOverText", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(0, 30), "GAME OVER");
 
@@ -823,6 +826,7 @@ namespace TowerDefense.UI
             {
                 CompleteQuestEscapeTutorial();
                 GameManager.Instance?.ExitRun();
+                MainSceneController.LoadMainMenu();
                 return;
             }
             escapeConfirmOverlay.SetActive(true);
@@ -832,6 +836,7 @@ namespace TowerDefense.UI
         {
             escapeConfirmOverlay.SetActive(false);
             GameManager.Instance?.ExitRun();
+            MainSceneController.LoadMainMenu();
         }
 
         private void OnEscapeCancelled()
