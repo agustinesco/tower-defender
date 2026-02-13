@@ -26,6 +26,7 @@ namespace TowerDefense.UI
         [SerializeField] private Image[] labTabImages;
         [SerializeField] private TextMeshProUGUI[] labTabTexts;
         [SerializeField] private Button[] labTabButtons;
+        [SerializeField] private GameObject labUpgradePrefab;
 
         [Header("Quest Panel")]
         [SerializeField] private GameObject questPanel;
@@ -572,130 +573,55 @@ namespace TowerDefense.UI
             int level = LabManager.Instance.GetLevel(upgrade);
             bool maxed = level >= upgrade.maxLevel;
             bool canBuy = LabManager.Instance.CanPurchase(upgrade);
+            bool isUnlock = upgrade.upgradeType == LabUpgradeType.TowerUnlock || upgrade.upgradeType == LabUpgradeType.ModUnlock;
 
-            var card = new GameObject($"Card_{upgrade.upgradeName}");
-            card.transform.SetParent(labGridContent);
-            card.AddComponent<RectTransform>();
+            var card = Instantiate(labUpgradePrefab, labGridContent);
+            card.name = $"Card_{upgrade.upgradeName}";
+            var ui = card.GetComponent<LabUpgradeUI>();
 
-            var cardBg = card.AddComponent<Image>();
-            cardBg.color = maxed ? new Color(0.12f, 0.18f, 0.12f, 0.9f) : new Color(0.14f, 0.14f, 0.2f, 0.9f);
+            // Accent color per resource
+            ui.Accent.color = GetResourceColor(upgrade.costResource);
 
-            // Left accent bar
-            var accentObj = new GameObject("Accent");
-            accentObj.transform.SetParent(card.transform);
-            var accentRect = accentObj.AddComponent<RectTransform>();
-            accentRect.anchorMin = new Vector2(0, 0);
-            accentRect.anchorMax = new Vector2(0, 1);
-            accentRect.pivot = new Vector2(0, 0.5f);
-            accentRect.anchoredPosition = Vector2.zero;
-            accentRect.sizeDelta = new Vector2(6, 0);
-            var accentImg = accentObj.AddComponent<Image>();
-            accentImg.color = GetResourceColor(upgrade.costResource);
-            accentImg.raycastTarget = false;
+            // Background
+            ui.Background.color = maxed
+                ? new Color(0.12f, 0.18f, 0.12f, 0.9f)
+                : new Color(0.14f, 0.14f, 0.2f, 0.9f);
 
             // Name
-            var nameObj = new GameObject("Name");
-            nameObj.transform.SetParent(card.transform);
-            var nameRect = nameObj.AddComponent<RectTransform>();
-            nameRect.anchorMin = new Vector2(0, 0.65f);
-            nameRect.anchorMax = new Vector2(1, 0.95f);
-            nameRect.offsetMin = new Vector2(16, 0);
-            nameRect.offsetMax = new Vector2(-8, 0);
-            var nameText = nameObj.AddComponent<TextMeshProUGUI>();
-            nameText.text = upgrade.upgradeName;
-            nameText.fontSize = 20;
-            nameText.fontStyle = FontStyles.Bold;
-            nameText.color = Color.white;
-            nameText.alignment = TextAlignmentOptions.Left;
-            nameText.raycastTarget = false;
+            ui.NameLabel.text = upgrade.upgradeName;
 
             // Description
-            var descObj = new GameObject("Desc");
-            descObj.transform.SetParent(card.transform);
-            var descRect = descObj.AddComponent<RectTransform>();
-            descRect.anchorMin = new Vector2(0, 0.38f);
-            descRect.anchorMax = new Vector2(1, 0.65f);
-            descRect.offsetMin = new Vector2(16, 0);
-            descRect.offsetMax = new Vector2(-8, 0);
-            var descText = descObj.AddComponent<TextMeshProUGUI>();
-            descText.text = upgrade.description;
-            descText.fontSize = 14;
-            descText.color = new Color(0.7f, 0.7f, 0.7f);
-            descText.alignment = TextAlignmentOptions.TopLeft;
-            descText.raycastTarget = false;
+            ui.DescriptionLabel.text = upgrade.description;
 
             // Level / status
-            bool isUnlock = upgrade.upgradeType == LabUpgradeType.TowerUnlock || upgrade.upgradeType == LabUpgradeType.ModUnlock;
-            var levelObj = new GameObject("Level");
-            levelObj.transform.SetParent(card.transform);
-            var levelRect = levelObj.AddComponent<RectTransform>();
-            levelRect.anchorMin = new Vector2(0, 0.02f);
-            levelRect.anchorMax = new Vector2(0.45f, 0.35f);
-            levelRect.offsetMin = new Vector2(16, 0);
-            levelRect.offsetMax = Vector2.zero;
-            var levelText = levelObj.AddComponent<TextMeshProUGUI>();
             if (isUnlock)
             {
-                levelText.text = maxed ? "UNLOCKED" : "LOCKED";
-                levelText.color = maxed ? new Color(0.4f, 0.8f, 0.4f) : new Color(0.8f, 0.4f, 0.4f);
+                ui.LevelLabel.text = maxed ? "UNLOCKED" : "LOCKED";
+                ui.LevelLabel.color = maxed ? new Color(0.4f, 0.8f, 0.4f) : new Color(0.8f, 0.4f, 0.4f);
             }
             else
             {
-                levelText.text = $"Lv {level}/{upgrade.maxLevel}";
-                levelText.color = maxed ? new Color(0.4f, 0.8f, 0.4f) : Color.white;
+                ui.LevelLabel.text = $"Lv {level}/{upgrade.maxLevel}";
+                ui.LevelLabel.color = maxed ? new Color(0.4f, 0.8f, 0.4f) : Color.white;
             }
-            levelText.fontSize = 16;
-            levelText.alignment = TextAlignmentOptions.Left;
-            levelText.raycastTarget = false;
 
-            // Buy button or MAX label
+            // Buy button
             if (!maxed)
             {
                 int cost = upgrade.GetCost(level);
-                var buyBtn = new GameObject("BuyBtn");
-                buyBtn.transform.SetParent(card.transform);
-                var buyRect = buyBtn.AddComponent<RectTransform>();
-                buyRect.anchorMin = new Vector2(0.45f, 0.05f);
-                buyRect.anchorMax = new Vector2(0.95f, 0.35f);
-                buyRect.offsetMin = Vector2.zero;
-                buyRect.offsetMax = Vector2.zero;
-
-                var buyImage = buyBtn.AddComponent<Image>();
-                buyImage.color = canBuy ? new Color(0.2f, 0.5f, 0.2f) : new Color(0.3f, 0.3f, 0.3f);
-                var btn = buyBtn.AddComponent<Button>();
-                btn.targetGraphic = buyImage;
-                btn.interactable = canBuy;
+                ui.BuyButtonBg.color = canBuy ? new Color(0.2f, 0.5f, 0.2f) : new Color(0.3f, 0.3f, 0.3f);
+                ui.BuyButton.interactable = canBuy;
+                ui.BuyButtonText.text = $"Buy {cost} {GetResourceShortName(upgrade.costResource)}";
+                ui.BuyButtonText.color = canBuy ? Color.white : new Color(0.6f, 0.6f, 0.6f);
                 var capturedUpgrade = upgrade;
-                btn.onClick.AddListener(() => OnBuyUpgrade(capturedUpgrade));
-
-                var buyTextObj = new GameObject("Text");
-                buyTextObj.transform.SetParent(buyBtn.transform);
-                var buyTextRect = buyTextObj.AddComponent<RectTransform>();
-                buyTextRect.anchorMin = Vector2.zero;
-                buyTextRect.anchorMax = Vector2.one;
-                buyTextRect.offsetMin = Vector2.zero;
-                buyTextRect.offsetMax = Vector2.zero;
-                var buyText = buyTextObj.AddComponent<TextMeshProUGUI>();
-                buyText.text = $"Buy {cost} {GetResourceShortName(upgrade.costResource)}";
-                buyText.fontSize = 14;
-                buyText.color = canBuy ? Color.white : new Color(0.6f, 0.6f, 0.6f);
-                buyText.alignment = TextAlignmentOptions.Center;
+                ui.BuyButton.onClick.AddListener(() => OnBuyUpgrade(capturedUpgrade));
             }
             else
             {
-                var maxObj = new GameObject("Maxed");
-                maxObj.transform.SetParent(card.transform);
-                var maxRect = maxObj.AddComponent<RectTransform>();
-                maxRect.anchorMin = new Vector2(0.5f, 0.02f);
-                maxRect.anchorMax = new Vector2(0.95f, 0.35f);
-                maxRect.offsetMin = Vector2.zero;
-                maxRect.offsetMax = Vector2.zero;
-                var maxText = maxObj.AddComponent<TextMeshProUGUI>();
-                maxText.text = "MAX";
-                maxText.fontSize = 20;
-                maxText.color = new Color(1f, 0.85f, 0.2f);
-                maxText.alignment = TextAlignmentOptions.Center;
-                maxText.raycastTarget = false;
+                ui.BuyButtonBg.color = new Color(0.25f, 0.25f, 0.25f);
+                ui.BuyButton.interactable = false;
+                ui.BuyButtonText.text = "MAX";
+                ui.BuyButtonText.color = new Color(1f, 0.85f, 0.2f);
             }
 
             return card;
