@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
 using TowerDefense.Core;
 using TowerDefense.Grid;
 using TowerDefense.Entities;
@@ -36,8 +38,8 @@ namespace TowerDefense.UI
         // Tower placement state (free mode)
         private bool isTowerSelected;
         private TowerData selectedTowerData;
-        private const float PerpendicularOffset = 6.5f;
-        private const float PathHalfWidth = 4.0f;
+        private const float PerpendicularOffset = 9.75f;
+        private const float PathHalfWidth = 6.0f;
 
         // Tower tap delay — prevents accidental placement when dragging
         private bool towerTapPending;
@@ -50,6 +52,11 @@ namespace TowerDefense.UI
         private List<GameObject> towerExclusionIndicators = new List<GameObject>();
         private List<GameObject> pathBorderLines = new List<GameObject>();
         private List<GameObject> slotRangeIndicators = new List<GameObject>();
+
+        // Slot-mode build confirmation
+        private TowerSlot pendingBuildSlot;
+        private GameObject singleSlotRangeIndicator;
+        private GameObject buildButtonObj;
 
         private static readonly Color HighlightColor = new Color(0.3f, 0.9f, 0.3f);
 
@@ -155,6 +162,16 @@ namespace TowerDefense.UI
             isTowerSelected = true;
             selectedTowerData = towerData;
             ShowTowerPlacementHelpers();
+
+            // If a slot was already selected (tapping empty slot opened towers tab),
+            // treat it as the pending build slot
+            if (cachedTowerManager != null && cachedTowerManager.SelectedSlot != null
+                && !cachedTowerManager.SelectedSlot.IsOccupied)
+            {
+                pendingBuildSlot = cachedTowerManager.SelectedSlot;
+                ShowSingleSlotRange(pendingBuildSlot);
+                ShowBuildButton();
+            }
         }
 
         private void OnTowerCardDeselected()
@@ -206,6 +223,10 @@ namespace TowerDefense.UI
                     Destroy(slotRangeIndicators[i]);
             }
             slotRangeIndicators.Clear();
+
+            HideBuildButton();
+            ClearSingleSlotRange();
+            pendingBuildSlot = null;
             ResetSlotHighlights();
         }
 
@@ -283,30 +304,101 @@ namespace TowerDefense.UI
         private void ShowSlotRangeIndicators()
         {
             var gm = GameManager.Instance;
-            if (gm == null || selectedTowerData == null) return;
-
-            float effectiveRange = Mathf.Max(selectedTowerData.range, 10.5f);
+            if (gm == null) return;
 
             foreach (var kvp in gm.HexPieces)
             {
                 foreach (var slot in kvp.Value.Slots)
                 {
                     if (slot.IsOccupied) continue;
-
-                    // Range circle
-                    var indicator = MaterialCache.CreatePrimitive(PrimitiveType.Cylinder);
-                    indicator.transform.position = slot.transform.position + Vector3.up * 0.02f;
-                    indicator.transform.localScale = new Vector3(effectiveRange * 2f, 0.01f, effectiveRange * 2f);
-
-                    var rend = indicator.GetComponent<Renderer>();
-                    if (rend != null)
-                        rend.material = MaterialCache.CreateTransparent(new Color(1f, 1f, 0f), 0.15f);
-
-                    slotRangeIndicators.Add(indicator);
-
-                    // Highlight the slot indicator
                     slot.SetHighlight(true);
                 }
+            }
+        }
+
+        private void ShowSingleSlotRange(TowerSlot slot)
+        {
+            ClearSingleSlotRange();
+            if (selectedTowerData == null) return;
+
+            float effectiveRange = Mathf.Max(selectedTowerData.range, 15.75f);
+            var indicator = MaterialCache.CreatePrimitive(PrimitiveType.Cylinder);
+            indicator.transform.position = slot.transform.position + Vector3.up * 0.02f;
+            indicator.transform.localScale = new Vector3(effectiveRange * 2f, 0.01f, effectiveRange * 2f);
+
+            var rend = indicator.GetComponent<Renderer>();
+            if (rend != null)
+                rend.material = MaterialCache.CreateTransparent(new Color(1f, 1f, 0f), 0.15f);
+
+            singleSlotRangeIndicator = indicator;
+        }
+
+        private void ClearSingleSlotRange()
+        {
+            if (singleSlotRangeIndicator != null)
+            {
+                Destroy(singleSlotRangeIndicator);
+                singleSlotRangeIndicator = null;
+            }
+        }
+
+        private void ShowBuildButton()
+        {
+            if (buildButtonObj != null) return;
+
+            var canvas = FindFirstObjectByType<Canvas>();
+            if (canvas == null) return;
+
+            buildButtonObj = new GameObject("BuildButton");
+            buildButtonObj.transform.SetParent(canvas.transform, false);
+            var rect = buildButtonObj.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.25f, 0.12f);
+            rect.anchorMax = new Vector2(0.75f, 0.19f);
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+
+            var img = buildButtonObj.AddComponent<Image>();
+            img.color = new Color(0.15f, 0.55f, 0.15f);
+            var btn = buildButtonObj.AddComponent<Button>();
+            btn.targetGraphic = img;
+            btn.onClick.AddListener(OnBuildConfirmed);
+
+            var textObj = new GameObject("Text");
+            textObj.transform.SetParent(buildButtonObj.transform, false);
+            var textRect = textObj.AddComponent<RectTransform>();
+            textRect.anchorMin = Vector2.zero;
+            textRect.anchorMax = Vector2.one;
+            textRect.offsetMin = Vector2.zero;
+            textRect.offsetMax = Vector2.zero;
+            var text = textObj.AddComponent<TextMeshProUGUI>();
+            text.text = "Build";
+            text.fontSize = 24;
+            text.fontStyle = FontStyles.Bold;
+            text.color = Color.white;
+            text.alignment = TextAlignmentOptions.Center;
+        }
+
+        private void HideBuildButton()
+        {
+            if (buildButtonObj != null)
+            {
+                Destroy(buildButtonObj);
+                buildButtonObj = null;
+            }
+        }
+
+        private void OnBuildConfirmed()
+        {
+            if (pendingBuildSlot == null || cachedTowerManager == null || selectedTowerData == null)
+                return;
+
+            cachedTowerManager.SelectSlot(pendingBuildSlot);
+            if (cachedTowerManager.BuildTower(selectedTowerData))
+            {
+                HideTowerPlacementHelpers();
+                isTowerSelected = false;
+                selectedTowerData = null;
+                handUI.DeselectTowerCard();
             }
         }
 
@@ -429,23 +521,18 @@ namespace TowerDefense.UI
 
             if (!freeMode)
             {
-                // Slot mode: raycast for TowerSlot on tap
+                // Slot mode: raycast for TowerSlot on tap — select slot and show build button
                 if (!IsTapOnGameWorld()) return;
 
                 Ray ray = cam.ScreenPointToRay(Input.mousePosition);
                 if (Physics.Raycast(ray, out RaycastHit hit, 100f))
                 {
                     var slot = hit.collider.GetComponent<TowerSlot>();
-                    if (slot != null && !slot.IsOccupied && cachedTowerManager != null)
+                    if (slot != null && !slot.IsOccupied)
                     {
-                        cachedTowerManager.SelectSlot(slot);
-                        if (cachedTowerManager.BuildTower(selectedTowerData))
-                        {
-                            HideTowerPlacementHelpers();
-                            isTowerSelected = false;
-                            selectedTowerData = null;
-                            handUI.DeselectTowerCard();
-                        }
+                        pendingBuildSlot = slot;
+                        ShowSingleSlotRange(slot);
+                        ShowBuildButton();
                     }
                 }
                 return;
@@ -569,13 +656,13 @@ namespace TowerDefense.UI
                 return false;
 
             // Also check clearance from ALL path segments (not just the closest)
-            float pathHalfWidth = 4.0f;
+            float pathHalfWidth = 6.0f;
             foreach (int edge in pieceData.ConnectedEdges)
             {
                 Vector3 edgeDir = HexMeshGenerator.GetEdgeDirection(edge);
                 Vector3 edgeEnd = edgeDir * HexGrid.InnerRadius;
                 float clearance = HexPiece.PointToSegmentDistance(localSnapped, Vector3.zero, edgeEnd);
-                if (clearance < pathHalfWidth + 1f)
+                if (clearance < pathHalfWidth + 1.5f)
                     return false;
             }
 

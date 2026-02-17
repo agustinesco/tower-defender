@@ -7,9 +7,9 @@ namespace TowerDefense.Entities
 {
     public class Tower : MonoBehaviour
     {
-        // Minimum range: turret offset from path center (6.5) + path half-width (4.0)
+        // Minimum range: turret offset from path center (9.75) + path half-width (6.0)
         // Ensures towers can always hit enemies on the far side of the path
-        private const float MinRange = 10.5f;
+        private const float MinRange = 15.75f;
 
         private TowerData data;
         private float fireCooldown;

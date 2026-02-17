@@ -1,6 +1,8 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.UI;
 using System.Collections.Generic;
+using TMPro;
 using TowerDefense.Entities;
 using TowerDefense.Grid;
 using TowerDefense.UI;
@@ -14,9 +16,15 @@ namespace TowerDefense.Core
         private TowerSlot selectedSlot;
         private Tower selectedTower;
         private PieceDragHandler pieceDragHandler;
+        private PieceHandUI pieceHandUI;
         private List<Tower> placedTowers = new List<Tower>();
         private Camera cachedCamera;
         private Dictionary<HexCoord, List<Tower>> towersByTile = new Dictionary<HexCoord, List<Tower>>();
+
+        // Sell confirmation
+        private GameObject sellConfirmOverlay;
+        private Tower pendingSellTower;
+        private float timeScaleBeforeSell;
 
         public TowerSlot SelectedSlot => selectedSlot;
         public Tower SelectedTower => selectedTower;
@@ -50,6 +58,7 @@ namespace TowerDefense.Core
         private void Start()
         {
             cachedCamera = Camera.main;
+            pieceHandUI = FindFirstObjectByType<PieceHandUI>();
         }
 
         public void SetPieceDragHandler(PieceDragHandler handler)
@@ -64,6 +73,10 @@ namespace TowerDefense.Core
 
         private void HandleInput()
         {
+            // Block input while sell confirmation is showing
+            if (sellConfirmOverlay != null)
+                return;
+
             // Skip tower placement input when placing pieces
             if (pieceDragHandler != null && pieceDragHandler.IsPlacingPiece)
                 return;
@@ -140,18 +153,29 @@ namespace TowerDefense.Core
 
             if (slot.IsOccupied)
             {
-                SelectTower(slot.CurrentTower);
+                ShowSellConfirmation(slot.CurrentTower);
                 return;
             }
 
+            // Empty slot tapped without a tower card selected — switch to towers tab
+            if (pieceHandUI != null)
+                pieceHandUI.SwitchToTowersTab();
+
             selectedSlot = slot;
             slot.SetHighlight(true);
-            OnSlotSelected?.Invoke(slot);
         }
 
         public void SelectTower(Tower tower)
         {
             ClearSelection();
+
+            bool freeMode = GameManager.Instance != null && GameManager.Instance.UseFreeTowerPlacement;
+            if (!freeMode)
+            {
+                ShowSellConfirmation(tower);
+                return;
+            }
+
             selectedTower = tower;
             tower.ShowRange(true);
             OnTowerSelected?.Invoke(tower);
@@ -333,6 +357,149 @@ namespace TowerDefense.Core
                 }
             }
             return refund;
+        }
+
+        private void ShowSellConfirmation(Tower tower)
+        {
+            if (sellConfirmOverlay != null) return;
+
+            pendingSellTower = tower;
+            tower.ShowRange(true);
+            timeScaleBeforeSell = Time.timeScale;
+            Time.timeScale = 0f;
+
+            var canvas = FindFirstObjectByType<Canvas>();
+            if (canvas == null) return;
+            var parent = canvas.transform;
+
+            // Full-screen overlay that catches taps outside the dialog (acts as cancel)
+            sellConfirmOverlay = new GameObject("SellConfirmOverlay");
+            sellConfirmOverlay.transform.SetParent(parent, false);
+            var overlayRect = sellConfirmOverlay.AddComponent<RectTransform>();
+            overlayRect.anchorMin = Vector2.zero;
+            overlayRect.anchorMax = Vector2.one;
+            overlayRect.offsetMin = Vector2.zero;
+            overlayRect.offsetMax = Vector2.zero;
+
+            var dimImg = sellConfirmOverlay.AddComponent<Image>();
+            dimImg.color = new Color(0f, 0f, 0f, 0.6f);
+            var dimBtn = sellConfirmOverlay.AddComponent<Button>();
+            dimBtn.onClick.AddListener(CancelSell);
+
+            // Dialog box
+            var dialog = new GameObject("Dialog");
+            dialog.transform.SetParent(sellConfirmOverlay.transform, false);
+            var dialogRect = dialog.AddComponent<RectTransform>();
+            dialogRect.anchorMin = new Vector2(0.5f, 0.5f);
+            dialogRect.anchorMax = new Vector2(0.5f, 0.5f);
+            dialogRect.sizeDelta = new Vector2(500f, 220f);
+            var dialogBg = dialog.AddComponent<Image>();
+            dialogBg.color = new Color(0.12f, 0.12f, 0.18f, 0.95f);
+            dialogBg.raycastTarget = true;
+
+            // Message text
+            var textObj = new GameObject("Message");
+            textObj.transform.SetParent(dialog.transform, false);
+            var textRect = textObj.AddComponent<RectTransform>();
+            textRect.anchorMin = new Vector2(0.05f, 0.45f);
+            textRect.anchorMax = new Vector2(0.95f, 0.95f);
+            textRect.offsetMin = Vector2.zero;
+            textRect.offsetMax = Vector2.zero;
+            var text = textObj.AddComponent<TextMeshProUGUI>();
+            string towerName = tower.Data != null ? tower.Data.towerName : "tower";
+            int sellValue = tower.SellValue;
+            text.text = $"Are you sure you want to sell {towerName}?\n<color=#FFD700>{sellValue} gold</color>";
+            text.fontSize = 22;
+            text.fontStyle = FontStyles.Bold;
+            text.color = Color.white;
+            text.alignment = TextAlignmentOptions.Center;
+            text.raycastTarget = false;
+
+            // Confirm button
+            var confirmObj = new GameObject("Confirm");
+            confirmObj.transform.SetParent(dialog.transform, false);
+            var confirmRect = confirmObj.AddComponent<RectTransform>();
+            confirmRect.anchorMin = new Vector2(0.55f, 0.05f);
+            confirmRect.anchorMax = new Vector2(0.95f, 0.38f);
+            confirmRect.offsetMin = Vector2.zero;
+            confirmRect.offsetMax = Vector2.zero;
+            var confirmImg = confirmObj.AddComponent<Image>();
+            confirmImg.color = new Color(0.6f, 0.2f, 0.2f);
+            var confirmBtn = confirmObj.AddComponent<Button>();
+            confirmBtn.targetGraphic = confirmImg;
+            confirmBtn.onClick.AddListener(ConfirmSell);
+
+            var confirmTextObj = new GameObject("Text");
+            confirmTextObj.transform.SetParent(confirmObj.transform, false);
+            var ctRect = confirmTextObj.AddComponent<RectTransform>();
+            ctRect.anchorMin = Vector2.zero;
+            ctRect.anchorMax = Vector2.one;
+            ctRect.offsetMin = Vector2.zero;
+            ctRect.offsetMax = Vector2.zero;
+            var ctText = confirmTextObj.AddComponent<TextMeshProUGUI>();
+            ctText.text = "Sell";
+            ctText.fontSize = 20;
+            ctText.fontStyle = FontStyles.Bold;
+            ctText.color = Color.white;
+            ctText.alignment = TextAlignmentOptions.Center;
+
+            // Cancel button
+            var cancelObj = new GameObject("Cancel");
+            cancelObj.transform.SetParent(dialog.transform, false);
+            var cancelRect = cancelObj.AddComponent<RectTransform>();
+            cancelRect.anchorMin = new Vector2(0.05f, 0.05f);
+            cancelRect.anchorMax = new Vector2(0.45f, 0.38f);
+            cancelRect.offsetMin = Vector2.zero;
+            cancelRect.offsetMax = Vector2.zero;
+            var cancelImg = cancelObj.AddComponent<Image>();
+            cancelImg.color = new Color(0.3f, 0.3f, 0.35f);
+            var cancelBtn = cancelObj.AddComponent<Button>();
+            cancelBtn.targetGraphic = cancelImg;
+            cancelBtn.onClick.AddListener(CancelSell);
+
+            var cancelTextObj = new GameObject("Cancel Text");
+            cancelTextObj.transform.SetParent(cancelObj.transform, false);
+            var clRect = cancelTextObj.AddComponent<RectTransform>();
+            clRect.anchorMin = Vector2.zero;
+            clRect.anchorMax = Vector2.one;
+            clRect.offsetMin = Vector2.zero;
+            clRect.offsetMax = Vector2.zero;
+            var clText = cancelTextObj.AddComponent<TextMeshProUGUI>();
+            clText.text = "Cancel";
+            clText.fontSize = 20;
+            clText.color = Color.white;
+            clText.alignment = TextAlignmentOptions.Center;
+        }
+
+        private void ConfirmSell()
+        {
+            if (pendingSellTower != null)
+            {
+                selectedTower = pendingSellTower;
+                pendingSellTower = null;
+                SellTower();
+            }
+            DismissSellConfirmation();
+        }
+
+        private void CancelSell()
+        {
+            if (pendingSellTower != null)
+            {
+                pendingSellTower.ShowRange(false);
+                pendingSellTower = null;
+            }
+            DismissSellConfirmation();
+        }
+
+        private void DismissSellConfirmation()
+        {
+            if (sellConfirmOverlay != null)
+            {
+                Destroy(sellConfirmOverlay);
+                sellConfirmOverlay = null;
+            }
+            Time.timeScale = timeScaleBeforeSell;
         }
 
         public bool SellTower()

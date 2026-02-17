@@ -158,10 +158,10 @@ namespace TowerDefense.Grid
         {
             const float minT = 0.3f;
             const float maxT = 0.8f;
-            const float perpendicularOffset = 6.5f;
-            const float minSlotDistance = 3f;
-            const float pathHalfWidth = 4.0f;
-            const float pathClearance = pathHalfWidth + 1.5f;
+            const float perpendicularOffset = 9.75f;
+            const float minSlotDistance = 4.5f;
+            const float pathHalfWidth = 6.0f;
+            const float pathClearance = pathHalfWidth + 2.25f;
             const int maxSlotsPerPiece = 2;
 
             List<Vector3> placedPositions = new List<Vector3>();

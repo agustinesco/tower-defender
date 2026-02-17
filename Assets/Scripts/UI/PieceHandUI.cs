@@ -213,6 +213,11 @@ namespace TowerDefense.UI
                 modsTabImage.color = activeTab == HandTab.Modifications ? TabActiveColor : TabInactiveColor;
         }
 
+        public void SwitchToTowersTab()
+        {
+            SwitchTab(HandTab.Towers);
+        }
+
         private void SwitchTab(HandTab tab)
         {
             if (activeTab == tab) return;

@@ -4,7 +4,7 @@ namespace TowerDefense.Grid
 {
     public static class HexGrid
     {
-        public const float OuterRadius = 20f;
+        public const float OuterRadius = 30f;
         public static readonly float InnerRadius = OuterRadius * Mathf.Sqrt(3f) / 2f;
 
         // Flat-top hex layout

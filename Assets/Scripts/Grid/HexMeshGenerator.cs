@@ -71,7 +71,7 @@ namespace TowerDefense.Grid
             List<Vector3> vertices = new List<Vector3>();
             List<int> triangles = new List<int>();
 
-            const float pathWidth = 8.0f;
+            const float pathWidth = 12.0f;
             const float halfWidth = pathWidth / 2f;
 
             // For each edge, create a path from center to edge midpoint
