@@ -11,7 +11,7 @@ namespace TowerDefense.UI
         [SerializeField] private float maxZoom = 480f;
         [SerializeField] private float panSpeed = 0.004f;
         [SerializeField] private float zoomSpeed = 0.1f;
-        [SerializeField] private float initialPanBounds = 100f;
+        [SerializeField] private float initialPanBounds = 200f;
 
         private float currentPanBounds;
 
@@ -346,7 +346,7 @@ namespace TowerDefense.UI
         /// </summary>
         /// <param name="positions">World positions that should be reachable by the camera</param>
         /// <param name="padding">Extra padding around the positions</param>
-        public void ExpandBoundsToInclude(List<Vector3> positions, float padding = 20f)
+        public void ExpandBoundsToInclude(List<Vector3> positions, float padding = 140f)
         {
             if (positions == null || positions.Count == 0)
                 return;
@@ -393,7 +393,7 @@ namespace TowerDefense.UI
                 (min.z + max.z) / 2f
             );
 
-            // Calculate required size
+            // Calculate required size for zoom (uses small padding)
             float width = max.x - min.x + padding * 2f;
             float height = max.z - min.z + padding * 2f;
 
@@ -412,10 +412,8 @@ namespace TowerDefense.UI
             targetZoom = requiredSize;
             cam.orthographicSize = requiredSize;
 
-            // Update pan bounds
-            currentPanBounds = Mathf.Max(currentPanBounds, width / 2f + padding, height / 2f + padding);
-
-            Debug.Log($"CameraController: Fit to map - center: {center}, size: {requiredSize}, bounds: {currentPanBounds}");
+            // Pan bounds: allow exploring ~3 tiles beyond the furthest tile from center
+            ExpandBoundsToInclude(positions);
         }
     }
 }

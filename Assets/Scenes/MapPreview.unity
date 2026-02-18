@@ -219,7 +219,7 @@ MonoBehaviour:
   maxZoom: 400
   panSpeed: 0.004
   zoomSpeed: 0.1
-  initialPanBounds: 100
+  initialPanBounds: 200
   autoPanDuration: 1.5
   expandedViewPadding: 10
   pieceDragHandler: {fileID: 0}
