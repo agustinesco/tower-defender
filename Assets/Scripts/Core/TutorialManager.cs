@@ -248,8 +248,9 @@ namespace TowerDefense.Core
 
         public bool AllowTabSwitch(int tabIndex)
         {
+            // During SwitchToTowers, block direct tab taps — only slot tap triggers the switch
             if (currentStep == TutorialStep.SwitchToTowers)
-                return tabIndex == 1; // Towers tab
+                return false;
             // Block tab switching during other blocking steps
             if (currentStep == TutorialStep.SelectPathCard ||
                 currentStep == TutorialStep.BuildOnOre ||
@@ -757,7 +758,13 @@ namespace TowerDefense.Core
                            ?? hit.collider.GetComponentInParent<TowerSlot>();
                 if (slot != null && !slot.IsOccupied)
                 {
+                    // Select slot then force-switch to towers tab and advance
+                    // (AllowTabSwitch blocks during SwitchToTowers so we force it)
                     towerManager.SelectSlot(slot);
+                    if (pieceHandUI != null)
+                        pieceHandUI.SwitchToTowersTab(force: true);
+                    HighlightAllSlots(false);
+                    AdvanceTo(TutorialStep.SelectTower);
                 }
             }
         }
@@ -822,11 +829,7 @@ namespace TowerDefense.Core
 
         private void OnTabSwitched(int tabIndex)
         {
-            if (currentStep == TutorialStep.SwitchToTowers && tabIndex == 1)
-            {
-                HighlightAllSlots(false);
-                AdvanceTo(TutorialStep.SelectTower);
-            }
+            // SwitchToTowers advancement is handled directly in HandleSlotTapForTutorial
         }
 
         private void OnPiecePlaced(int handIndex, PlacementRotation rotation, HexCoord coord)

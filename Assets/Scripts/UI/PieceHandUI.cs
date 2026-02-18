@@ -213,19 +213,22 @@ namespace TowerDefense.UI
                 modsTabImage.color = activeTab == HandTab.Modifications ? TabActiveColor : TabInactiveColor;
         }
 
-        public void SwitchToTowersTab()
+        public void SwitchToTowersTab(bool force = false)
         {
-            SwitchTab(HandTab.Towers);
+            SwitchTab(HandTab.Towers, force);
         }
 
-        private void SwitchTab(HandTab tab)
+        private void SwitchTab(HandTab tab, bool force = false)
         {
             if (activeTab == tab) return;
 
-            // Tutorial gate
-            var tut = TowerDefense.Core.TutorialManager.Instance;
-            if (tut != null && !tut.AllowTabSwitch((int)tab))
-                return;
+            // Tutorial gate (skip when forced by tutorial system itself)
+            if (!force)
+            {
+                var tut = TowerDefense.Core.TutorialManager.Instance;
+                if (tut != null && !tut.AllowTabSwitch((int)tab))
+                    return;
+            }
 
             if (activeTab == HandTab.Paths && selectedIndex >= 0)
             {
