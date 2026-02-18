@@ -962,7 +962,6 @@ namespace TowerDefense.UI
 
         private void ShowQuestDetail(QuestDefinition quest)
         {
-            Debug.Log($"ShowQuestDetail called for {quest.questName}, prefab={questDetailPrefab != null}");
             CloseQuestDetail();
 
             var qm = QuestManager.Instance;

@@ -1191,7 +1191,7 @@ namespace TowerDefense.Core
 
             // Place sprites in the outer area of the piece, near the hex boundary
             Vector3 midpoint = dir * HexGrid.InnerRadius * 0.35f;
-            float sideOffset = 12f;
+            float sideOffset = 20f;
             float spriteY = 1.0f;
 
             // MineEntrance on one side
