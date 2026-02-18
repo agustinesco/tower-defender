@@ -320,24 +320,58 @@ namespace TowerDefense.Grid
 
         private int PlaceGuaranteedOreNode(List<HexCoord> candidates, ResourceType oreType)
         {
-            // Find empty hexes reachable from an open edge of the existing path.
-            var reachable = new List<HexCoord>();
+            // Place ore in a "straight through" position from an open path edge:
+            // Path piece P --edge E--> one-hop H --edge E--> ore O
+            // This ensures the default straight rotation at H connects P to O
+            // without requiring the player to rotate the intermediate tile.
+            var validPositions = new List<HexCoord>();
+
             foreach (var kvp in pieces)
             {
                 foreach (int edge in kvp.Value.ConnectedEdges)
                 {
-                    HexCoord neighbor = kvp.Value.Coord.GetNeighbor(edge);
-                    if (!pieces.ContainsKey(neighbor) && candidates.Contains(neighbor))
+                    HexCoord oneHop = kvp.Value.Coord.GetNeighbor(edge);
+                    if (pieces.ContainsKey(oneHop)) continue;
+
+                    // Straight-through: continue in the same direction
+                    HexCoord orePos = oneHop.GetNeighbor(edge);
+                    if (pieces.ContainsKey(orePos)) continue;
+                    if (hiddenSpawners.Contains(orePos)) continue;
+                    if (validPositions.Contains(orePos)) continue;
+
+                    // One-hop must not be adjacent to other path pieces
+                    // (avoids multiple entry edges that could change default rotation)
+                    bool oneHopClean = true;
+                    for (int e = 0; e < 6; e++)
                     {
-                        if (!reachable.Contains(neighbor))
-                            reachable.Add(neighbor);
+                        if (e == HexCoord.OppositeEdge(edge)) continue; // skip the source piece
+                        if (pieces.ContainsKey(oneHop.GetNeighbor(e)))
+                        {
+                            oneHopClean = false;
+                            break;
+                        }
                     }
+                    if (!oneHopClean) continue;
+
+                    // Ore must not be adjacent to any existing path piece
+                    bool adjacentToPath = false;
+                    for (int e = 0; e < 6; e++)
+                    {
+                        if (pieces.ContainsKey(orePos.GetNeighbor(e)))
+                        {
+                            adjacentToPath = true;
+                            break;
+                        }
+                    }
+                    if (adjacentToPath) continue;
+
+                    validPositions.Add(orePos);
                 }
             }
 
-            if (reachable.Count == 0) return 0;
+            if (validPositions.Count == 0) return 0;
 
-            var chosen = reachable[random.Next(reachable.Count)];
+            var chosen = validPositions[random.Next(validPositions.Count)];
             orePatches[chosen] = new OrePatch(chosen, oreType, 1);
             candidates.Remove(chosen);
             GuaranteedOreCoord = chosen;

@@ -927,8 +927,9 @@ namespace TowerDefense.Core
 
         public int GetPieceCost(int baseCost)
         {
-            if (newPathsPlaced <= 0) return baseCost;
-            return baseCost + Mathf.RoundToInt(activePathPriceScale * Mathf.Pow(newPathsPlaced, activePathPriceExponent));
+            if (newPathsPlaced <= 1) return baseCost;
+            int escalationCount = newPathsPlaced - 1;
+            return baseCost + Mathf.RoundToInt(activePathPriceScale * Mathf.Pow(escalationCount, activePathPriceExponent));
         }
 
         public void AddCurrency(int amount)

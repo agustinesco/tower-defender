@@ -32,7 +32,7 @@ namespace TowerDefense.Core
         private static readonly string[] StepMessages = new string[]
         {
             "Select a path card",
-            "Hold on the ore deposit to place a path and automatically build a mine!",
+            "Place a path on the ore deposit to build a mine!",
             "Mine placed! It will gather resources over time while you play. At the end of each run, collected resources can be spent on permanent upgrades in the shop",
             "Enemies spawn from open path edges. Kill them to earn gold for more towers and paths!",
             "Enemies spawn from open path edges. Place towers near paths to defend! You can rebuild over existing paths, but not over mines",
@@ -73,6 +73,7 @@ namespace TowerDefense.Core
         private RectTransform trackedUITarget;
 
         private List<GameObject> tutorialSlotMarkers = new List<GameObject>();
+        private bool selectPathCardPhaseTwo;
 
         private void Awake()
         {
@@ -276,6 +277,10 @@ namespace TowerDefense.Core
                 }
                 return false;
             }
+            // Allow placing during SelectPathCard phase two (card selected, placing tile)
+            if (currentStep == TutorialStep.SelectPathCard && selectPathCardPhaseTwo)
+                return true;
+
             // Block ghost interaction during non-placement steps
             if (currentStep == TutorialStep.SelectPathCard ||
                 currentStep == TutorialStep.SwitchToTowers ||
@@ -405,7 +410,18 @@ namespace TowerDefense.Core
             switch (step)
             {
                 case TutorialStep.SelectPathCard:
-                    PointArrowAtUI(pieceHandUI?.GetCardRectTransform(0), Vector2.right);
+                    if (selectPathCardPhaseTwo)
+                    {
+                        var ghostPos = FindGhostTowardOre();
+                        if (ghostPos.HasValue)
+                            PointArrowAtWorldPos(ghostPos.Value + Vector3.up * 5f, Vector2.down);
+                        else
+                            arrowImage.gameObject.SetActive(false);
+                    }
+                    else
+                    {
+                        PointArrowAtUI(pieceHandUI?.GetCardRectTransform(0), Vector2.right);
+                    }
                     break;
 
                 case TutorialStep.BuildOnOre:
@@ -533,6 +549,65 @@ namespace TowerDefense.Core
                     Destroy(tutorialSlotMarkers[i]);
             }
             tutorialSlotMarkers.Clear();
+        }
+
+        private Vector3? FindNearestGhostPosition()
+        {
+            var gm = GameManager.Instance;
+            if (gm == null) return null;
+
+            Vector3 castle = HexGrid.HexToWorld(new HexCoord(0, 0));
+            float bestDist = float.MaxValue;
+            Vector3? best = null;
+
+            foreach (var kvp in gm.MapData)
+            {
+                foreach (int edge in kvp.Value.ConnectedEdges)
+                {
+                    var neighbor = kvp.Value.Coord.GetNeighbor(edge);
+                    if (gm.MapData.ContainsKey(neighbor)) continue;
+
+                    Vector3 pos = HexGrid.HexToWorld(neighbor);
+                    float dist = Vector3.Distance(castle, pos);
+                    if (dist < bestDist)
+                    {
+                        bestDist = dist;
+                        best = pos;
+                    }
+                }
+            }
+            return best;
+        }
+
+        private Vector3? FindGhostTowardOre()
+        {
+            var gm = GameManager.Instance;
+            if (gm == null) return null;
+
+            var oreCoord = gm.GetGuaranteedOreDeposit();
+            if (!oreCoord.HasValue) return FindNearestGhostPosition();
+
+            Vector3 oreWorld = HexGrid.HexToWorld(oreCoord.Value);
+            float bestDist = float.MaxValue;
+            Vector3? best = null;
+
+            foreach (var kvp in gm.MapData)
+            {
+                foreach (int edge in kvp.Value.ConnectedEdges)
+                {
+                    var neighbor = kvp.Value.Coord.GetNeighbor(edge);
+                    if (gm.MapData.ContainsKey(neighbor)) continue;
+
+                    Vector3 pos = HexGrid.HexToWorld(neighbor);
+                    float dist = Vector3.Distance(oreWorld, pos);
+                    if (dist < bestDist)
+                    {
+                        bestDist = dist;
+                        best = pos;
+                    }
+                }
+            }
+            return best;
         }
 
         private Vector3? FindNearestAvailableSlot()
@@ -703,6 +778,7 @@ namespace TowerDefense.Core
         {
             if (cameraController == null) return;
             Vector3 depositWorld = HexGrid.HexToWorld(coord);
+            cameraController.ExpandBoundsToInclude(new List<Vector3> { depositWorld }, 30f);
             cameraController.PanToPosition(depositWorld);
         }
 
@@ -710,9 +786,25 @@ namespace TowerDefense.Core
 
         private void OnCardSelected(int index, HexPieceType type)
         {
-            if (currentStep == TutorialStep.SelectPathCard)
+            if (currentStep == TutorialStep.SelectPathCard && !selectPathCardPhaseTwo)
             {
-                AdvanceTo(TutorialStep.BuildOnOre);
+                // Phase 2: card selected, now guide to place a tile
+                selectPathCardPhaseTwo = true;
+                messageText.text = "Hold on a tile to place your path";
+                panelRect.anchorMin = new Vector2(0.5f, 0.85f);
+                panelRect.anchorMax = new Vector2(0.5f, 0.85f);
+                panelRect.anchoredPosition = Vector2.zero;
+                UpdateArrow(currentStep);
+
+                // Pan camera toward the ghost closest to ore
+                var ghostPos = FindGhostTowardOre();
+                if (ghostPos.HasValue && cameraController != null)
+                {
+                    cameraController.ExpandBoundsToInclude(new List<Vector3> { ghostPos.Value }, 30f);
+                    cameraController.PanToPosition(ghostPos.Value);
+                }
+
+                return;
             }
             else if (currentStep == TutorialStep.SelectTower)
             {
@@ -739,7 +831,12 @@ namespace TowerDefense.Core
 
         private void OnPiecePlaced(int handIndex, PlacementRotation rotation, HexCoord coord)
         {
-            if (currentStep == TutorialStep.BuildOnOre)
+            if (currentStep == TutorialStep.SelectPathCard && selectPathCardPhaseTwo)
+            {
+                selectPathCardPhaseTwo = false;
+                AdvanceTo(TutorialStep.BuildOnOre);
+            }
+            else if (currentStep == TutorialStep.BuildOnOre)
             {
                 AdvanceTo(TutorialStep.MineExplanation);
             }
