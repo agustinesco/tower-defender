@@ -90,7 +90,7 @@ namespace TowerDefense.Grid
             }
 
             // Generate pre-placed tower slots alongside paths (slot mode only)
-            if (!TowerDefense.Core.GameManager.Instance.UseFreeTowerPlacement)
+            if (TowerDefense.Core.GameManager.Instance != null && !TowerDefense.Core.GameManager.Instance.UseFreeTowerPlacement)
             {
                 if (config != null ? config.allowsTowerSlots : !data.IsGoblinCamp)
                     GenerateTowerSlots();
