@@ -23,6 +23,7 @@ namespace TowerDefense.Entities
         private float auraCheckTimer; // Throttle aura tower checks
         private HexCoord? cachedTileCoord;
         private float hasteMultiplier = 1f;
+        private float targetSearchTimer; // Throttle target acquisition
 
         // Muzzle flash
         private GameObject muzzleFlash;
@@ -192,6 +193,7 @@ namespace TowerDefense.Entities
             var mgr = Core.EnemyManager.Instance;
             if (mgr == null) return;
 
+            float rangeSq = EffectiveRange * EffectiveRange;
             var enemies = mgr.ActiveEnemies;
             for (int i = 0; i < enemies.Count; i++)
             {
@@ -199,8 +201,9 @@ namespace TowerDefense.Entities
                 if (enemy == null || enemy.IsDead) continue;
                 if (enemy.IsFlying && !data.canTargetFlying) continue;
 
-                float distance = Vector3.Distance(transform.position, enemy.transform.position);
-                if (distance <= EffectiveRange)
+                float dx = transform.position.x - enemy.transform.position.x;
+                float dz = transform.position.z - enemy.transform.position.z;
+                if (dx * dx + dz * dz <= rangeSq)
                 {
                     enemy.ApplySlow(data.slowMultiplier, data.slowDuration);
                 }
@@ -283,10 +286,14 @@ namespace TowerDefense.Entities
         private void UpdateShotgun()
         {
             // Shotgun doesn't rotate - always faces the path
-            // Check if any enemy is in range
-            bool enemyInRange = HasEnemyInRange();
+            // Only check for enemies when ready to fire and search timer elapsed
+            if (fireCooldown > 0f) return;
 
-            if (enemyInRange && fireCooldown <= 0f)
+            targetSearchTimer -= Time.deltaTime;
+            if (targetSearchTimer > 0f) return;
+            targetSearchTimer = 0.1f;
+
+            if (HasEnemyInRange())
             {
                 FireShotgun();
                 float speedBonus = UpgradeManager.Instance != null ? UpgradeManager.Instance.TowerSpeedBonus : 0f;
@@ -534,20 +541,28 @@ namespace TowerDefense.Entities
         {
             if (currentTarget != null)
             {
-                float distance = Vector3.Distance(transform.position, currentTarget.transform.position);
-                bool invalidTarget = currentTarget.IsDead || distance > EffectiveRange;
-                // Drop flying targets if this tower can't target them
+                float dx = transform.position.x - currentTarget.transform.position.x;
+                float dz = transform.position.z - currentTarget.transform.position.z;
+                float distSq = dx * dx + dz * dz;
+                float rangeSq = EffectiveRange * EffectiveRange;
+                bool invalidTarget = currentTarget.IsDead || distSq > rangeSq;
                 if (!invalidTarget && currentTarget.IsFlying && !data.canTargetFlying)
                     invalidTarget = true;
                 if (invalidTarget)
                 {
                     currentTarget = null;
+                    targetSearchTimer = 0f; // Search immediately when target lost
                 }
             }
 
             if (currentTarget == null)
             {
-                currentTarget = FindClosestEnemy();
+                targetSearchTimer -= Time.deltaTime;
+                if (targetSearchTimer <= 0f)
+                {
+                    targetSearchTimer = 0.15f;
+                    currentTarget = FindClosestEnemy();
+                }
             }
         }
 
@@ -603,11 +618,11 @@ namespace TowerDefense.Entities
 
             mgr.GetEnemiesInRange(transform.position, EffectiveRange, _reusableEnemyList, data.canTargetFlying);
 
-            // Sort by distance (closest first)
+            // Sort by distance (closest first) using sqrMagnitude to avoid sqrt
             var pos = transform.position;
             _reusableEnemyList.Sort((a, b) =>
-                Vector3.Distance(pos, a.transform.position)
-                .CompareTo(Vector3.Distance(pos, b.transform.position)));
+                (a.transform.position - pos).sqrMagnitude
+                .CompareTo((b.transform.position - pos).sqrMagnitude));
 
             // Trim to count
             if (_reusableEnemyList.Count > count)

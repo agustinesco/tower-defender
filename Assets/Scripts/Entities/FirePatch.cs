@@ -12,6 +12,7 @@ namespace TowerDefense.Entities
         private float burnDuration;
         private float radius;
         private float timer;
+        private float damageTickTimer;
         private GameObject visual;
         private Renderer visualRenderer;
         private MaterialPropertyBlock propBlock;
@@ -87,11 +88,18 @@ namespace TowerDefense.Entities
                 visualRenderer.SetPropertyBlock(propBlock);
             }
 
-            // Damage enemies in radius
+            // Throttle enemy damage checks
+            damageTickTimer -= Time.deltaTime;
+            if (damageTickTimer > 0f) return;
+
+            const float tickInterval = 0.15f;
+            damageTickTimer = tickInterval;
+
             var mgr = EnemyManager.Instance;
             if (mgr == null) return;
 
-            float dmgThisFrame = damagePerSecond * Time.deltaTime;
+            float dmgThisTick = damagePerSecond * tickInterval;
+            float radiusSq = radius * radius;
             var enemies = mgr.ActiveEnemies;
 
             for (int i = 0; i < enemies.Count; i++)
@@ -100,10 +108,11 @@ namespace TowerDefense.Entities
                 if (enemy == null || enemy.IsDead) continue;
                 if (enemy.IsFlying) continue;
 
-                float dist = Vector3.Distance(transform.position, enemy.transform.position);
-                if (dist <= radius)
+                float dx = transform.position.x - enemy.transform.position.x;
+                float dz = transform.position.z - enemy.transform.position.z;
+                if (dx * dx + dz * dz <= radiusSq)
                 {
-                    enemy.TakeDamage(dmgThisFrame);
+                    enemy.TakeDamage(dmgThisTick);
                     enemy.ApplyBurn(damagePerSecond, burnDuration);
                 }
             }
