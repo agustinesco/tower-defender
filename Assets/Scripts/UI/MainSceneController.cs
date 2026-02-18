@@ -36,6 +36,7 @@ namespace TowerDefense.UI
         [SerializeField] private Button questAreaButton;
         [SerializeField] private Button questStartButton;
         [SerializeField] private GameObject questCardPrefab;
+        [SerializeField] private GameObject questDetailPrefab;
 
         [Header("Notifications")]
         [SerializeField] private GameObject questNotifyObj;
@@ -57,6 +58,10 @@ namespace TowerDefense.UI
 
         // Reset confirmation
         private GameObject resetConfirmOverlay;
+
+        // Quest detail popup
+        private GameObject questDetailOverlay;
+        private RectTransform questDetailAcceptBtnRect;
 
         // Quest button notification
         private RectTransform questNotifyRect;
@@ -182,12 +187,22 @@ namespace TowerDefense.UI
                     }
                     break;
                 case 1:
-                    tutMessageText.text = "Accept this quest";
-                    var acceptRect = GetFirstQuestAcceptButtonRect();
-                    if (acceptRect != null)
+                    // If detail popup is open, point at its Accept button
+                    if (questDetailAcceptBtnRect != null)
                     {
-                        PositionPanelNearTarget(acceptRect, new Vector2(0f, 120f));
-                        PointTutArrowAt(acceptRect, new Vector2(0f, 1f));
+                        tutMessageText.text = "Accept this quest";
+                        PositionPanelNearTarget(questDetailAcceptBtnRect, new Vector2(0f, 120f));
+                        PointTutArrowAt(questDetailAcceptBtnRect, new Vector2(0f, 1f));
+                    }
+                    else
+                    {
+                        tutMessageText.text = "Tap a quest to view details";
+                        if (questCards.Count > 0 && questCards[0] != null)
+                        {
+                            var cardRect = questCards[0].GetComponent<RectTransform>();
+                            PositionPanelNearTarget(cardRect, new Vector2(0f, 120f));
+                            PointTutArrowAt(cardRect, new Vector2(0f, 1f));
+                        }
                     }
                     break;
                 case 2:
@@ -214,13 +229,7 @@ namespace TowerDefense.UI
 
         private RectTransform GetFirstQuestAcceptButtonRect()
         {
-            if (questCards.Count == 0) return null;
-            var firstCard = questCards[0];
-            if (firstCard == null) return null;
-            var actionBtn = firstCard.transform.Find("ActionBtn");
-            if (actionBtn != null)
-                return actionBtn.GetComponent<RectTransform>();
-            return null;
+            return questDetailAcceptBtnRect;
         }
 
         private void CompleteQuestTutorial()
@@ -862,10 +871,14 @@ namespace TowerDefense.UI
 
             if (QuestManager.Instance == null || questGridContent == null) return;
 
-            var quests = QuestManager.Instance.AllQuests;
+            var qm = QuestManager.Instance;
+            var quests = qm.AllQuests;
             for (int i = 0; i < quests.Count; i++)
             {
-                if (!QuestManager.Instance.IsQuestUnlocked(quests[i].questId))
+                if (!qm.IsQuestUnlocked(quests[i].questId))
+                    continue;
+                // Hide completed quests that are not repeatable
+                if (qm.IsQuestCompleted(quests[i].questId) && !quests[i].repeatable)
                     continue;
                 questCards.Add(CreateQuestCard(quests[i]));
             }
@@ -884,41 +897,27 @@ namespace TowerDefense.UI
             // Name
             ui.NameLabel.text = quest.questName;
 
-            // Objectives
-            ui.ObjectivesLabel.text = BuildObjectiveSummary(quest);
+            // Quest image
+            if (ui.QuestImage != null)
+            {
+                if (quest.questImage != null)
+                {
+                    ui.QuestImage.sprite = quest.questImage;
+                    ui.QuestImage.enabled = true;
+                }
+                else
+                {
+                    ui.QuestImage.enabled = false;
+                }
+            }
 
-            // Reward
-            string rewardStr = quest.rewardAmount > 0
-                ? $"Reward: {quest.rewardAmount} {GetResourceShortName(quest.rewardResource)}"
-                : "Reward:";
-            if (!string.IsNullOrEmpty(quest.unlockLabUpgrade))
-                rewardStr += (quest.rewardAmount > 0 ? " + " : " ") + $"Unlock {quest.unlockLabUpgrade}";
-            ui.RewardLabel.text = rewardStr;
+            // Selected indicator
+            if (ui.SelectedImage != null)
+                ui.SelectedImage.SetActive(isActive);
 
-            // Action button
-            if (isActive)
-            {
-                ui.ActionButtonBg.color = new Color(0.5f, 0.5f, 0.2f);
-                ui.ActionButtonText.text = "ACTIVE";
-                ui.ActionButtonText.color = Color.white;
-                ui.ActionButton.interactable = false;
-            }
-            else if (isCompleted)
-            {
-                ui.ActionButtonBg.color = new Color(0.2f, 0.5f, 0.2f);
-                ui.ActionButtonText.text = "Replay";
-                ui.ActionButtonText.color = Color.white;
-                var capturedId = quest.questId;
-                ui.ActionButton.onClick.AddListener(() => OnAcceptQuest(capturedId));
-            }
-            else
-            {
-                ui.ActionButtonBg.color = new Color(0.2f, 0.4f, 0.6f);
-                ui.ActionButtonText.text = "Accept";
-                ui.ActionButtonText.color = Color.white;
-                var capturedId = quest.questId;
-                ui.ActionButton.onClick.AddListener(() => OnAcceptQuest(capturedId));
-            }
+            // Whole card tappable
+            var capturedQuest = quest;
+            ui.CardButton.onClick.AddListener(() => ShowQuestDetail(capturedQuest));
 
             return card;
         }
@@ -950,6 +949,7 @@ namespace TowerDefense.UI
         {
             if (QuestManager.Instance == null) return;
             QuestManager.Instance.AcceptQuest(questId);
+            CloseQuestDetail();
             RefreshQuestCards();
             UpdateQuestStartButton();
 
@@ -958,6 +958,113 @@ namespace TowerDefense.UI
                 questTutorialStep = 2;
                 ShowQuestTutorialStep();
             }
+        }
+
+        private void ShowQuestDetail(QuestDefinition quest)
+        {
+            Debug.Log($"ShowQuestDetail called for {quest.questName}, prefab={questDetailPrefab != null}");
+            CloseQuestDetail();
+
+            var qm = QuestManager.Instance;
+            if (qm == null || questDetailPrefab == null) return;
+
+            bool isActive = qm.ActiveQuestId == quest.questId;
+            bool isCompleted = qm.IsQuestCompleted(quest.questId);
+
+            var parent = questPanel != null ? questPanel.transform.parent : transform;
+
+            questDetailOverlay = Instantiate(questDetailPrefab, parent);
+            questDetailOverlay.name = "QuestDetailOverlay";
+
+            // Background tap closes the popup
+            var bgBtn = questDetailOverlay.GetComponent<Button>();
+            if (bgBtn != null)
+                bgBtn.onClick.AddListener(CloseQuestDetail);
+
+            var dialog = questDetailOverlay.transform.Find("Dialog");
+            if (dialog == null) return;
+
+            // Title
+            var titleTMP = dialog.Find("Title")?.GetComponent<TextMeshProUGUI>();
+            if (titleTMP != null)
+                titleTMP.text = quest.questName;
+
+            // Description
+            var descTMP = dialog.Find("Description")?.GetComponent<TextMeshProUGUI>();
+            if (descTMP != null)
+                descTMP.text = quest.description;
+
+            // Objectives
+            var objTMP = dialog.Find("Objectives")?.GetComponent<TextMeshProUGUI>();
+            if (objTMP != null)
+                objTMP.text = "Objectives:\n" + BuildObjectiveSummary(quest);
+
+            // Reward
+            var rewardTMP = dialog.Find("Reward")?.GetComponent<TextMeshProUGUI>();
+            if (rewardTMP != null)
+            {
+                string rewardStr = quest.rewardAmount > 0
+                    ? $"Reward: {quest.rewardAmount} {GetResourceShortName(quest.rewardResource)}"
+                    : "Reward:";
+                if (!string.IsNullOrEmpty(quest.unlockLabUpgrade))
+                    rewardStr += (quest.rewardAmount > 0 ? " + " : " ") + $"Unlock {quest.unlockLabUpgrade}";
+                rewardTMP.text = rewardStr;
+            }
+
+            // Accept button
+            var acceptBtnTransform = dialog.Find("AcceptBtn");
+            if (acceptBtnTransform != null)
+            {
+                var acceptBtn = acceptBtnTransform.GetComponent<Button>();
+                var acceptImg = acceptBtnTransform.GetComponent<Image>();
+                var acceptText = acceptBtnTransform.GetComponentInChildren<TextMeshProUGUI>();
+
+                if (isActive)
+                {
+                    if (acceptImg != null) acceptImg.color = new Color(0.4f, 0.4f, 0.3f);
+                    if (acceptText != null) acceptText.text = "ACTIVE";
+                    if (acceptBtn != null) acceptBtn.interactable = false;
+                }
+                else if (isCompleted && quest.repeatable)
+                {
+                    if (acceptImg != null) acceptImg.color = new Color(0.2f, 0.5f, 0.2f);
+                    if (acceptText != null) acceptText.text = "Replay";
+                    var capturedId = quest.questId;
+                    if (acceptBtn != null) acceptBtn.onClick.AddListener(() => OnAcceptQuest(capturedId));
+                }
+                else
+                {
+                    if (acceptImg != null) acceptImg.color = new Color(0.2f, 0.4f, 0.6f);
+                    if (acceptText != null) acceptText.text = "Accept";
+                    var capturedId = quest.questId;
+                    if (acceptBtn != null) acceptBtn.onClick.AddListener(() => OnAcceptQuest(capturedId));
+                }
+
+                questDetailAcceptBtnRect = acceptBtnTransform.GetComponent<RectTransform>();
+            }
+
+            // Close button
+            var closeBtnTransform = dialog.Find("CloseBtn");
+            if (closeBtnTransform != null)
+            {
+                var closeBtn = closeBtnTransform.GetComponent<Button>();
+                if (closeBtn != null)
+                    closeBtn.onClick.AddListener(CloseQuestDetail);
+            }
+
+            // Tutorial: if quest panel tutorial is active at step 1, point at accept button
+            if (questTutorialActive && questTutorialStep == 1)
+                ShowQuestTutorialStep();
+        }
+
+        private void CloseQuestDetail()
+        {
+            if (questDetailOverlay != null)
+            {
+                Destroy(questDetailOverlay);
+                questDetailOverlay = null;
+            }
+            questDetailAcceptBtnRect = null;
         }
 
         // --- Static helper ---

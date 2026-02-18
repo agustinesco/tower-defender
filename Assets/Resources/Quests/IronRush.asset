@@ -21,6 +21,8 @@ MonoBehaviour:
     requiredAmount: 10
   rewardResource: 1
   rewardAmount: 0
-  prerequisiteQuestId:
+  prerequisiteQuestId: 
   unlockLabUpgrade: Cannon
   mapConfig: {fileID: 11400000, guid: f444c18d9a0284cc5b3d978c4bc978fb, type: 2}
+  questImage: {fileID: 21300000, guid: 787b7f28034004aa8be49c5007143fa2, type: 3}
+  repeatable: 0

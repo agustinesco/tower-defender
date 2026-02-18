@@ -23,5 +23,7 @@ namespace TowerDefense.Data
         public string prerequisiteQuestId;  // Quest that must be completed to unlock this one (empty = always unlocked)
         public string unlockLabUpgrade;     // Lab upgrade name to force-unlock on completion (empty = none)
         public MapConfig mapConfig;         // null = use GameManager defaults
+        public Sprite questImage;           // Image displayed on the quest card
+        public bool repeatable;             // Whether this quest can be replayed after completion
     }
 }
