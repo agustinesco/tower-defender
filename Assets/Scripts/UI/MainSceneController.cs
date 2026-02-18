@@ -35,6 +35,7 @@ namespace TowerDefense.UI
         [SerializeField] private Button questBackButton;
         [SerializeField] private Button questAreaButton;
         [SerializeField] private Button questStartButton;
+        [SerializeField] private GameObject questCardPrefab;
 
         [Header("Notifications")]
         [SerializeField] private GameObject questNotifyObj;
@@ -876,123 +877,47 @@ namespace TowerDefense.UI
             bool isActive = qm.ActiveQuestId == quest.questId;
             bool isCompleted = qm.IsQuestCompleted(quest.questId);
 
-            var card = new GameObject($"QuestCard_{quest.questId}");
-            card.transform.SetParent(questGridContent);
-            card.AddComponent<RectTransform>();
-
-            var cardBg = card.AddComponent<Image>();
-            cardBg.color = isActive ? new Color(0.15f, 0.2f, 0.15f, 0.9f) : new Color(0.14f, 0.14f, 0.2f, 0.9f);
-
-            // Left accent bar
-            var accentObj = new GameObject("Accent");
-            accentObj.transform.SetParent(card.transform);
-            var accentRect = accentObj.AddComponent<RectTransform>();
-            accentRect.anchorMin = new Vector2(0, 0);
-            accentRect.anchorMax = new Vector2(0, 1);
-            accentRect.pivot = new Vector2(0, 0.5f);
-            accentRect.anchoredPosition = Vector2.zero;
-            accentRect.sizeDelta = new Vector2(6, 0);
-            var accentImg = accentObj.AddComponent<Image>();
-            accentImg.color = GetResourceColor(quest.rewardResource);
-            accentImg.raycastTarget = false;
+            var card = Instantiate(questCardPrefab, questGridContent);
+            card.name = $"QuestCard_{quest.questId}";
+            var ui = card.GetComponent<QuestCardUI>();
 
             // Name
-            var nameObj = new GameObject("Name");
-            nameObj.transform.SetParent(card.transform);
-            var nameRect = nameObj.AddComponent<RectTransform>();
-            nameRect.anchorMin = new Vector2(0, 0.72f);
-            nameRect.anchorMax = new Vector2(1, 0.98f);
-            nameRect.offsetMin = new Vector2(16, 0);
-            nameRect.offsetMax = new Vector2(-8, 0);
-            var nameText = nameObj.AddComponent<TextMeshProUGUI>();
-            nameText.text = quest.questName;
-            nameText.fontSize = 20;
-            nameText.fontStyle = FontStyles.Bold;
-            nameText.color = Color.white;
-            nameText.alignment = TextAlignmentOptions.Left;
-            nameText.raycastTarget = false;
+            ui.NameLabel.text = quest.questName;
 
-            // Objectives text
-            var objObj = new GameObject("Objectives");
-            objObj.transform.SetParent(card.transform);
-            var objRect = objObj.AddComponent<RectTransform>();
-            objRect.anchorMin = new Vector2(0, 0.38f);
-            objRect.anchorMax = new Vector2(1, 0.72f);
-            objRect.offsetMin = new Vector2(16, 0);
-            objRect.offsetMax = new Vector2(-8, 0);
-            var objText = objObj.AddComponent<TextMeshProUGUI>();
-            objText.text = BuildObjectiveSummary(quest);
-            objText.fontSize = 14;
-            objText.color = new Color(0.7f, 0.7f, 0.7f);
-            objText.alignment = TextAlignmentOptions.TopLeft;
-            objText.raycastTarget = false;
+            // Objectives
+            ui.ObjectivesLabel.text = BuildObjectiveSummary(quest);
 
-            // Reward text
-            var rewardObj = new GameObject("Reward");
-            rewardObj.transform.SetParent(card.transform);
-            var rewardRect = rewardObj.AddComponent<RectTransform>();
-            rewardRect.anchorMin = new Vector2(0, 0.02f);
-            rewardRect.anchorMax = new Vector2(0.45f, 0.35f);
-            rewardRect.offsetMin = new Vector2(16, 0);
-            rewardRect.offsetMax = Vector2.zero;
-            var rewardText = rewardObj.AddComponent<TextMeshProUGUI>();
+            // Reward
             string rewardStr = quest.rewardAmount > 0
                 ? $"Reward: {quest.rewardAmount} {GetResourceShortName(quest.rewardResource)}"
                 : "Reward:";
             if (!string.IsNullOrEmpty(quest.unlockLabUpgrade))
                 rewardStr += (quest.rewardAmount > 0 ? " + " : " ") + $"Unlock {quest.unlockLabUpgrade}";
-            rewardText.text = rewardStr;
-            rewardText.fontSize = 14;
-            rewardText.color = new Color(1f, 0.85f, 0.2f);
-            rewardText.alignment = TextAlignmentOptions.Left;
-            rewardText.raycastTarget = false;
+            ui.RewardLabel.text = rewardStr;
 
             // Action button
-            var btnObj = new GameObject("ActionBtn");
-            btnObj.transform.SetParent(card.transform);
-            var btnRect = btnObj.AddComponent<RectTransform>();
-            btnRect.anchorMin = new Vector2(0.5f, 0.05f);
-            btnRect.anchorMax = new Vector2(0.95f, 0.35f);
-            btnRect.offsetMin = Vector2.zero;
-            btnRect.offsetMax = Vector2.zero;
-
-            var btnImage = btnObj.AddComponent<Image>();
-            var btn = btnObj.AddComponent<Button>();
-            btn.targetGraphic = btnImage;
-
-            var btnTextObj = new GameObject("Text");
-            btnTextObj.transform.SetParent(btnObj.transform);
-            var btnTextRect = btnTextObj.AddComponent<RectTransform>();
-            btnTextRect.anchorMin = Vector2.zero;
-            btnTextRect.anchorMax = Vector2.one;
-            btnTextRect.offsetMin = Vector2.zero;
-            btnTextRect.offsetMax = Vector2.zero;
-            var btnText = btnTextObj.AddComponent<TextMeshProUGUI>();
-            btnText.fontSize = 14;
-            btnText.alignment = TextAlignmentOptions.Center;
-
             if (isActive)
             {
-                btnImage.color = new Color(0.5f, 0.5f, 0.2f);
-                btnText.text = "ACTIVE";
-                btnText.color = Color.white;
-                btn.interactable = false;
+                ui.ActionButtonBg.color = new Color(0.5f, 0.5f, 0.2f);
+                ui.ActionButtonText.text = "ACTIVE";
+                ui.ActionButtonText.color = Color.white;
+                ui.ActionButton.interactable = false;
             }
             else if (isCompleted)
             {
-                btnImage.color = new Color(0.2f, 0.5f, 0.2f);
-                btnText.text = "Replay";
-                btnText.color = Color.white;
+                ui.ActionButtonBg.color = new Color(0.2f, 0.5f, 0.2f);
+                ui.ActionButtonText.text = "Replay";
+                ui.ActionButtonText.color = Color.white;
                 var capturedId = quest.questId;
-                btn.onClick.AddListener(() => OnAcceptQuest(capturedId));
+                ui.ActionButton.onClick.AddListener(() => OnAcceptQuest(capturedId));
             }
             else
             {
-                btnImage.color = new Color(0.2f, 0.4f, 0.6f);
-                btnText.text = "Accept";
-                btnText.color = Color.white;
+                ui.ActionButtonBg.color = new Color(0.2f, 0.4f, 0.6f);
+                ui.ActionButtonText.text = "Accept";
+                ui.ActionButtonText.color = Color.white;
                 var capturedId = quest.questId;
-                btn.onClick.AddListener(() => OnAcceptQuest(capturedId));
+                ui.ActionButton.onClick.AddListener(() => OnAcceptQuest(capturedId));
             }
 
             return card;
