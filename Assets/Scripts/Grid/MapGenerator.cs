@@ -239,6 +239,14 @@ namespace TowerDefense.Grid
             orePatches.Clear();
             var origin = new HexCoord(0, 0);
 
+            // Extend maxDistance to cover all zones if zone boundaries go further
+            if (zoneBoundaries != null && zoneBoundaries.Length > 0)
+            {
+                int lastBoundary = zoneBoundaries[zoneBoundaries.Length - 1];
+                if (lastBoundary > maxDistance)
+                    maxDistance = lastBoundary;
+            }
+
             // Collect all candidate hexes in [minDistance, maxDistance] that aren't occupied or spawners
             var allCandidates = new List<HexCoord>();
             for (int q = -maxDistance; q <= maxDistance; q++)
