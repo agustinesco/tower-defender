@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   towerName: Shotgun
   cost: 150
-  damage: 8
+  damage: 5
   range: 8
   fireRate: 1.2
   isAreaDamage: 0
@@ -26,7 +26,7 @@ MonoBehaviour:
   towerIcon: {fileID: 21300000, guid: 4eee381e0671c436cab316f96186ca23, type: 3}
   projectileSpeed: 20
   isShotgun: 1
-  shotgunProjectileCount: 5
+  shotgunProjectileCount: 10
   shotgunSpreadAngle: 60
   isTesla: 0
   bounceCount: 3

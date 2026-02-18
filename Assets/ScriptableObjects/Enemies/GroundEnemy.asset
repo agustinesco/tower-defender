@@ -15,7 +15,7 @@ MonoBehaviour:
   enemyName: Ground Enemy
   enemyType: 0
   baseSpeed: 2
-  baseHealth: 10
+  baseHealth: 30
   baseCurrencyReward: 10
   flyHeight: 0
   prefab: {fileID: 5544113186760210693, guid: a53ca8c8cc3f244ccafa6864df8d3685, type: 3}

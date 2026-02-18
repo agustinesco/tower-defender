@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   towerName: Arrow
   cost: 100
-  damage: 5
+  damage: 10
   range: 8
   fireRate: 1
   isAreaDamage: 0
