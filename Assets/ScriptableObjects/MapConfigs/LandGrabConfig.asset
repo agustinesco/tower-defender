@@ -38,6 +38,7 @@ MonoBehaviour:
   waveBonusPerWave: 10
   pathPriceScale: 0.7
   pathPriceExponent: 1.3
+  extractionCountdown: 30
   hiddenSpawnerCount: 0
   hiddenSpawnerMinDistance: 3
   hiddenSpawnerMaxDistance: 7

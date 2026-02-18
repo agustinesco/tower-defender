@@ -845,7 +845,7 @@ namespace TowerDefense.UI
             // Update confirm dialog text with extraction info
             float countdown = 30f;
             var gm = GameManager.Instance;
-            if (gm != null && gm.MapConfig != null)
+            if (gm != null && gm.MapConfig != null && gm.MapConfig.extractionCountdown > 0f)
                 countdown = gm.MapConfig.extractionCountdown;
             int secs = Mathf.CeilToInt(countdown);
             SetConfirmDescriptionText(
@@ -862,7 +862,7 @@ namespace TowerDefense.UI
             if (gm == null) return;
 
             float countdown = 30f;
-            if (gm.MapConfig != null)
+            if (gm.MapConfig != null && gm.MapConfig.extractionCountdown > 0f)
                 countdown = gm.MapConfig.extractionCountdown;
 
             gm.StartExtraction(countdown);
