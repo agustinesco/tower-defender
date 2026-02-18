@@ -23,7 +23,7 @@ namespace TowerDefense.Grid
 
             // Always add collider to slot for click detection on placed towers
             var slotCollider = gameObject.AddComponent<SphereCollider>();
-            slotCollider.radius = 1.5f;
+            slotCollider.radius = 3.0f;
 
             if (showIndicator)
             {

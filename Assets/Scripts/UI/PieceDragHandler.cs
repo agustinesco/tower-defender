@@ -62,6 +62,7 @@ namespace TowerDefense.UI
 
         public bool IsInteracting => isPressingGhost;
         public bool IsPlacingPiece => isCardSelected || isModificationSelected || isTowerSelected;
+        public RectTransform BuildButtonRect => buildButtonObj != null ? buildButtonObj.GetComponent<RectTransform>() : null;
 
         public event Action<int, PlacementRotation, HexCoord> OnPiecePlaced;
 

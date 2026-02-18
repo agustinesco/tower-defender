@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -35,9 +36,9 @@ namespace TowerDefense.Core
             "Mine placed! It will gather resources over time while you play. At the end of each run, collected resources can be spent on permanent upgrades in the shop",
             "Enemies spawn from open path edges. Kill them to earn gold for more towers and paths!",
             "Enemies spawn from open path edges. Place towers near paths to defend! You can rebuild over existing paths, but not over mines",
-            "Switch to the Towers tab",
-            "Select a tower to place",
-            "Tap a slot to place your tower",
+            "Tap a slot near the path",
+            "Select a tower to build",
+            "Tap Build to confirm placement",
             "Tap Start Wave to send enemies!",
             "Your tower attacks automatically. You're ready!"
         };
@@ -70,6 +71,8 @@ namespace TowerDefense.Core
 
         private bool isTrackingUITarget;
         private RectTransform trackedUITarget;
+
+        private List<GameObject> tutorialSlotMarkers = new List<GameObject>();
 
         private void Awake()
         {
@@ -347,6 +350,9 @@ namespace TowerDefense.Core
 
             PositionPanel(step);
             UpdateArrow(step);
+
+            if (step == TutorialStep.SwitchToTowers)
+                HighlightAllSlots(true);
         }
 
         private bool IsInfoStep(TutorialStep step)
@@ -363,7 +369,6 @@ namespace TowerDefense.Core
             {
                 // Card/tab steps — center-left, near hand panel
                 case TutorialStep.SelectPathCard:
-                case TutorialStep.SwitchToTowers:
                 case TutorialStep.SelectTower:
                     panelRect.anchorMin = new Vector2(0.35f, 0.5f);
                     panelRect.anchorMax = new Vector2(0.35f, 0.5f);
@@ -378,6 +383,7 @@ namespace TowerDefense.Core
                     break;
 
                 // World steps — top-center
+                case TutorialStep.SwitchToTowers:
                 case TutorialStep.BuildOnOre:
                 case TutorialStep.PlaceTower:
                     panelRect.anchorMin = new Vector2(0.5f, 0.85f);
@@ -416,7 +422,8 @@ namespace TowerDefense.Core
                     break;
 
                 case TutorialStep.SwitchToTowers:
-                    PointArrowAtUI(pieceHandUI?.GetTowersTabRectTransform(), Vector2.right);
+                    // World-space markers on all slots are shown instead of a single arrow
+                    arrowImage.gameObject.SetActive(false);
                     break;
 
                 case TutorialStep.SelectTower:
@@ -424,11 +431,18 @@ namespace TowerDefense.Core
                     break;
 
                 case TutorialStep.PlaceTower:
-                    var slotPos = FindNearestAvailableSlot();
-                    if (slotPos.HasValue)
-                        PointArrowAtWorldPos(slotPos.Value + Vector3.up * 2f, Vector2.down);
+                    if (pieceDragHandler != null && pieceDragHandler.BuildButtonRect != null)
+                    {
+                        PointArrowAtUI(pieceDragHandler.BuildButtonRect, Vector2.down);
+                    }
                     else
-                        arrowImage.gameObject.SetActive(false);
+                    {
+                        var slotPos = FindNearestAvailableSlot();
+                        if (slotPos.HasValue)
+                            PointArrowAtWorldPos(slotPos.Value + Vector3.up * 2f, Vector2.down);
+                        else
+                            arrowImage.gameObject.SetActive(false);
+                    }
                     break;
 
                 case TutorialStep.StartWave:
@@ -462,6 +476,63 @@ namespace TowerDefense.Core
                 }
             }
             return best;
+        }
+
+        private void HighlightAllSlots(bool highlighted)
+        {
+            var gm = GameManager.Instance;
+            if (gm == null) return;
+
+            foreach (var kvp in gm.HexPieces)
+            {
+                foreach (var slot in kvp.Value.Slots)
+                {
+                    if (!slot.IsOccupied)
+                        slot.SetHighlight(highlighted);
+                }
+            }
+
+            if (highlighted)
+                CreateSlotMarkers();
+            else
+                ClearSlotMarkers();
+        }
+
+        private void CreateSlotMarkers()
+        {
+            ClearSlotMarkers();
+            var gm = GameManager.Instance;
+            if (gm == null) return;
+
+            foreach (var kvp in gm.HexPieces)
+            {
+                foreach (var slot in kvp.Value.Slots)
+                {
+                    if (slot.IsOccupied) continue;
+
+                    var marker = MaterialCache.CreatePrimitive(PrimitiveType.Sphere);
+                    marker.name = "TutorialSlotMarker";
+                    marker.transform.SetParent(slot.transform);
+                    marker.transform.localPosition = Vector3.up * 5f;
+                    marker.transform.localScale = new Vector3(2f, 2f, 2f);
+
+                    var rend = marker.GetComponent<Renderer>();
+                    if (rend != null)
+                        rend.material = MaterialCache.CreateUnlit(new Color(1f, 1f, 0f));
+
+                    tutorialSlotMarkers.Add(marker);
+                }
+            }
+        }
+
+        private void ClearSlotMarkers()
+        {
+            for (int i = 0; i < tutorialSlotMarkers.Count; i++)
+            {
+                if (tutorialSlotMarkers[i] != null)
+                    Destroy(tutorialSlotMarkers[i]);
+            }
+            tutorialSlotMarkers.Clear();
         }
 
         private Vector3? FindNearestAvailableSlot()
@@ -564,10 +635,66 @@ namespace TowerDefense.Core
 
         private void Update()
         {
+            // During SwitchToTowers, detect slot taps directly (bypasses UI overlay blocking)
+            if (currentStep == TutorialStep.SwitchToTowers)
+            {
+                HandleSlotTapForTutorial();
+                BobSlotMarkers();
+            }
+
+            // During PlaceTower, dynamically switch arrow to build button once it appears
+            if (currentStep == TutorialStep.PlaceTower && isTrackingWorldPosition
+                && pieceDragHandler != null && pieceDragHandler.BuildButtonRect != null)
+            {
+                PointArrowAtUI(pieceDragHandler.BuildButtonRect, Vector2.down);
+            }
+
             if (isTrackingWorldPosition)
                 UpdateWorldArrowPosition();
             else if (isTrackingUITarget)
                 UpdateUIArrowPosition();
+        }
+
+        private void HandleSlotTapForTutorial()
+        {
+            if (mainCamera == null || towerManager == null) return;
+
+            bool tapped = false;
+            Vector2 tapPos = Vector2.zero;
+
+            if (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began)
+            {
+                tapped = true;
+                tapPos = Input.GetTouch(0).position;
+            }
+            else if (Input.GetMouseButtonDown(0))
+            {
+                tapped = true;
+                tapPos = Input.mousePosition;
+            }
+
+            if (!tapped) return;
+
+            Ray ray = mainCamera.ScreenPointToRay(tapPos);
+            if (Physics.Raycast(ray, out RaycastHit hit, 200f))
+            {
+                var slot = hit.collider.GetComponent<TowerSlot>()
+                           ?? hit.collider.GetComponentInParent<TowerSlot>();
+                if (slot != null && !slot.IsOccupied)
+                {
+                    towerManager.SelectSlot(slot);
+                }
+            }
+        }
+
+        private void BobSlotMarkers()
+        {
+            float bob = Mathf.Sin(Time.unscaledTime * 3f) * 1f;
+            for (int i = 0; i < tutorialSlotMarkers.Count; i++)
+            {
+                if (tutorialSlotMarkers[i] != null)
+                    tutorialSlotMarkers[i].transform.localPosition = new Vector3(0f, 5f + bob, 0f);
+            }
         }
 
         // --- Camera panning ---
@@ -605,6 +732,7 @@ namespace TowerDefense.Core
         {
             if (currentStep == TutorialStep.SwitchToTowers && tabIndex == 1)
             {
+                HighlightAllSlots(false);
                 AdvanceTo(TutorialStep.SelectTower);
             }
         }
@@ -694,6 +822,7 @@ namespace TowerDefense.Core
             arrowImage.gameObject.SetActive(false);
             isTrackingWorldPosition = false;
             isTrackingUITarget = false;
+            ClearSlotMarkers();
             if (raycaster != null)
                 raycaster.enabled = false;
         }
