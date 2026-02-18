@@ -223,17 +223,17 @@ namespace TowerDefense.Grid
 
         public Dictionary<HexCoord, OrePatch> GenerateOrePatches(int minDistance = 2, int maxDistance = 6, int zoneBoundary = 3)
         {
-            var configs = new ZoneOreConfig[]
+            var configs = new ZoneConfig[]
             {
-                new ZoneOreConfig { resourceTypes = new[] { ResourceType.IronOre, ResourceType.Gems }, nodeCount = 6 },
-                new ZoneOreConfig { resourceTypes = new[] { ResourceType.Florpus, ResourceType.Adamantite }, nodeCount = 4 }
+                new ZoneConfig { resourceTypes = new[] { ResourceType.IronOre, ResourceType.Gems }, oreNodeCount = 6 },
+                new ZoneConfig { resourceTypes = new[] { ResourceType.Florpus, ResourceType.Adamantite }, oreNodeCount = 4 }
             };
             return GenerateOrePatches(minDistance, maxDistance, new[] { zoneBoundary }, configs, true, ResourceType.IronOre);
         }
 
         public Dictionary<HexCoord, OrePatch> GenerateOrePatches(
             int minDistance, int maxDistance, int[] zoneBoundaries,
-            ZoneOreConfig[] zoneOreConfigs,
+            ZoneConfig[] zoneConfigs,
             bool guaranteeStartingOre, ResourceType guaranteedOreType)
         {
             orePatches.Clear();
@@ -286,18 +286,18 @@ namespace TowerDefense.Grid
                 guaranteedCount = PlaceGuaranteedOreNode(zoneBuckets[0], guaranteedOreType);
             }
 
-            // For each zone with a ZoneOreConfig entry, place ore patches
-            if (zoneOreConfigs != null)
+            // For each zone with a ZoneConfig entry, place ore patches
+            if (zoneConfigs != null)
             {
-                for (int i = 0; i < zoneOreConfigs.Length && i < zoneCount; i++)
+                for (int i = 0; i < zoneConfigs.Length && i < zoneCount; i++)
                 {
-                    var config = zoneOreConfigs[i];
+                    var config = zoneConfigs[i];
                     if (config == null || config.resourceTypes == null || config.resourceTypes.Length == 0)
                         continue;
 
                     Shuffle(zoneBuckets[i]);
 
-                    int count = config.nodeCount;
+                    int count = config.oreNodeCount;
                     if (i == 0) count -= guaranteedCount; // Subtract guaranteed node from zone 1
 
                     int zoneMinDist = i == 0 ? minDistance : zoneBoundaries[i - 1] + 1;

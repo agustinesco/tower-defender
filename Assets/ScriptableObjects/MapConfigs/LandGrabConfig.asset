@@ -16,18 +16,22 @@ MonoBehaviour:
   startingCurrency: 250
   startingTiles: 1
   buildGracePeriod: 35
-  zoneBoundaries: 04000000070000000a000000
+  zones:
+  - width: 4
+    resourceTypes: 0000000001000000
+    oreNodeCount: 6
+  - width: 3
+    resourceTypes: 0200000003000000
+    oreNodeCount: 5
+  - width: 3
+    resourceTypes:
+    oreNodeCount: 0
   zoneHealthStep: 0.4
   zoneSpeedStep: 0.08
   oreMinDistance: 2
   oreMaxDistance: 7
   guaranteeStartingOre: 1
   guaranteedOreType: 0
-  zoneOreConfigs:
-  - resourceTypes: 0000000001000000
-    nodeCount: 6
-  - resourceTypes: 0200000003000000
-    nodeCount: 5
   waveData: {fileID: 11400000, guid: 648c1be705e584f2c958455e08a5c442, type: 2}
   continuousDifficulty: {fileID: 11400000, guid: 04552c9e61ecb4153b95ae3839ac2dcb, type: 2}
   waveBaseBonus: 50

@@ -330,12 +330,12 @@ namespace TowerDefense.UI
             }
 
             // 3. Ore patches
-            int[] zoneBounds = config.zoneBoundaries;
-            if (config.zoneOreConfigs != null && config.zoneOreConfigs.Length > 0)
+            int[] zoneBounds = config.GetZoneBoundaries();
+            if (config.zones != null && config.zones.Length > 0)
             {
                 orePatches = mapGen.GenerateOrePatches(
                     config.oreMinDistance, config.oreMaxDistance,
-                    zoneBounds, config.zoneOreConfigs,
+                    zoneBounds, config.zones,
                     config.guaranteeStartingOre, config.guaranteedOreType);
             }
             else

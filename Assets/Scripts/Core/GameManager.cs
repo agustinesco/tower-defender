@@ -97,9 +97,13 @@ namespace TowerDefense.Core
         private const int GoldenTouchCost = 500;
         private const float ModContinuousDuration = 120f;
 
-        // Zone system — each entry is the max hex distance for that zone boundary
-        [Header("Zone Boundaries (hex distances)")]
-        [SerializeField] private int[] zoneBoundaries = { 3, 6, 9 };
+        // Zone system — fallback when no MapConfig is active
+        [Header("Zone System (fallback)")]
+        [SerializeField] private ZoneConfig[] zones = {
+            new ZoneConfig { width = 3, resourceTypes = new[] { ResourceType.IronOre, ResourceType.Gems }, oreNodeCount = 6 },
+            new ZoneConfig { width = 3, resourceTypes = new[] { ResourceType.Florpus, ResourceType.Adamantite }, oreNodeCount = 4 },
+            new ZoneConfig { width = 3 }
+        };
         private HashSet<int> unlockedZones = new HashSet<int> { 1 };
         private HashSet<int> pendingBossZones = new HashSet<int>();
         private List<GameObject> zoneRings = new List<GameObject>();
@@ -292,7 +296,8 @@ namespace TowerDefense.Core
 
             // Resolve MapConfig from active quest (null = use serialized defaults)
             var mapConfig = ResolveMapConfig();
-            activeZoneBoundaries = mapConfig != null ? mapConfig.zoneBoundaries : zoneBoundaries;
+            var activeZones = mapConfig != null ? mapConfig.zones : zones;
+            activeZoneBoundaries = mapConfig != null ? mapConfig.GetZoneBoundaries() : ComputeZoneBoundaries(zones);
             activePathPriceScale = mapConfig != null ? mapConfig.pathPriceScale : pathPriceScale;
             activePathPriceExponent = mapConfig != null ? mapConfig.pathPriceExponent : pathPriceExponent;
             activeBuildGracePeriod = mapConfig != null ? mapConfig.buildGracePeriod : buildGracePeriod;
@@ -331,12 +336,15 @@ namespace TowerDefense.Core
             }
 
             // 1c. Generate ore patches and create visual markers
-            if (mapConfig != null && mapConfig.zoneOreConfigs != null && mapConfig.zoneOreConfigs.Length > 0)
+            if (activeZones != null && activeZones.Length > 0)
             {
+                int oreMin = mapConfig != null ? mapConfig.oreMinDistance : 2;
+                int oreMax = mapConfig != null ? mapConfig.oreMaxDistance : 6;
+                bool guarantee = mapConfig != null ? mapConfig.guaranteeStartingOre : true;
+                ResourceType guaranteeType = mapConfig != null ? mapConfig.guaranteedOreType : ResourceType.IronOre;
                 orePatches = mapGenerator.GenerateOrePatches(
-                    mapConfig.oreMinDistance, mapConfig.oreMaxDistance,
-                    activeZoneBoundaries, mapConfig.zoneOreConfigs,
-                    mapConfig.guaranteeStartingOre, mapConfig.guaranteedOreType);
+                    oreMin, oreMax, activeZoneBoundaries, activeZones,
+                    guarantee, guaranteeType);
             }
             else
             {
@@ -1456,10 +1464,25 @@ namespace TowerDefense.Core
 
         // --- Zone System ---
 
+        private static int[] ComputeZoneBoundaries(ZoneConfig[] zoneConfigs)
+        {
+            if (zoneConfigs == null || zoneConfigs.Length == 0)
+                return new int[] { 3, 6, 9 };
+
+            var boundaries = new int[zoneConfigs.Length];
+            int cumulative = 0;
+            for (int i = 0; i < zoneConfigs.Length; i++)
+            {
+                cumulative += zoneConfigs[i].width;
+                boundaries[i] = cumulative;
+            }
+            return boundaries;
+        }
+
         public int GetZone(HexCoord coord)
         {
             int dist = new HexCoord(0, 0).DistanceTo(coord);
-            var bounds = activeZoneBoundaries ?? zoneBoundaries;
+            var bounds = activeZoneBoundaries ?? ComputeZoneBoundaries(zones);
             for (int i = 0; i < bounds.Length; i++)
             {
                 if (dist <= bounds[i])
@@ -1495,7 +1518,7 @@ namespace TowerDefense.Core
 
         private void CreateZoneRings()
         {
-            var bounds = activeZoneBoundaries ?? zoneBoundaries;
+            var bounds = activeZoneBoundaries ?? ComputeZoneBoundaries(zones);
             Color[] ringColors = new Color[]
             {
                 new Color(0.8f, 0.8f, 0.2f, 0.6f),  // yellow
