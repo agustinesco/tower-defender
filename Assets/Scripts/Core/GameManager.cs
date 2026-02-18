@@ -126,6 +126,10 @@ namespace TowerDefense.Core
         private bool buildPhaseActive = false;
         private float buildTimer = 0f;
         private bool objectivesMet = false;
+        private bool isExtracting = false;
+        private float extractionTimer;
+        private float extractionDuration;
+        private MapConfig cachedMapConfig;
 
         private float ContinuousMineInterval => mineConfig != null ? mineConfig.collectionInterval : 30f;
         private int MineYieldMultiplier => mineConfig != null ? mineConfig.yieldMultiplier : 1;
@@ -145,6 +149,10 @@ namespace TowerDefense.Core
         public IReadOnlyCollection<HexCoord> ActiveMiningOutposts => activeMiningOutposts;
         public IReadOnlyCollection<HexCoord> ActiveLures => activeLures;
         public float LureGoldMult => LureGoldMultiplier;
+        public bool IsExtracting => isExtracting;
+        public float ExtractionTimer => extractionTimer;
+        public float ExtractionDuration => extractionDuration;
+        public MapConfig MapConfig => cachedMapConfig;
         public bool HasPendingBoss => pendingBossZones.Count > 0;
         public IReadOnlyCollection<int> PendingBossZones => pendingBossZones;
 
@@ -205,6 +213,8 @@ namespace TowerDefense.Core
         public event System.Action OnBuildPhaseStarted;
         public event System.Action OnBuildPhaseEnded;
         public event System.Action OnObjectivesMet;
+        public event System.Action<float, float> OnExtractionTick; // remaining, total
+        public event System.Action OnExtractionComplete;
 
         public bool ObjectivesMet => objectivesMet;
 
@@ -296,6 +306,7 @@ namespace TowerDefense.Core
 
             // Resolve MapConfig from active quest (null = use serialized defaults)
             var mapConfig = ResolveMapConfig();
+            cachedMapConfig = mapConfig;
             var activeZones = mapConfig != null ? mapConfig.zones : zones;
             activeZoneBoundaries = mapConfig != null ? mapConfig.GetZoneBoundaries() : ComputeZoneBoundaries(zones);
             activePathPriceScale = mapConfig != null ? mapConfig.pathPriceScale : pathPriceScale;
@@ -486,6 +497,18 @@ namespace TowerDefense.Core
             if (pieceProvider == null) return;
 
             pieceProvider.UpdateCooldowns(Time.deltaTime);
+
+            if (isExtracting)
+            {
+                extractionTimer -= Time.deltaTime;
+                OnExtractionTick?.Invoke(extractionTimer, extractionDuration);
+                if (extractionTimer <= 0f)
+                {
+                    isExtracting = false;
+                    OnExtractionComplete?.Invoke();
+                    return;
+                }
+            }
 
             if (buildPhaseActive)
             {
@@ -974,11 +997,20 @@ namespace TowerDefense.Core
             if (currentLives <= 0)
             {
                 gameOver = true;
+                isExtracting = false; // Death cancels extraction
                 // All gathered resources are lost on death
                 PersistenceManager.Instance?.ResetRun();
                 UpgradeManager.Instance?.ResetForNewRun();
                 OnGameOver?.Invoke();
             }
+        }
+
+        public void StartExtraction(float duration)
+        {
+            if (gameOver || isExtracting) return;
+            isExtracting = true;
+            extractionDuration = duration;
+            extractionTimer = duration;
         }
 
         public void ExitRun()

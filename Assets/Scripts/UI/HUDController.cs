@@ -81,6 +81,11 @@ namespace TowerDefense.UI
         private GameObject tutPanelObj;
         private GameObject tutArrowObj;
         private RectTransform tutArrowRect;
+
+        // Extraction countdown
+        private GameObject extractionPopup;
+        private TextMeshProUGUI extractionTimerText;
+        private int lastExtractionSeconds = -1;
         // Upgrade button glow
         private bool canAffordUpgrade;
         private float upgradeCheckTimer;
@@ -193,7 +198,11 @@ namespace TowerDefense.UI
                 QuestManager.Instance.OnQuestProgressChanged += UpdateEscapeProgress;
 
             if (GameManager.Instance != null)
+            {
                 GameManager.Instance.OnObjectivesMet += OnObjectivesMet;
+                GameManager.Instance.OnExtractionTick += OnExtractionTick;
+                GameManager.Instance.OnExtractionComplete += OnExtractionComplete;
+            }
 
             cachedCamera = Camera.main;
             CreateUpgradeGlowParticles();
@@ -400,6 +409,8 @@ namespace TowerDefense.UI
 
         private void ShowGameOver()
         {
+            HideExtractionPopup(); // Clean up if died during extraction
+
             // Only show game over screen on death, not voluntary escape
             if (GameManager.Instance != null && GameManager.Instance.Lives > 0) return;
 
@@ -435,7 +446,7 @@ namespace TowerDefense.UI
                 if (escapeButtonObj != null)
                 {
                     escapeButtonObj.SetActive(true);
-                    escapeButton.interactable = true;
+                    escapeButton.interactable = false; // Enabled when objectives met
                 }
                 UpdateEscapeProgress();
             }
@@ -829,19 +840,141 @@ namespace TowerDefense.UI
                 MainSceneController.LoadMainMenu();
                 return;
             }
+            if (!escapeAvailable) return;
+
+            // Update confirm dialog text with extraction info
+            float countdown = 30f;
+            var gm = GameManager.Instance;
+            if (gm != null && gm.MapConfig != null)
+                countdown = gm.MapConfig.extractionCountdown;
+            int secs = Mathf.CeilToInt(countdown);
+            SetConfirmDescriptionText(
+                $"Extracting takes {secs}s. During extraction you\ncannot build paths or towers - only mods.\nEnemies will keep attacking!");
+
             escapeConfirmOverlay.SetActive(true);
         }
 
         private void OnEscapeConfirmed()
         {
             escapeConfirmOverlay.SetActive(false);
-            GameManager.Instance?.ExitRun();
-            MainSceneController.LoadMainMenu();
+
+            var gm = GameManager.Instance;
+            if (gm == null) return;
+
+            float countdown = 30f;
+            if (gm.MapConfig != null)
+                countdown = gm.MapConfig.extractionCountdown;
+
+            gm.StartExtraction(countdown);
+
+            // Disable escape button during extraction
+            if (escapeButton != null) escapeButton.interactable = false;
+            if (escapeButtonText != null) escapeButtonText.text = "Extracting...";
+
+            // Deselect any active card/tower
+            var handUI = FindFirstObjectByType<PieceHandUI>();
+            if (handUI != null)
+                handUI.SwitchToModsTab(force: true);
+
+            ShowExtractionPopup(countdown);
         }
 
         private void OnEscapeCancelled()
         {
             escapeConfirmOverlay.SetActive(false);
+        }
+
+        private void ShowExtractionPopup(float duration)
+        {
+            if (extractionPopup != null) return;
+
+            extractionPopup = new GameObject("ExtractionPopup");
+            extractionPopup.transform.SetParent(canvas.transform, false);
+            var rect = extractionPopup.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.3f, 0.88f);
+            rect.anchorMax = new Vector2(0.7f, 0.95f);
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+            var bg = extractionPopup.AddComponent<Image>();
+            bg.color = new Color(0.12f, 0.08f, 0.2f, 0.92f);
+            bg.raycastTarget = false;
+
+            var textObj = new GameObject("TimerText");
+            textObj.transform.SetParent(extractionPopup.transform, false);
+            var textRect = textObj.AddComponent<RectTransform>();
+            textRect.anchorMin = Vector2.zero;
+            textRect.anchorMax = Vector2.one;
+            textRect.offsetMin = new Vector2(8f, 4f);
+            textRect.offsetMax = new Vector2(-8f, -4f);
+            extractionTimerText = textObj.AddComponent<TextMeshProUGUI>();
+            extractionTimerText.fontSize = 22;
+            extractionTimerText.fontStyle = FontStyles.Bold;
+            extractionTimerText.color = new Color(1f, 0.85f, 0.2f);
+            extractionTimerText.alignment = TextAlignmentOptions.Center;
+            extractionTimerText.raycastTarget = false;
+
+            int secs = Mathf.CeilToInt(duration);
+            extractionTimerText.text = $"Extracting... {secs}s";
+            lastExtractionSeconds = secs;
+        }
+
+        private void HideExtractionPopup()
+        {
+            if (extractionPopup != null)
+            {
+                Destroy(extractionPopup);
+                extractionPopup = null;
+                extractionTimerText = null;
+                lastExtractionSeconds = -1;
+            }
+        }
+
+        private void OnExtractionTick(float remaining, float total)
+        {
+            if (extractionTimerText == null) return;
+            int secs = Mathf.CeilToInt(Mathf.Max(0f, remaining));
+            if (secs != lastExtractionSeconds)
+            {
+                lastExtractionSeconds = secs;
+                extractionTimerText.text = $"Extracting... {secs}s";
+            }
+        }
+
+        private void OnExtractionComplete()
+        {
+            HideExtractionPopup();
+            GameManager.Instance?.ExitRun();
+            MainSceneController.LoadMainMenu();
+        }
+
+        private void SetConfirmDescriptionText(string text)
+        {
+            if (escapeConfirmOverlay == null) return;
+            var panel = escapeConfirmOverlay.transform.Find("Panel");
+            if (panel == null) return;
+
+            var descTransform = panel.Find("ExtractionDesc");
+            TextMeshProUGUI desc;
+            if (descTransform != null)
+            {
+                desc = descTransform.GetComponent<TextMeshProUGUI>();
+            }
+            else
+            {
+                var descObj = new GameObject("ExtractionDesc");
+                descObj.transform.SetParent(panel, false);
+                var descRect = descObj.AddComponent<RectTransform>();
+                descRect.anchorMin = new Vector2(0.05f, 0.15f);
+                descRect.anchorMax = new Vector2(0.95f, 0.65f);
+                descRect.offsetMin = Vector2.zero;
+                descRect.offsetMax = Vector2.zero;
+                desc = descObj.AddComponent<TextMeshProUGUI>();
+                desc.fontSize = 16;
+                desc.color = new Color(0.85f, 0.85f, 0.85f);
+                desc.alignment = TextAlignmentOptions.Center;
+                desc.raycastTarget = false;
+            }
+            desc.text = text;
         }
 
         private void OnUpgradesClicked()

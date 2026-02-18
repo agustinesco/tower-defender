@@ -44,6 +44,9 @@ namespace TowerDefense.Data
         public float pathPriceScale = 1f;
         public float pathPriceExponent = 1.5f;
 
+        [Header("Extraction")]
+        public float extractionCountdown = 30f;
+
         [Header("Hidden Spawners")]
         public int hiddenSpawnerCount = 0;
         public int hiddenSpawnerMinDistance = 3;

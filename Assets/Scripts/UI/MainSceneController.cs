@@ -80,6 +80,8 @@ namespace TowerDefense.UI
         private RectTransform tutTargetRect;
         private Vector2 tutArrowBounceDir;
         private RectTransform safeAreaRect;
+        private bool tutPanelTracksTarget;
+        private Vector2 tutPanelOffset;
 
         private void Awake()
         {
@@ -137,7 +139,11 @@ namespace TowerDefense.UI
         private void Update()
         {
             if ((labTutorialActive || questTutorialActive) && tutTargetRect != null)
+            {
                 UpdateTutArrowPosition();
+                if (tutPanelTracksTarget)
+                    UpdateTutPanelPosition();
+            }
         }
 
         // --- Tutorial ---
@@ -218,6 +224,8 @@ namespace TowerDefense.UI
 
         private void PositionPanelNearTarget(RectTransform target, Vector2 offset)
         {
+            tutPanelTracksTarget = true;
+            tutPanelOffset = offset;
             if (target == null || safeAreaRect == null) return;
             Vector3 screenPos = RectTransformUtility.WorldToScreenPoint(null, target.position);
             if (RectTransformUtility.ScreenPointToLocalPointInRectangle(
@@ -297,6 +305,7 @@ namespace TowerDefense.UI
 
         private void ShowLabTutorialStep()
         {
+            tutPanelTracksTarget = false;
             if (labTutorialStep == 0)
             {
                 tutMessageText.text = "You earned resources! Visit the Lab to power up";
@@ -341,6 +350,18 @@ namespace TowerDefense.UI
                 float bounce = Mathf.Sin(Time.unscaledTime * 3f) * 15f;
                 Vector2 offset = tutArrowBounceDir * (40f + bounce);
                 tutArrowRect.anchoredPosition = localPoint + offset;
+            }
+        }
+
+        private void UpdateTutPanelPosition()
+        {
+            if (tutTargetRect == null || safeAreaRect == null || tutPanelRect == null) return;
+
+            Vector3 screenPos = RectTransformUtility.WorldToScreenPoint(null, tutTargetRect.position);
+            if (RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                safeAreaRect, screenPos, null, out Vector2 localPoint))
+            {
+                tutPanelRect.anchoredPosition = localPoint + tutPanelOffset;
             }
         }
 
@@ -949,15 +970,17 @@ namespace TowerDefense.UI
         {
             if (QuestManager.Instance == null) return;
             QuestManager.Instance.AcceptQuest(questId);
+
+            // Advance tutorial before closing detail so CloseQuestDetail's step-1 guard doesn't re-trigger
+            if (questTutorialActive && questTutorialStep == 1)
+                questTutorialStep = 2;
+
             CloseQuestDetail();
             RefreshQuestCards();
             UpdateQuestStartButton();
 
-            if (questTutorialActive && questTutorialStep == 1)
-            {
-                questTutorialStep = 2;
+            if (questTutorialActive && questTutorialStep == 2)
                 ShowQuestTutorialStep();
-            }
         }
 
         private void ShowQuestDetail(QuestDefinition quest)
@@ -1064,6 +1087,10 @@ namespace TowerDefense.UI
                 questDetailOverlay = null;
             }
             questDetailAcceptBtnRect = null;
+
+            // Re-point tutorial arrow back at quest cards when detail is closed without accepting
+            if (questTutorialActive && questTutorialStep == 1)
+                ShowQuestTutorialStep();
         }
 
         // --- Static helper ---

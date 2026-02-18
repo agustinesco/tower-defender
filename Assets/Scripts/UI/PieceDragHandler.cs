@@ -324,7 +324,7 @@ namespace TowerDefense.UI
 
             float effectiveRange = Mathf.Max(selectedTowerData.range, 15.75f);
             var indicator = MaterialCache.CreatePrimitive(PrimitiveType.Cylinder);
-            indicator.transform.position = slot.transform.position + Vector3.up * 0.02f;
+            indicator.transform.position = slot.transform.position + Vector3.up * 0.15f;
             indicator.transform.localScale = new Vector3(effectiveRange * 2f, 0.01f, effectiveRange * 2f);
 
             var rend = indicator.GetComponent<Renderer>();
@@ -831,7 +831,9 @@ namespace TowerDefense.UI
 
                 if (elapsed < HoldDuration)
                 {
-                    ghostManager.CycleRotation(pressedGhostCoord);
+                    var tut = TowerDefense.Core.TutorialManager.Instance;
+                    if (tut == null || tut.AllowRotation())
+                        ghostManager.CycleRotation(pressedGhostCoord);
                 }
 
                 ghostManager.ClearHighlight();

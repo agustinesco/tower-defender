@@ -313,6 +313,15 @@ namespace TowerDefense.Core
             return true;
         }
 
+        public bool AllowRotation()
+        {
+            // Block rotation during early path placement steps
+            if (currentStep == TutorialStep.SelectPathCard ||
+                currentStep == TutorialStep.BuildOnOre)
+                return false;
+            return true;
+        }
+
         // --- Step display ---
 
         private void ShowCurrentStep()

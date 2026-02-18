@@ -218,15 +218,25 @@ namespace TowerDefense.UI
             SwitchTab(HandTab.Towers, force);
         }
 
+        public void SwitchToModsTab(bool force = false)
+        {
+            SwitchTab(HandTab.Modifications, force);
+        }
+
         private void SwitchTab(HandTab tab, bool force = false)
         {
             if (activeTab == tab) return;
 
-            // Tutorial gate (skip when forced by tutorial system itself)
             if (!force)
             {
+                // Tutorial gate
                 var tut = TowerDefense.Core.TutorialManager.Instance;
                 if (tut != null && !tut.AllowTabSwitch((int)tab))
+                    return;
+
+                // Extraction gate: only mods allowed during extraction
+                var gm = TowerDefense.Core.GameManager.Instance;
+                if (gm != null && gm.IsExtracting && tab != HandTab.Modifications)
                     return;
             }
 
@@ -409,6 +419,10 @@ namespace TowerDefense.UI
 
         private void OnTowerCardClicked(int index, TowerData towerData)
         {
+            // Block during extraction
+            var gm = TowerDefense.Core.GameManager.Instance;
+            if (gm != null && gm.IsExtracting) return;
+
             // Tutorial gate
             var tut = TowerDefense.Core.TutorialManager.Instance;
             if (tut != null && !tut.AllowCardSelect(index))
@@ -617,6 +631,10 @@ namespace TowerDefense.UI
         {
             if (pieceProvider != null && !pieceProvider.IsReady(index))
                 return;
+
+            // Block during extraction
+            var gm = TowerDefense.Core.GameManager.Instance;
+            if (gm != null && gm.IsExtracting) return;
 
             // Tutorial gate
             var tut = TowerDefense.Core.TutorialManager.Instance;

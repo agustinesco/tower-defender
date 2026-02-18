@@ -144,14 +144,14 @@ namespace TowerDefense.Entities
         {
             rangeIndicator = MaterialCache.CreatePrimitive(PrimitiveType.Cylinder);
             rangeIndicator.transform.SetParent(transform);
-            rangeIndicator.transform.localPosition = Vector3.zero;
+            rangeIndicator.transform.localPosition = Vector3.up * 0.15f;
 
             rangeIndicator.transform.localScale = new Vector3(EffectiveRange * 2f, 0.01f, EffectiveRange * 2f);
 
             var renderer = rangeIndicator.GetComponent<Renderer>();
             if (renderer != null)
             {
-                renderer.material = Core.MaterialCache.CreateUnlit(new Color(1f, 1f, 0f, 0.2f));
+                renderer.material = Core.MaterialCache.CreateTransparent(new Color(1f, 1f, 0f), 0.2f);
             }
 
             rangeIndicator.SetActive(false);
@@ -170,14 +170,14 @@ namespace TowerDefense.Entities
             auraIndicator = MaterialCache.CreatePrimitive(PrimitiveType.Cylinder);
             auraIndicator.name = "SlowAura";
             auraIndicator.transform.SetParent(transform);
-            auraIndicator.transform.localPosition = Vector3.zero;
+            auraIndicator.transform.localPosition = Vector3.up * 0.15f;
 
             auraIndicator.transform.localScale = new Vector3(EffectiveRange * 2f, 0.02f, EffectiveRange * 2f);
 
             var renderer = auraIndicator.GetComponent<Renderer>();
             if (renderer != null)
             {
-                renderer.material = Core.MaterialCache.CreateUnlit(new Color(0.2f, 0.7f, 0.7f, 0.3f));
+                renderer.material = Core.MaterialCache.CreateTransparent(new Color(0.2f, 0.7f, 0.7f), 0.3f);
             }
 
             // Aura is always visible for slow towers
