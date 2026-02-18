@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__UnityMCP__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/unity-mcp-lock.sh\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

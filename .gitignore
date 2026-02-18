@@ -79,3 +79,6 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Claude MCP lock
+.unity-mcp-lock
