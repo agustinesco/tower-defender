@@ -8,7 +8,7 @@ namespace TowerDefense.UI
     public class CameraController : MonoBehaviour
     {
         [SerializeField] private float minZoom = 20f;
-        [SerializeField] private float maxZoom = 300f;
+        [SerializeField] private float maxZoom = 400f;
         [SerializeField] private float panSpeed = 0.004f;
         [SerializeField] private float zoomSpeed = 0.1f;
         [SerializeField] private float initialPanBounds = 100f;
