@@ -29,6 +29,7 @@ namespace TowerDefense.Entities
         private Color enemyColor;
         private EnemyType enemyType = EnemyType.Ground;
         private int currencyReward;
+        private float invulnerabilityTimer;
 
         // Health bar
         private GameObject healthBarBackground;
@@ -197,6 +198,12 @@ namespace TowerDefense.Entities
             if (isDying || IsDead || waypoints == null || waypoints.Count == 0)
                 return;
 
+            if (invulnerabilityTimer > 0f)
+            {
+                invulnerabilityTimer -= Time.deltaTime;
+                return;
+            }
+
             UpdateSlowEffect();
             UpdateBurnEffect();
             MoveAlongPath();
@@ -253,9 +260,15 @@ namespace TowerDefense.Entities
             }
         }
 
+        public void SetInvulnerable(float duration)
+        {
+            invulnerabilityTimer = duration;
+        }
+
         public void TakeDamage(float damage)
         {
             if (isDying) return;
+            if (invulnerabilityTimer > 0f) return;
 
             currentHealth -= damage;
             UpdateHealthBar();
@@ -425,6 +438,7 @@ namespace TowerDefense.Entities
                 // Slight offset so they don't stack
                 path[0] += new Vector3(Random.Range(-1f, 1f), 0f, Random.Range(-1f, 1f));
                 var goblin = gm.SpawnEnemy(EnemyType.Ground, path, cachedWaveNumber, cachedHealthMultiplier * 0.5f, cachedSpeedMultiplier * 1.1f);
+                goblin.SetInvulnerable(0.5f);
                 wm?.TrackEnemy(goblin);
             }
         }
