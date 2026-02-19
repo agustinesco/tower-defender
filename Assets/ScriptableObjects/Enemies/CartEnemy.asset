@@ -19,7 +19,7 @@ MonoBehaviour:
   baseCurrencyReward: 12
   flyHeight: 0
   prefab: {fileID: 3429754805352011558, guid: ecfa1d98672c44b0baf5cb9e49854494, type: 3}
-  sprite: {fileID: 0}
+  sprite: {fileID: -1354196873, guid: 1ed67991eb77e408fad6cfd8a14220fe, type: 3}
   walkFramesDown:
   - {fileID: -1960768954, guid: ccf78cbd8f9c549b495c1edf86df2087, type: 3}
   - {fileID: -267564106, guid: ccf78cbd8f9c549b495c1edf86df2087, type: 3}
