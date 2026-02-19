@@ -149,6 +149,9 @@ namespace TowerDefense.Entities
                 case EnemyType.Goblin:
                     enemyColor = new Color(0.2f, 0.8f, 0.2f);
                     break;
+                case EnemyType.Tank:
+                    enemyColor = new Color(0.5f, 0.5f, 0.55f);
+                    break;
                 default:
                     enemyColor = Color.red;
                     break;

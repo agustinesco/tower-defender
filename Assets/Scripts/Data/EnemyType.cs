@@ -5,6 +5,7 @@ namespace TowerDefense.Data
         Ground,
         Flying,
         Cart,
-        Goblin
+        Goblin,
+        Tank
     }
 }

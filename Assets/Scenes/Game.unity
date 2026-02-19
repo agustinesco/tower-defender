@@ -1442,6 +1442,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 4929ddf51d61549168779cac9b32a5cf, type: 2}
   - {fileID: 11400000, guid: f6fdbf264f059404b9d8ccf2ce280115, type: 2}
   - {fileID: 11400000, guid: d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9, type: 2}
+  - {fileID: 11400000, guid: f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8, type: 2}
   pieceConfigs:
   - {fileID: 11400000, guid: cb91964deb0347128a057b801db09d1d, type: 2}
   - {fileID: 11400000, guid: 077954badff3426d8faff80cd7f1a560, type: 2}
