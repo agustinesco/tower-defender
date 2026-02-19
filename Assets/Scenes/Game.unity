@@ -1057,6 +1057,23 @@ MonoBehaviour:
   escapeButtonText: {fileID: 1960828360}
   escapeConfirmOverlay: {fileID: 900810809}
   escapeOverlayCanvasObj: {fileID: 0}
+  questsButton: {fileID: 176630070}
+--- !u!1 &176630069 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 3161734569422777153, guid: 4dcb8c81b795a411292bc01600af8a46, type: 3}
+  m_PrefabInstance: {fileID: 3317881344860297263}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &176630070 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 2415443253514831841, guid: 4dcb8c81b795a411292bc01600af8a46, type: 3}
+  m_PrefabInstance: {fileID: 3317881344860297263}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 176630069}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4e29b1a8efbd4b44bb3f3716e73f07ff, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Button
 --- !u!4 &1631176862
 Transform:
   m_ObjectHideFlags: 0
@@ -1441,7 +1458,16 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 940488880f7df4b04ae526d89d402fb2, type: 2}
   pathPriceScale: 1
   pathPriceExponent: 1.5
-  zoneBoundaries: 050000000f00000019000000
+  zones:
+  - width: 3
+    resourceTypes: 0000000001000000
+    oreNodeCount: 6
+  - width: 3
+    resourceTypes: 0200000003000000
+    oreNodeCount: 4
+  - width: 3
+    resourceTypes: 
+    oreNodeCount: 4
 --- !u!4 &1886648390
 Transform:
   m_ObjectHideFlags: 0
@@ -1859,17 +1885,9 @@ PrefabInstance:
       propertyPath: m_AnchoredPosition.x
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 7382736737721359177, guid: 4dcb8c81b795a411292bc01600af8a46, type: 3}
-      propertyPath: m_Sprite
-      value: 
-      objectReference: {fileID: -777700233, guid: f539ed47e2e6f48a1a9e2ec6112f5550, type: 3}
     - target: {fileID: 8388619833715419521, guid: 4dcb8c81b795a411292bc01600af8a46, type: 3}
       propertyPath: m_SizeDelta.x
       value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 8447712964148298694, guid: 4dcb8c81b795a411292bc01600af8a46, type: 3}
-      propertyPath: m_SizeDelta.x
-      value: 400
       objectReference: {fileID: 0}
     - target: {fileID: 8735097156653198511, guid: 4dcb8c81b795a411292bc01600af8a46, type: 3}
       propertyPath: m_AnchorMax.y

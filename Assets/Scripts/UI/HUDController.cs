@@ -60,6 +60,9 @@ namespace TowerDefense.UI
         [SerializeField] private GameObject escapeConfirmOverlay;
         [SerializeField] private GameObject escapeOverlayCanvasObj;
 
+        [Header("Quests")]
+        [SerializeField] private Button questsButton;
+
         private int lastLives = -1;
         private Dictionary<ResourceType, TextMeshProUGUI> resourceTexts = new Dictionary<ResourceType, TextMeshProUGUI>();
         private Dictionary<ResourceType, Image> resourceIcons = new Dictionary<ResourceType, Image>();
@@ -86,6 +89,9 @@ namespace TowerDefense.UI
         private GameObject extractionPopup;
         private TextMeshProUGUI extractionTimerText;
         private int lastExtractionSeconds = -1;
+
+        // Objectives popup
+        private GameObject objectivesPopup;
         // Upgrade button glow
         private bool canAffordUpgrade;
         private float upgradeCheckTimer;
@@ -108,6 +114,11 @@ namespace TowerDefense.UI
             if (startWaveButton != null) startWaveButton.onClick.AddListener(OnStartWaveClicked);
             if (upgradesButton != null) upgradesButton.onClick.AddListener(OnUpgradesClicked);
             if (escapeButton != null) escapeButton.onClick.AddListener(OnEscapeClicked);
+            if (questsButton != null)
+            {
+                questsButton.onClick.AddListener(OnQuestsClicked);
+                questsButton.gameObject.SetActive(false);
+            }
             if (cheatToggleButton != null) cheatToggleButton.onClick.AddListener(OnCheatToggle);
 
             // Only wire exit-run if it's a separate button from escape
@@ -450,6 +461,8 @@ namespace TowerDefense.UI
                     escapeButtonObj.SetActive(true);
                     escapeButton.interactable = false; // Enabled when objectives met
                 }
+                if (questsButton != null)
+                    questsButton.gameObject.SetActive(true);
                 UpdateEscapeProgress();
             }
             else if (waveManager != null)
@@ -664,23 +677,7 @@ namespace TowerDefense.UI
             if (!continuousStarted || escapeAvailable) return;
             if (escapeButtonText == null) return;
 
-            var qm = QuestManager.Instance;
-            if (qm == null || !qm.HasActiveQuest) return;
-
-            var quest = qm.GetActiveQuest();
-            if (quest == null) return;
-
-            var parts = new System.Text.StringBuilder();
-            for (int i = 0; i < quest.objectives.Count; i++)
-            {
-                var obj = quest.objectives[i];
-                int current = qm.GetObjectiveProgress(obj);
-                int required = obj.requiredAmount;
-                string label = GetObjectiveLabel(obj);
-                if (i > 0) parts.Append("  ");
-                parts.Append($"{label}: {current}/{required}");
-            }
-            escapeButtonText.text = parts.ToString();
+            escapeButtonText.text = "objectives missing";
         }
 
         private static string GetObjectiveLabel(QuestObjective obj)
@@ -709,6 +706,130 @@ namespace TowerDefense.UI
 
             if (!JsonSaveSystem.Data.questEscapeTutComplete)
                 StartQuestEscapeTutorial();
+        }
+
+        private void OnQuestsClicked()
+        {
+            if (objectivesPopup != null) return;
+            ShowObjectivesPopup();
+        }
+
+        private void ShowObjectivesPopup()
+        {
+            var qm = QuestManager.Instance;
+            if (qm == null || !qm.HasActiveQuest) return;
+            var quest = qm.GetActiveQuest();
+            if (quest == null) return;
+
+            Time.timeScale = 0f;
+
+            // Overlay background (dim + catches taps to close)
+            objectivesPopup = new GameObject("ObjectivesPopup");
+            objectivesPopup.transform.SetParent(canvas.transform, false);
+            var overlayRect = objectivesPopup.AddComponent<RectTransform>();
+            overlayRect.anchorMin = Vector2.zero;
+            overlayRect.anchorMax = Vector2.one;
+            overlayRect.offsetMin = Vector2.zero;
+            overlayRect.offsetMax = Vector2.zero;
+            var overlayImg = objectivesPopup.AddComponent<Image>();
+            overlayImg.color = new Color(0f, 0f, 0f, 0.6f);
+            var overlayBtn = objectivesPopup.AddComponent<Button>();
+            overlayBtn.onClick.AddListener(CloseObjectivesPopup);
+
+            // Panel
+            var panel = new GameObject("Panel");
+            panel.transform.SetParent(objectivesPopup.transform, false);
+            var panelRect = panel.AddComponent<RectTransform>();
+            panelRect.anchorMin = new Vector2(0.5f, 0.5f);
+            panelRect.anchorMax = new Vector2(0.5f, 0.5f);
+            panelRect.sizeDelta = new Vector2(700f, 400f);
+            panelRect.anchoredPosition = Vector2.zero;
+            var panelImg = panel.AddComponent<Image>();
+            panelImg.color = new Color(0.1f, 0.1f, 0.15f, 0.95f);
+            panelImg.raycastTarget = true;
+
+            // Title
+            var titleObj = new GameObject("Title");
+            titleObj.transform.SetParent(panel.transform, false);
+            var titleRect = titleObj.AddComponent<RectTransform>();
+            titleRect.anchorMin = new Vector2(0f, 1f);
+            titleRect.anchorMax = new Vector2(1f, 1f);
+            titleRect.pivot = new Vector2(0.5f, 1f);
+            titleRect.anchoredPosition = new Vector2(0f, -16f);
+            titleRect.sizeDelta = new Vector2(0f, 50f);
+            var titleText = titleObj.AddComponent<TextMeshProUGUI>();
+            titleText.text = "Objectives";
+            titleText.fontSize = 44;
+            titleText.fontStyle = FontStyles.Bold;
+            titleText.color = Color.white;
+            titleText.alignment = TextAlignmentOptions.Center;
+            titleText.raycastTarget = false;
+
+            // Objectives list
+            var listObj = new GameObject("ObjectivesList");
+            listObj.transform.SetParent(panel.transform, false);
+            var listRect = listObj.AddComponent<RectTransform>();
+            listRect.anchorMin = new Vector2(0f, 0f);
+            listRect.anchorMax = new Vector2(1f, 1f);
+            listRect.offsetMin = new Vector2(40f, 60f);
+            listRect.offsetMax = new Vector2(-40f, -80f);
+            var listText = listObj.AddComponent<TextMeshProUGUI>();
+            listText.fontSize = 40;
+            listText.color = Color.white;
+            listText.alignment = TextAlignmentOptions.Center;
+            listText.raycastTarget = false;
+
+            var sb = new System.Text.StringBuilder();
+            for (int i = 0; i < quest.objectives.Count; i++)
+            {
+                var obj = quest.objectives[i];
+                int current = qm.GetObjectiveProgress(obj);
+                int required = obj.requiredAmount;
+                string label = GetObjectiveLabel(obj);
+                bool met = current >= required;
+                string color = met ? "#88FF88" : "#FFFFFF";
+                if (i > 0) sb.Append("\n");
+                sb.Append($"<color={color}>{label}: {current}/{required}</color>");
+            }
+            listText.text = sb.ToString();
+
+            // Close button
+            var closeObj = new GameObject("CloseBtn");
+            closeObj.transform.SetParent(panel.transform, false);
+            var closeRect = closeObj.AddComponent<RectTransform>();
+            closeRect.anchorMin = new Vector2(0.5f, 0f);
+            closeRect.anchorMax = new Vector2(0.5f, 0f);
+            closeRect.pivot = new Vector2(0.5f, 0f);
+            closeRect.anchoredPosition = new Vector2(0f, 12f);
+            closeRect.sizeDelta = new Vector2(200f, 50f);
+            var closeBtnImg = closeObj.AddComponent<Image>();
+            closeBtnImg.color = new Color(0.3f, 0.3f, 0.4f);
+            var closeBtn = closeObj.AddComponent<Button>();
+            closeBtn.targetGraphic = closeBtnImg;
+            closeBtn.onClick.AddListener(CloseObjectivesPopup);
+
+            var closeTxtObj = new GameObject("Text");
+            closeTxtObj.transform.SetParent(closeObj.transform, false);
+            var closeTxtRect = closeTxtObj.AddComponent<RectTransform>();
+            closeTxtRect.anchorMin = Vector2.zero;
+            closeTxtRect.anchorMax = Vector2.one;
+            closeTxtRect.offsetMin = Vector2.zero;
+            closeTxtRect.offsetMax = Vector2.zero;
+            var closeTxt = closeTxtObj.AddComponent<TextMeshProUGUI>();
+            closeTxt.text = "Close";
+            closeTxt.fontSize = 28;
+            closeTxt.color = Color.white;
+            closeTxt.alignment = TextAlignmentOptions.Center;
+        }
+
+        private void CloseObjectivesPopup()
+        {
+            if (objectivesPopup != null)
+            {
+                Destroy(objectivesPopup);
+                objectivesPopup = null;
+            }
+            Time.timeScale = 1f;
         }
 
         private void StartQuestEscapeTutorial()
