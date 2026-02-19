@@ -138,6 +138,9 @@ namespace TowerDefense.UI
             WireChildButton(cheatPanelObj, "CheatUnlockTowers", OnCheatUnlockTowers);
             WireChildButton(cheatPanelObj, "CheatReset", OnCheatResetProgress);
             WireChildButton(cheatPanelObj, "CheatForceEscape", OnCheatForceEscape);
+            WireChildButton(cheatPanelObj, "CheatInfiniteDmg", OnCheatInfiniteDmg);
+            WireChildButton(cheatPanelObj, "CheatInfiniteHP", OnCheatInfiniteHP);
+            WireChildButton(cheatPanelObj, "CheatKillAll", OnCheatKillAll);
             WireChildButton(escapeConfirmOverlay, "Panel/YesBtn", OnEscapeConfirmed);
             WireChildButton(escapeConfirmOverlay, "Panel/NoBtn", OnEscapeCancelled);
             WireChildButton(exitRunConfirmOverlay, "Panel/YesBtn", OnExitRunConfirmed);
@@ -1007,6 +1010,40 @@ namespace TowerDefense.UI
                 marker.AddComponent<BillboardSprite>();
                 cheatSpawnerMarkers.Add(marker);
             }
+        }
+
+        private void OnCheatInfiniteDmg()
+        {
+            var gm = GameManager.Instance;
+            if (gm == null) return;
+            gm.CheatInfiniteDamage = !gm.CheatInfiniteDamage;
+            UpdateCheatButtonLabel(cheatPanelObj, "CheatInfiniteDmg", "Inf. Damage", gm.CheatInfiniteDamage);
+        }
+
+        private void OnCheatInfiniteHP()
+        {
+            var gm = GameManager.Instance;
+            if (gm == null) return;
+            gm.CheatInfiniteHealth = !gm.CheatInfiniteHealth;
+            UpdateCheatButtonLabel(cheatPanelObj, "CheatInfiniteHP", "Inf. Health", gm.CheatInfiniteHealth);
+        }
+
+        private static void UpdateCheatButtonLabel(GameObject panel, string childName, string baseName, bool isOn)
+        {
+            if (panel == null) return;
+            var t = panel.transform.Find(childName);
+            if (t == null) return;
+            var txt = t.GetComponentInChildren<TextMeshProUGUI>();
+            if (txt != null)
+                txt.text = isOn ? $"{baseName}: ON" : baseName;
+            var img = t.GetComponent<Image>();
+            if (img != null)
+                img.color = isOn ? new Color(0.2f, 0.8f, 0.2f) : new Color(0.4f, 0.4f, 0.4f);
+        }
+
+        private void OnCheatKillAll()
+        {
+            GameManager.Instance?.KillAllEnemies();
         }
 
         private void OnEscapeClicked()

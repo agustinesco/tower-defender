@@ -389,6 +389,9 @@ namespace TowerDefense.Entities
             if (isDying) return;
             if (invulnerabilityTimer > 0f) return;
 
+            if (GameManager.Instance != null && GameManager.Instance.CheatInfiniteDamage)
+                damage = currentHealth + 1f;
+
             currentHealth -= damage;
             UpdateHealthBar();
 

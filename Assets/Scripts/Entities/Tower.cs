@@ -377,12 +377,17 @@ namespace TowerDefense.Entities
             }
         }
 
+        private float GetBaseDamage()
+        {
+            float damageBonus = UpgradeManager.Instance != null ? UpgradeManager.Instance.TowerDamageBonus : 0f;
+            return data.damage * (1f + damageBonus);
+        }
+
         private void FireTeslaChain()
         {
             if (currentTarget == null) return;
 
-            float damageBonus = UpgradeManager.Instance != null ? UpgradeManager.Instance.TowerDamageBonus : 0f;
-            float baseDamage = data.damage * (1f + damageBonus);
+            float baseDamage = GetBaseDamage();
             float critChance = UpgradeManager.Instance != null ? UpgradeManager.Instance.CritChance : 0f;
             if (critChance > 0f && Random.value < critChance)
                 baseDamage *= 2f;
@@ -590,8 +595,7 @@ namespace TowerDefense.Entities
         {
             if (currentTarget == null) return;
 
-            float damageBonus = UpgradeManager.Instance != null ? UpgradeManager.Instance.TowerDamageBonus : 0f;
-            float actualDamage = data.damage * (1f + damageBonus);
+            float actualDamage = GetBaseDamage();
             float critChance = UpgradeManager.Instance != null ? UpgradeManager.Instance.CritChance : 0f;
             if (critChance > 0f && Random.value < critChance)
                 actualDamage *= 2f;
@@ -623,8 +627,7 @@ namespace TowerDefense.Entities
 
         private void FireShotgun()
         {
-            float damageBonus = UpgradeManager.Instance != null ? UpgradeManager.Instance.TowerDamageBonus : 0f;
-            float actualDamage = data.damage * (1f + damageBonus);
+            float actualDamage = GetBaseDamage();
             float critChance = UpgradeManager.Instance != null ? UpgradeManager.Instance.CritChance : 0f;
             if (critChance > 0f && Random.value < critChance)
                 actualDamage *= 2f;
@@ -718,8 +721,7 @@ namespace TowerDefense.Entities
         {
             if (currentTarget == null) return;
 
-            float damageBonus = UpgradeManager.Instance != null ? UpgradeManager.Instance.TowerDamageBonus : 0f;
-            float actualDamage = data.damage * (1f + damageBonus);
+            float actualDamage = GetBaseDamage();
             float critChance = UpgradeManager.Instance != null ? UpgradeManager.Instance.CritChance : 0f;
             if (critChance > 0f && Random.value < critChance)
                 actualDamage *= 2f;

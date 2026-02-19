@@ -157,6 +157,10 @@ namespace TowerDefense.Core
         public IReadOnlyCollection<int> PendingBossZones => pendingBossZones;
 
         public bool IsContinuousMode => GameModeSelection.SelectedMode == Data.GameMode.Continuous;
+
+        // Cheats
+        public bool CheatInfiniteDamage { get; set; }
+        public bool CheatInfiniteHealth { get; set; }
         public bool BuildPhaseActive => buildPhaseActive;
         public float BuildTimer => buildTimer;
         public Sprite GoblinCampSprite => goblinCampSprite;
@@ -975,8 +979,21 @@ namespace TowerDefense.Core
             OnLivesChanged?.Invoke(currentLives);
         }
 
+        public void KillAllEnemies()
+        {
+            if (EnemyManager.Instance == null) return;
+            var enemies = EnemyManager.Instance.ActiveEnemies;
+            for (int i = enemies.Count - 1; i >= 0; i--)
+            {
+                if (enemies[i] != null && !enemies[i].IsDead)
+                    enemies[i].TakeDamage(float.MaxValue);
+            }
+        }
+
         public void LoseLife()
         {
+            if (CheatInfiniteHealth) return;
+
             currentLives--;
             OnLivesChanged?.Invoke(currentLives);
 
