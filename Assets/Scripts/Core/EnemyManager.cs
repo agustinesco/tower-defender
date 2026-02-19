@@ -240,5 +240,40 @@ namespace TowerDefense.Core
                 }
             }
         }
+        public Enemy GetClosestEnemyInBand(Vector3 position, float minRange, float maxRange, bool canTargetFlying = true)
+        {
+            Enemy closest = null;
+            float closestDistSq = maxRange * maxRange;
+            float minRangeSq = minRange * minRange;
+
+            GetCellRange(position, maxRange, out int minCx, out int minCz, out int maxCx, out int maxCz);
+
+            for (int cx = minCx; cx <= maxCx; cx++)
+            {
+                for (int cz = minCz; cz <= maxCz; cz++)
+                {
+                    long key = CellKey(cx, cz);
+                    if (!grid.TryGetValue(key, out var bucket)) continue;
+
+                    for (int i = 0; i < bucket.Count; i++)
+                    {
+                        var enemy = bucket[i];
+                        if (enemy.IsFlying && !canTargetFlying) continue;
+
+                        float dx = position.x - enemy.transform.position.x;
+                        float dz = position.z - enemy.transform.position.z;
+                        float distSq = dx * dx + dz * dz;
+
+                        if (distSq >= minRangeSq && distSq < closestDistSq)
+                        {
+                            closest = enemy;
+                            closestDistSq = distSq;
+                        }
+                    }
+                }
+            }
+
+            return closest;
+        }
     }
 }

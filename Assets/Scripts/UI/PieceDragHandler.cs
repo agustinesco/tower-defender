@@ -56,6 +56,7 @@ namespace TowerDefense.UI
         // Slot-mode build confirmation
         private TowerSlot pendingBuildSlot;
         private GameObject singleSlotRangeIndicator;
+        private GameObject singleSlotMinRangeIndicator;
         private GameObject buildButtonObj;
 
         private static readonly Color HighlightColor = new Color(0.3f, 0.9f, 0.3f);

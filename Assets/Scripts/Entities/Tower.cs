@@ -15,6 +15,7 @@ namespace TowerDefense.Entities
         private float fireCooldown;
         private Enemy currentTarget;
         private GameObject rangeIndicator;
+        private GameObject minRangeIndicator;
         private Transform turretHead;
         private Vector3 facingDirection; // For shotgun towers
         private GameObject auraIndicator; // For slow aura towers
@@ -142,19 +143,63 @@ namespace TowerDefense.Entities
 
         private void CreateRangeIndicator()
         {
-            rangeIndicator = MaterialCache.CreatePrimitive(PrimitiveType.Cylinder);
-            rangeIndicator.transform.SetParent(transform);
-            rangeIndicator.transform.localPosition = Vector3.up * 0.15f;
-
-            rangeIndicator.transform.localScale = new Vector3(EffectiveRange * 2f, 0.01f, EffectiveRange * 2f);
-
-            var renderer = rangeIndicator.GetComponent<Renderer>();
-            if (renderer != null)
+            if (data != null && data.minRange > 0f)
             {
-                renderer.material = Core.MaterialCache.CreateTransparent(new Color(1f, 1f, 0f), 0.2f);
-            }
+                // Donut indicator: outer ring (yellow) + inner ring (red exclusion zone)
+                rangeIndicator = new GameObject("RangeIndicator");
+                rangeIndicator.transform.SetParent(transform);
+                rangeIndicator.transform.localPosition = Vector3.zero;
 
-            rangeIndicator.SetActive(false);
+                CreateRangeCircle(rangeIndicator, EffectiveRange, new Color(1f, 1f, 0f, 0.6f), 0.4f);
+
+                minRangeIndicator = new GameObject("MinRangeIndicator");
+                minRangeIndicator.transform.SetParent(rangeIndicator.transform);
+                minRangeIndicator.transform.localPosition = Vector3.zero;
+
+                CreateRangeCircle(minRangeIndicator, data.minRange, new Color(1f, 0.2f, 0.2f, 0.6f), 0.3f);
+
+                rangeIndicator.SetActive(false);
+            }
+            else
+            {
+                rangeIndicator = MaterialCache.CreatePrimitive(PrimitiveType.Cylinder);
+                rangeIndicator.transform.SetParent(transform);
+                rangeIndicator.transform.localPosition = Vector3.up * 0.15f;
+
+                rangeIndicator.transform.localScale = new Vector3(EffectiveRange * 2f, 0.01f, EffectiveRange * 2f);
+
+                var renderer = rangeIndicator.GetComponent<Renderer>();
+                if (renderer != null)
+                {
+                    renderer.material = Core.MaterialCache.CreateTransparent(new Color(1f, 1f, 0f), 0.2f);
+                }
+
+                rangeIndicator.SetActive(false);
+            }
+        }
+
+        private void CreateRangeCircle(GameObject parent, float radius, Color color, float lineWidth)
+        {
+            const int segments = 48;
+            var lr = parent.AddComponent<LineRenderer>();
+            lr.loop = true;
+            lr.useWorldSpace = false;
+            lr.positionCount = segments;
+            lr.startWidth = lineWidth;
+            lr.endWidth = lineWidth;
+            lr.material = Core.MaterialCache.CreateSpriteDefault();
+            lr.startColor = color;
+            lr.endColor = color;
+
+            for (int i = 0; i < segments; i++)
+            {
+                float angle = i * (360f / segments) * Mathf.Deg2Rad;
+                lr.SetPosition(i, new Vector3(
+                    Mathf.Cos(angle) * radius,
+                    0.1f,
+                    Mathf.Sin(angle) * radius
+                ));
+            }
         }
 
         public void ShowRange(bool show)
@@ -259,6 +304,10 @@ namespace TowerDefense.Entities
             else if (data.isFlame)
             {
                 UpdateFlameTower();
+            }
+            else if (data.isMortar)
+            {
+                UpdateMortarTower();
             }
             else
             {
@@ -485,6 +534,84 @@ namespace TowerDefense.Entities
             Vector3 worldSnap = hexCenter + bestPoint;
             worldSnap.y = 0.1f;
             return worldSnap;
+        }
+
+        private void UpdateMortarTower()
+        {
+            FindMortarTarget();
+
+            if (currentTarget != null)
+            {
+                RotateTowardsTarget();
+
+                if (fireCooldown <= 0f)
+                {
+                    FireMortar();
+                    float speedBonus = UpgradeManager.Instance != null ? UpgradeManager.Instance.TowerSpeedBonus : 0f;
+                    fireCooldown = 1f / (data.fireRate * (1f + speedBonus) * hasteMultiplier);
+                }
+            }
+        }
+
+        private void FindMortarTarget()
+        {
+            float rangeSq = EffectiveRange * EffectiveRange;
+            float minRangeSq = data.minRange * data.minRange;
+
+            if (currentTarget != null)
+            {
+                float dx = transform.position.x - currentTarget.transform.position.x;
+                float dz = transform.position.z - currentTarget.transform.position.z;
+                float distSq = dx * dx + dz * dz;
+                bool invalidTarget = currentTarget.IsDead || distSq > rangeSq || distSq < minRangeSq;
+                if (!invalidTarget && currentTarget.IsFlying && !data.canTargetFlying)
+                    invalidTarget = true;
+                if (invalidTarget)
+                {
+                    currentTarget = null;
+                    targetSearchTimer = 0f;
+                }
+            }
+
+            if (currentTarget == null)
+            {
+                targetSearchTimer -= Time.deltaTime;
+                if (targetSearchTimer <= 0f)
+                {
+                    targetSearchTimer = 0.15f;
+                    var mgr = Core.EnemyManager.Instance;
+                    if (mgr != null)
+                        currentTarget = mgr.GetClosestEnemyInBand(transform.position, data.minRange, EffectiveRange, data.canTargetFlying);
+                }
+            }
+        }
+
+        private void FireMortar()
+        {
+            if (currentTarget == null) return;
+
+            float damageBonus = UpgradeManager.Instance != null ? UpgradeManager.Instance.TowerDamageBonus : 0f;
+            float actualDamage = data.damage * (1f + damageBonus);
+            float critChance = UpgradeManager.Instance != null ? UpgradeManager.Instance.CritChance : 0f;
+            if (critChance > 0f && Random.value < critChance)
+                actualDamage *= 2f;
+
+            // Calculate speed so the projectile always reaches its target in 0.7s
+            float dist = Vector3.Distance(turretHead.position, currentTarget.transform.position);
+            float mortarSpeed = dist / 0.7f;
+
+            var projectile = Projectile.GetFromPool(turretHead.position);
+            projectile.Initialize(
+                target: currentTarget,
+                damage: actualDamage,
+                speed: mortarSpeed,
+                color: data.towerColor,
+                isAreaDamage: true,
+                areaRadius: data.areaRadius
+            );
+
+            Core.AudioManager.Instance?.PlayTowerShoot(data, turretHead.position);
+            TriggerMuzzleFlash();
         }
 
         private bool HasEnemyInRange()

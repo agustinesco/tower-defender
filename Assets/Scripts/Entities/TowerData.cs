@@ -36,6 +36,10 @@ namespace TowerDefense.Entities
         public float fireDamagePerSecond = 3f;
         public float burnDuration = 2f;
 
+        [Header("Mortar Settings")]
+        public bool isMortar = false;
+        public float minRange = 0f;
+
         [Header("Targeting")]
         public bool canTargetFlying = false;
         public bool prioritizeFlying = false;
