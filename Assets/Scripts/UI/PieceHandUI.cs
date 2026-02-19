@@ -31,6 +31,7 @@ namespace TowerDefense.UI
         [SerializeField] private GameObject modsTabObj;
         [SerializeField] private GameObject tooltipObj;
         [SerializeField] private TextMeshProUGUI tooltipText;
+        [SerializeField] private ScrollRect cardScrollRect;
 
         private List<PieceCard> cards = new List<PieceCard>();
         private int selectedIndex = -1;
@@ -275,6 +276,9 @@ namespace TowerDefense.UI
             {
                 RefreshModifications();
             }
+
+            if (cardScrollRect != null)
+                cardScrollRect.verticalNormalizedPosition = 1f;
 
             OnTabSwitched?.Invoke((int)tab);
         }
