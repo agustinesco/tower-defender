@@ -110,7 +110,9 @@ namespace TowerDefense.UI
             if (escapeButton != null) escapeButton.onClick.AddListener(OnEscapeClicked);
             if (cheatToggleButton != null) cheatToggleButton.onClick.AddListener(OnCheatToggle);
 
-            WireButton(exitRunButtonObj, OnExitRunClicked);
+            // Only wire exit-run if it's a separate button from escape
+            if (exitRunButtonObj != null && exitRunButtonObj != escapeButtonObj)
+                WireButton(exitRunButtonObj, OnExitRunClicked);
             WireChildButton(towerInfoPanel, "SellButton", OnSellClicked);
             WireChildButton(cheatPanelObj, "CheatGold", OnCheatGold);
             WireChildButton(cheatPanelObj, "CheatResources", OnCheatResources);
@@ -465,6 +467,8 @@ namespace TowerDefense.UI
 
         private void OnExitRunClicked()
         {
+            // Don't exit if escape confirm dialog is active
+            if (escapeConfirmOverlay != null && escapeConfirmOverlay.activeSelf) return;
             GameManager.Instance?.ExitRun();
         }
 
@@ -842,21 +846,25 @@ namespace TowerDefense.UI
             }
             if (!escapeAvailable) return;
 
+            var gm = GameManager.Instance;
+
             // Update confirm dialog text with extraction info
             float countdown = 30f;
-            var gm = GameManager.Instance;
             if (gm != null && gm.MapConfig != null && gm.MapConfig.extractionCountdown > 0f)
                 countdown = gm.MapConfig.extractionCountdown;
             int secs = Mathf.CeilToInt(countdown);
             SetConfirmDescriptionText(
                 $"Extracting takes {secs}s. During extraction you\ncannot build paths or towers - only mods.\nEnemies will keep attacking!");
 
+            if (exitRunButtonObj != null) exitRunButtonObj.SetActive(false);
+            Time.timeScale = 0f;
             escapeConfirmOverlay.SetActive(true);
         }
 
         private void OnEscapeConfirmed()
         {
             escapeConfirmOverlay.SetActive(false);
+            Time.timeScale = 1f;
 
             var gm = GameManager.Instance;
             if (gm == null) return;
@@ -865,7 +873,8 @@ namespace TowerDefense.UI
             if (gm.MapConfig != null && gm.MapConfig.extractionCountdown > 0f)
                 countdown = gm.MapConfig.extractionCountdown;
 
-            gm.StartExtraction(countdown);
+            if (!gm.StartExtraction(countdown))
+                return;
 
             // Disable escape button during extraction
             if (escapeButton != null) escapeButton.interactable = false;
@@ -882,6 +891,8 @@ namespace TowerDefense.UI
         private void OnEscapeCancelled()
         {
             escapeConfirmOverlay.SetActive(false);
+            if (exitRunButtonObj != null) exitRunButtonObj.SetActive(true);
+            Time.timeScale = 1f;
         }
 
         private void ShowExtractionPopup(float duration)

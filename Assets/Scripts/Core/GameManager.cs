@@ -500,14 +500,14 @@ namespace TowerDefense.Core
 
             if (isExtracting)
             {
-                extractionTimer -= Time.deltaTime;
-                OnExtractionTick?.Invoke(extractionTimer, extractionDuration);
+                extractionTimer -= Time.unscaledDeltaTime;
                 if (extractionTimer <= 0f)
                 {
                     isExtracting = false;
                     OnExtractionComplete?.Invoke();
                     return;
                 }
+                OnExtractionTick?.Invoke(extractionTimer, extractionDuration);
             }
 
             if (buildPhaseActive)
@@ -1005,12 +1005,13 @@ namespace TowerDefense.Core
             }
         }
 
-        public void StartExtraction(float duration)
+        public bool StartExtraction(float duration)
         {
-            if (gameOver || isExtracting) return;
+            if (gameOver || isExtracting) return false;
             isExtracting = true;
             extractionDuration = duration;
             extractionTimer = duration;
+            return true;
         }
 
         public void ExitRun()
