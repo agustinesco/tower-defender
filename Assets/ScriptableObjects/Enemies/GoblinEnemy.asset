@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bca1b9756e2304743aee371a932bd446, type: 3}
+  m_Name: GoblinEnemy
+  m_EditorClassIdentifier: Assembly-CSharp::TowerDefense.Data.EnemyData
+  enemyName: Goblin
+  enemyType: 3
+  baseSpeed: 2.5
+  baseHealth: 15
+  baseCurrencyReward: 5
+  flyHeight: 0
+  prefab: {fileID: 4567890123456789010, guid: c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6, type: 3}
+  sprite: {fileID: 0}
+  walkFramesDown: []
+  walkFramesSide: []
+  walkFramesUp: []
+  walkFrameRate: 8

@@ -4,6 +4,7 @@ namespace TowerDefense.Data
     {
         Ground,
         Flying,
-        Cart
+        Cart,
+        Goblin
     }
 }

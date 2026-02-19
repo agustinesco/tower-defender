@@ -19,3 +19,26 @@ MonoBehaviour:
   baseCurrencyReward: 15
   flyHeight: 4
   prefab: {fileID: 714363205396627139, guid: 14443359e08cf4780bc8e01b3897acd8, type: 3}
+  sprite: {fileID: 0}
+  walkFramesDown:
+  - {fileID: -1105566925, guid: caa9833e3cfb44f4e8b91cbd98c2e0b7, type: 3}
+  - {fileID: -513015137, guid: caa9833e3cfb44f4e8b91cbd98c2e0b7, type: 3}
+  - {fileID: -1838044830, guid: caa9833e3cfb44f4e8b91cbd98c2e0b7, type: 3}
+  - {fileID: 700182087, guid: caa9833e3cfb44f4e8b91cbd98c2e0b7, type: 3}
+  - {fileID: 495902123, guid: caa9833e3cfb44f4e8b91cbd98c2e0b7, type: 3}
+  - {fileID: 725945354, guid: caa9833e3cfb44f4e8b91cbd98c2e0b7, type: 3}
+  walkFramesSide:
+  - {fileID: 645829368, guid: 2901ed3a765f34ab086b537120474d28, type: 3}
+  - {fileID: -830679696, guid: 2901ed3a765f34ab086b537120474d28, type: 3}
+  - {fileID: -2017789489, guid: 2901ed3a765f34ab086b537120474d28, type: 3}
+  - {fileID: -2055299942, guid: 2901ed3a765f34ab086b537120474d28, type: 3}
+  - {fileID: 1061277617, guid: 2901ed3a765f34ab086b537120474d28, type: 3}
+  - {fileID: -428849676, guid: 2901ed3a765f34ab086b537120474d28, type: 3}
+  walkFramesUp:
+  - {fileID: -567518829, guid: 8bde2f279048b4fcca5eec4862a22e51, type: 3}
+  - {fileID: 1110032805, guid: 8bde2f279048b4fcca5eec4862a22e51, type: 3}
+  - {fileID: 1049133287, guid: 8bde2f279048b4fcca5eec4862a22e51, type: 3}
+  - {fileID: 1422870384, guid: 8bde2f279048b4fcca5eec4862a22e51, type: 3}
+  - {fileID: -1166835344, guid: 8bde2f279048b4fcca5eec4862a22e51, type: 3}
+  - {fileID: -1940987504, guid: 8bde2f279048b4fcca5eec4862a22e51, type: 3}
+  walkFrameRate: 8

@@ -12,5 +12,10 @@ namespace TowerDefense.Data
         public int baseCurrencyReward = 10;
         public float flyHeight = 0f;
         public GameObject prefab;
+        public Sprite sprite;
+        public Sprite[] walkFramesDown;
+        public Sprite[] walkFramesSide;
+        public Sprite[] walkFramesUp;
+        public float walkFrameRate = 8f;
     }
 }

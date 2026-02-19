@@ -31,12 +31,43 @@ namespace TowerDefense.Entities
         private int currencyReward;
         private float invulnerabilityTimer;
 
-        // Health bar
-        private GameObject healthBarBackground;
-        private GameObject healthBarFill;
+        // Visuals
+        private SpriteRenderer bodySprite;
+        private Transform visualContainer;
+        private Camera cachedCamera;
+
+        // Walk animation
+        private Sprite[] walkFramesDown;
+        private Sprite[] walkFramesSide;
+        private Sprite[] walkFramesUp;
+        private Sprite[] currentWalkFrames;
+        private int walkFrameIndex;
+        private float walkFrameTimer;
+        private float walkFrameInterval;
+        private bool hasWalkAnimation;
+
+        // Health bar (sprite-based)
         private Transform healthBarContainer;
-        private Renderer healthBarFillRenderer;
-        private MaterialPropertyBlock healthBarPropBlock;
+        private SpriteRenderer healthBarFillSprite;
+
+        // Shared white square sprite for placeholders / health bar
+        private static Sprite _whiteSprite;
+        private static Sprite WhiteSprite
+        {
+            get
+            {
+                if (_whiteSprite == null)
+                {
+                    var tex = new Texture2D(4, 4);
+                    var pixels = new Color[16];
+                    for (int i = 0; i < 16; i++) pixels[i] = Color.white;
+                    tex.SetPixels(pixels);
+                    tex.Apply();
+                    _whiteSprite = Sprite.Create(tex, new Rect(0, 0, 4, 4), new Vector2(0.5f, 0.5f), 4);
+                }
+                return _whiteSprite;
+            }
+        }
 
         public float Health => currentHealth;
         public float MaxHealth => maxHealth;
@@ -97,15 +128,15 @@ namespace TowerDefense.Entities
                 transform.position = waypoints[0];
             }
 
-            healthBarPropBlock = Core.MaterialCache.GetPropertyBlock();
+            cachedCamera = Camera.main;
 
-            ApplyMaterials();
+            SetupVisuals();
             CreateHealthBar();
 
             Core.EnemyManager.Instance?.Register(this);
         }
 
-        private void ApplyMaterials()
+        private void SetupVisuals()
         {
             switch (enemyType)
             {
@@ -115,55 +146,89 @@ namespace TowerDefense.Entities
                 case EnemyType.Cart:
                     enemyColor = new Color(0.55f, 0.35f, 0.15f);
                     break;
+                case EnemyType.Goblin:
+                    enemyColor = new Color(0.2f, 0.8f, 0.2f);
+                    break;
                 default:
                     enemyColor = Color.red;
                     break;
             }
 
-            var renderers = GetComponentsInChildren<Renderer>();
-            foreach (var r in renderers)
+            // Destroy existing mesh children from prefab
+            for (int i = transform.childCount - 1; i >= 0; i--)
             {
-                if (r.gameObject.name == "HealthBarBG" || r.gameObject.name == "HealthBarFill")
-                    continue;
-                r.material = Core.MaterialCache.CreateUnlit(enemyColor);
+                var child = transform.GetChild(i);
+                if (child.GetComponent<MeshRenderer>() != null)
+                    Destroy(child.gameObject);
+            }
+
+            // Create billboard visual container
+            visualContainer = new GameObject("Visual").transform;
+            visualContainer.SetParent(transform);
+            float yOffset = IsFlying ? data.flyHeight : 0.5f;
+            visualContainer.localPosition = new Vector3(0f, yOffset, 0f);
+
+            // Reuse existing SpriteRenderer child from prefab, or create one
+            bodySprite = GetComponentInChildren<SpriteRenderer>();
+            if (bodySprite != null)
+            {
+                bodySprite.transform.SetParent(visualContainer);
+                bodySprite.transform.localPosition = Vector3.zero;
+            }
+            else
+            {
+                var spriteObj = new GameObject("Body");
+                spriteObj.transform.SetParent(visualContainer);
+                spriteObj.transform.localPosition = Vector3.zero;
+                bodySprite = spriteObj.AddComponent<SpriteRenderer>();
+            }
+            // Setup walk animation
+            walkFramesDown = data.walkFramesDown;
+            walkFramesSide = data.walkFramesSide;
+            walkFramesUp = data.walkFramesUp;
+            hasWalkAnimation = (walkFramesDown != null && walkFramesDown.Length > 0)
+                            || (walkFramesSide != null && walkFramesSide.Length > 0)
+                            || (walkFramesUp != null && walkFramesUp.Length > 0);
+
+            if (hasWalkAnimation)
+            {
+                walkFrameInterval = 1f / data.walkFrameRate;
+                currentWalkFrames = walkFramesDown != null && walkFramesDown.Length > 0
+                    ? walkFramesDown : (walkFramesSide != null && walkFramesSide.Length > 0 ? walkFramesSide : walkFramesUp);
+                bodySprite.sprite = currentWalkFrames[0];
+            }
+            else
+            {
+                bodySprite.sprite = data.sprite != null ? data.sprite : WhiteSprite;
             }
         }
 
         private void CreateHealthBar()
         {
-            // Container positioned in front of enemy, facing up for top-down view
             healthBarContainer = new GameObject("HealthBar").transform;
-            healthBarContainer.SetParent(transform);
-            float hbY = IsFlying ? data.flyHeight - 0.4f : 0.1f;
-            float hbZ = IsFlying ? 0.9f : 0.8f;
-            healthBarContainer.localPosition = new Vector3(0f, hbY, hbZ);
-            healthBarContainer.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            healthBarContainer.SetParent(visualContainer);
+            healthBarContainer.localPosition = new Vector3(0f, 0.7f, 0f);
+            healthBarContainer.localScale = Vector3.one;
 
             // Background (dark)
-            healthBarBackground = MaterialCache.CreatePrimitive(PrimitiveType.Cube);
-            healthBarBackground.name = "HealthBarBG";
-            healthBarBackground.transform.SetParent(healthBarContainer);
-            healthBarBackground.transform.localPosition = Vector3.zero;
-            healthBarBackground.transform.localScale = new Vector3(1f, 0.15f, 0.25f);
-
-            var bgRenderer = healthBarBackground.GetComponent<Renderer>();
-            if (bgRenderer != null)
-            {
-                bgRenderer.material = Core.MaterialCache.CreateUnlit(new Color(0.2f, 0.2f, 0.2f));
-            }
+            var bgObj = new GameObject("HealthBarBG");
+            bgObj.transform.SetParent(healthBarContainer);
+            bgObj.transform.localPosition = Vector3.zero;
+            bgObj.transform.localScale = new Vector3(1f, 0.12f, 1f);
+            var bgSprite = bgObj.AddComponent<SpriteRenderer>();
+            bgSprite.sprite = WhiteSprite;
+            bgSprite.color = new Color(0.2f, 0.2f, 0.2f);
+            bgSprite.sortingOrder = 10;
 
             // Fill (green/red)
-            healthBarFill = MaterialCache.CreatePrimitive(PrimitiveType.Cube);
-            healthBarFill.name = "HealthBarFill";
-            healthBarFill.transform.SetParent(healthBarContainer);
-            healthBarFill.transform.localPosition = new Vector3(0f, 0f, -0.05f);
-            healthBarFill.transform.localScale = new Vector3(0.95f, 0.12f, 0.22f);
-
-            healthBarFillRenderer = healthBarFill.GetComponent<Renderer>();
-            if (healthBarFillRenderer != null)
-            {
-                healthBarFillRenderer.material = Core.MaterialCache.CreateUnlit(Color.green);
-            }
+            var fillObj = new GameObject("HealthBarFill");
+            fillObj.transform.SetParent(healthBarContainer);
+            fillObj.transform.localPosition = new Vector3(0f, 0f, -0.01f);
+            fillObj.transform.localScale = new Vector3(0.95f, 0.1f, 1f);
+            healthBarFillSprite = fillObj.AddComponent<SpriteRenderer>();
+            healthBarFillSprite.sprite = WhiteSprite;
+            healthBarFillSprite.color = Color.green;
+            healthBarFillSprite.sortingOrder = 11;
 
             // Start hidden (full health)
             healthBarContainer.gameObject.SetActive(false);
@@ -175,21 +240,13 @@ namespace TowerDefense.Entities
 
             float healthPercent = currentHealth / maxHealth;
 
-            // Show only when damaged
             healthBarContainer.gameObject.SetActive(healthPercent < 1f);
 
-            if (healthPercent < 1f)
+            if (healthPercent < 1f && healthBarFillSprite != null)
             {
-                // Update fill scale and position (anchored on left, empties to the right)
-                healthBarFill.transform.localScale = new Vector3(0.95f * healthPercent, 0.12f, 0.22f);
-                healthBarFill.transform.localPosition = new Vector3(0.475f * (1f - healthPercent), 0f, -0.05f);
-
-                // Color: green to red based on health
-                if (healthBarFillRenderer != null && healthBarPropBlock != null)
-                {
-                    healthBarPropBlock.SetColor("_Color", Color.Lerp(Color.red, Color.green, healthPercent));
-                    healthBarFillRenderer.SetPropertyBlock(healthBarPropBlock);
-                }
+                healthBarFillSprite.transform.localScale = new Vector3(0.95f * healthPercent, 0.1f, 1f);
+                healthBarFillSprite.transform.localPosition = new Vector3(-0.475f * (1f - healthPercent), 0f, -0.01f);
+                healthBarFillSprite.color = Color.Lerp(Color.red, Color.green, healthPercent);
             }
         }
 
@@ -206,7 +263,14 @@ namespace TowerDefense.Entities
 
             UpdateSlowEffect();
             UpdateBurnEffect();
+            UpdateWalkAnimation();
             MoveAlongPath();
+        }
+
+        private void LateUpdate()
+        {
+            if (visualContainer != null && cachedCamera != null)
+                visualContainer.rotation = cachedCamera.transform.rotation;
         }
 
         private void UpdateSlowEffect()
@@ -227,6 +291,64 @@ namespace TowerDefense.Entities
             {
                 burnTimer -= Time.deltaTime;
                 TakeDamage(burnDps * Time.deltaTime);
+            }
+        }
+
+        private void UpdateWalkAnimation()
+        {
+            if (!hasWalkAnimation) return;
+
+            // Pick direction based on movement
+            if (currentWaypointIndex < waypoints.Count)
+            {
+                Vector3 dir = waypoints[currentWaypointIndex] - transform.position;
+                float absX = Mathf.Abs(dir.x);
+                float absZ = Mathf.Abs(dir.z);
+
+                Sprite[] newFrames = currentWalkFrames;
+                bool flipX = false;
+
+                if (absX > absZ)
+                {
+                    // Primarily horizontal — use side frames
+                    if (walkFramesSide != null && walkFramesSide.Length > 0)
+                        newFrames = walkFramesSide;
+                    flipX = dir.x > 0f;
+                }
+                else if (dir.z > 0f)
+                {
+                    if (walkFramesUp != null && walkFramesUp.Length > 0)
+                        newFrames = walkFramesUp;
+                }
+                else
+                {
+                    if (walkFramesDown != null && walkFramesDown.Length > 0)
+                        newFrames = walkFramesDown;
+                }
+
+                if (newFrames != currentWalkFrames)
+                {
+                    currentWalkFrames = newFrames;
+                    walkFrameIndex = 0;
+                    walkFrameTimer = 0f;
+                }
+
+                if (bodySprite != null)
+                {
+                    var s = bodySprite.transform.localScale;
+                    s.x = flipX ? -Mathf.Abs(s.x) : Mathf.Abs(s.x);
+                    bodySprite.transform.localScale = s;
+                }
+            }
+
+            // Cycle frames
+            walkFrameTimer += Time.deltaTime;
+            if (walkFrameTimer >= walkFrameInterval)
+            {
+                walkFrameTimer -= walkFrameInterval;
+                walkFrameIndex = (walkFrameIndex + 1) % currentWalkFrames.Length;
+                if (bodySprite != null)
+                    bodySprite.sprite = currentWalkFrames[walkFrameIndex];
             }
         }
 
@@ -251,12 +373,6 @@ namespace TowerDefense.Entities
             else
             {
                 transform.position += direction * moveDistance;
-
-                // Face movement direction
-                if (direction != Vector3.zero)
-                {
-                    transform.rotation = Quaternion.LookRotation(direction);
-                }
             }
         }
 
@@ -298,17 +414,10 @@ namespace TowerDefense.Entities
             currentSpeed *= 0.6f;
             currencyReward = 200;
 
-            // Scale up visual
             transform.localScale = Vector3.one * 2f;
 
-            // Recolor to dark purple (skip health bar children)
-            var renderers = GetComponentsInChildren<Renderer>();
-            foreach (var r in renderers)
-            {
-                if (r.gameObject.name == "HealthBarBG" || r.gameObject.name == "HealthBarFill")
-                    continue;
-                r.material.color = new Color(0.5f, 0.1f, 0.6f);
-            }
+            if (bodySprite != null)
+                bodySprite.color = new Color(0.5f, 0.1f, 0.6f);
         }
 
         public void ApplyBurn(float dps, float duration)
@@ -320,20 +429,6 @@ namespace TowerDefense.Entities
         private void OnDestroy()
         {
             Core.EnemyManager.Instance?.Unregister(this);
-            if (healthBarPropBlock != null)
-            {
-                Core.MaterialCache.ReturnPropertyBlock(healthBarPropBlock);
-                healthBarPropBlock = null;
-            }
-
-            // Destroy materials to prevent leaks
-            var renderers = GetComponentsInChildren<Renderer>(true);
-            for (int i = 0; i < renderers.Length; i++)
-            {
-                var r = renderers[i];
-                if (r != null && r.sharedMaterial != null)
-                    Destroy(r.sharedMaterial);
-            }
         }
 
         private void Die()
@@ -385,13 +480,8 @@ namespace TowerDefense.Entities
             float duration = 0.25f;
             float elapsed = 0f;
 
-            // Hide health bar immediately
             if (healthBarContainer != null)
                 healthBarContainer.gameObject.SetActive(false);
-
-            // Cache renderers and property block once
-            var renderers = GetComponentsInChildren<Renderer>();
-            var fadeBlock = Core.MaterialCache.GetPropertyBlock();
 
             while (elapsed < duration)
             {
@@ -400,19 +490,12 @@ namespace TowerDefense.Entities
                 transform.localScale = Vector3.Lerp(startScale, Vector3.zero, t);
 
                 float alpha = 1f - t;
-                Color fadeColor = new Color(enemyColor.r, enemyColor.g, enemyColor.b, alpha);
-                fadeBlock.SetColor("_Color", fadeColor);
-                for (int i = 0; i < renderers.Length; i++)
-                {
-                    var r = renderers[i];
-                    if (r != null)
-                        r.SetPropertyBlock(fadeBlock);
-                }
+                if (bodySprite != null)
+                    bodySprite.color = new Color(enemyColor.r, enemyColor.g, enemyColor.b, alpha);
 
                 yield return null;
             }
 
-            Core.MaterialCache.ReturnPropertyBlock(fadeBlock);
             Destroy(gameObject);
         }
 
@@ -437,7 +520,7 @@ namespace TowerDefense.Entities
                 var path = new List<Vector3>(remaining);
                 // Slight offset so they don't stack
                 path[0] += new Vector3(Random.Range(-1f, 1f), 0f, Random.Range(-1f, 1f));
-                var goblin = gm.SpawnEnemy(EnemyType.Ground, path, cachedWaveNumber, cachedHealthMultiplier * 0.5f, cachedSpeedMultiplier * 1.1f);
+                var goblin = gm.SpawnEnemy(EnemyType.Goblin, path, cachedWaveNumber, cachedHealthMultiplier * 0.5f, cachedSpeedMultiplier * 1.1f);
                 goblin.SetInvulnerable(0.5f);
                 wm?.TrackEnemy(goblin);
             }
