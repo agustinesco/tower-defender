@@ -3,6 +3,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using System.Collections.Generic;
+using DG.Tweening;
 using TowerDefense.Core;
 using TowerDefense.Grid;
 using TowerDefense.Entities;
@@ -92,6 +93,7 @@ namespace TowerDefense.UI
 
         // Objectives popup
         private GameObject objectivesPopup;
+        private Tween questsButtonTween;
         // Upgrade button glow
         private bool canAffordUpgrade;
         private float upgradeCheckTimer;
@@ -678,6 +680,9 @@ namespace TowerDefense.UI
             if (escapeButtonText == null) return;
 
             escapeButtonText.text = "objectives missing";
+            escapeButtonText.fontSize = 30;
+
+            StartQuestsButtonPulse();
         }
 
         private static string GetObjectiveLabel(QuestObjective obj)
@@ -702,10 +707,35 @@ namespace TowerDefense.UI
             if (escapeButtonObj != null)
                 escapeButtonObj.GetComponent<Image>().color = new Color(0.8f, 0.65f, 0.1f);
             if (escapeButtonText != null)
+            {
                 escapeButtonText.text = "Escape!";
+                escapeButtonText.fontSize = 50;
+            }
+            StopQuestsButtonPulse();
 
             if (!JsonSaveSystem.Data.questEscapeTutComplete)
                 StartQuestEscapeTutorial();
+        }
+
+        private void StartQuestsButtonPulse()
+        {
+            if (questsButton == null || questsButtonTween != null) return;
+            questsButtonTween = questsButton.transform
+                .DOScale(1.08f, 1.2f)
+                .SetLoops(-1, LoopType.Yoyo)
+                .SetEase(Ease.InOutSine)
+                .SetUpdate(true);
+        }
+
+        private void StopQuestsButtonPulse()
+        {
+            if (questsButtonTween != null)
+            {
+                questsButtonTween.Kill();
+                questsButtonTween = null;
+            }
+            if (questsButton != null)
+                questsButton.transform.localScale = Vector3.one;
         }
 
         private void OnQuestsClicked()
