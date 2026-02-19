@@ -77,17 +77,9 @@ namespace TowerDefense.Core
 
         public static Material CreateTransparent(Color color)
         {
-            var shader = Standard;
+            var shader = SpritesDefault;
             if (shader == null) return null;
             var mat = new Material(shader);
-            mat.SetFloat("_Mode", 3);
-            mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
-            mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-            mat.SetFloat("_ZWrite", 0f);
-            mat.DisableKeyword("_ALPHATEST_ON");
-            mat.EnableKeyword("_ALPHABLEND_ON");
-            mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-            mat.renderQueue = 3000;
             mat.color = color;
             return mat;
         }
