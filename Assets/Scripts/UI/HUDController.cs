@@ -60,6 +60,7 @@ namespace TowerDefense.UI
         [SerializeField] private TextMeshProUGUI escapeButtonText;
         [SerializeField] private GameObject escapeConfirmOverlay;
         [SerializeField] private GameObject escapeOverlayCanvasObj;
+        [SerializeField] private GameObject exitRunConfirmOverlay;
 
         [Header("Quests")]
         [SerializeField] private Button questsButton;
@@ -114,7 +115,11 @@ namespace TowerDefense.UI
         {
             // Wire button events
             if (startWaveButton != null) startWaveButton.onClick.AddListener(OnStartWaveClicked);
-            if (upgradesButton != null) upgradesButton.onClick.AddListener(OnUpgradesClicked);
+            if (upgradesButton != null)
+            {
+                upgradesButton.onClick.AddListener(OnUpgradesClicked);
+                upgradesButton.gameObject.SetActive(false);
+            }
             if (escapeButton != null) escapeButton.onClick.AddListener(OnEscapeClicked);
             if (questsButton != null)
             {
@@ -135,6 +140,8 @@ namespace TowerDefense.UI
             WireChildButton(cheatPanelObj, "CheatForceEscape", OnCheatForceEscape);
             WireChildButton(escapeConfirmOverlay, "Panel/YesBtn", OnEscapeConfirmed);
             WireChildButton(escapeConfirmOverlay, "Panel/NoBtn", OnEscapeCancelled);
+            WireChildButton(exitRunConfirmOverlay, "Panel/YesBtn", OnExitRunConfirmed);
+            WireChildButton(exitRunConfirmOverlay, "Panel/NoBtn", OnExitRunCancelled);
         }
 
         private void Start()
@@ -457,7 +464,9 @@ namespace TowerDefense.UI
                 if (startWaveButton != null)
                     startWaveButton.gameObject.SetActive(false);
                 if (exitRunButtonObj != null)
-                    exitRunButtonObj.SetActive(false);
+                    exitRunButtonObj.SetActive(true);
+                if (upgradesButton != null)
+                    upgradesButton.gameObject.SetActive(true);
                 if (escapeButtonObj != null)
                 {
                     escapeButtonObj.SetActive(true);
@@ -469,9 +478,6 @@ namespace TowerDefense.UI
             }
             else if (waveManager != null)
             {
-                if (exitRunButtonObj != null)
-                    exitRunButtonObj.SetActive(false);
-
                 waveManager.StartWave();
             }
             else
@@ -482,9 +488,28 @@ namespace TowerDefense.UI
 
         private void OnExitRunClicked()
         {
-            // Don't exit if escape confirm dialog is active
             if (escapeConfirmOverlay != null && escapeConfirmOverlay.activeSelf) return;
-            GameManager.Instance?.ExitRun();
+            if (exitRunConfirmOverlay != null && exitRunConfirmOverlay.activeSelf) return;
+
+            Time.timeScale = 0f;
+            if (exitRunConfirmOverlay != null)
+                exitRunConfirmOverlay.SetActive(true);
+        }
+
+        private void OnExitRunConfirmed()
+        {
+            if (exitRunConfirmOverlay != null)
+                exitRunConfirmOverlay.SetActive(false);
+            Time.timeScale = 1f;
+            GameManager.Instance?.AbandonRun();
+            MainSceneController.LoadMainMenu();
+        }
+
+        private void OnExitRunCancelled()
+        {
+            if (exitRunConfirmOverlay != null)
+                exitRunConfirmOverlay.SetActive(false);
+            Time.timeScale = 1f;
         }
 
         private void OnBuildPhaseStarted()
@@ -506,8 +531,6 @@ namespace TowerDefense.UI
                 buildTimerObj.SetActive(false);
             if (startWaveButton != null)
                 SetButtonLabel(startWaveButton, "Start Wave");
-            if (exitRunButtonObj != null)
-                exitRunButtonObj.SetActive(false);
         }
 
         private void SetButtonLabel(Button button, string label)

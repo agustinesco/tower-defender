@@ -1027,6 +1027,15 @@ namespace TowerDefense.Core
             Debug.Log("Player exited run. All gathered resources banked.");
         }
 
+        public void AbandonRun()
+        {
+            if (gameOver) return;
+            gameOver = true;
+            UpgradeManager.Instance?.ResetForNewRun();
+            OnGameOver?.Invoke();
+            Debug.Log("Player abandoned run. No resources banked.");
+        }
+
         public void StartNextWave()
         {
             if (gameOver) return;
