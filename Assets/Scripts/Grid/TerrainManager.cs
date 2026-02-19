@@ -8,12 +8,12 @@ namespace TowerDefense.Grid
     {
         private const float GroundPlaneY = -0.5f;
         private const float TerrainHexY = -0.05f;
-        private const float GroundPlaneSize = 500f;
+        private const float GroundPlaneSize = 2000f;
         private const float PerlinScale = 0.15f;
 
         private static readonly Color BaseColor = new Color(0.18f, 0.22f, 0.12f);
         private static readonly Color UnbuildableColor = new Color(0.2f, 0.2f, 0.2f);
-        private static readonly Color GroundColor = new Color(0.12f, 0.10f, 0.08f);
+        private static readonly Color GroundColor = new Color(0.06f, 0.05f, 0.04f);
 
         private static readonly HexCoord Origin = new HexCoord(0, 0);
         private int maxPlacementDistance = -1;
